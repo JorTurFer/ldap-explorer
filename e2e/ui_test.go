@@ -680,3 +680,77 @@ func TestUISavedQueries(t *testing.T) {
 		t.Errorf("after delete: %v", got)
 	}
 }
+
+// ---------- navigation ----------
+
+// nodeHidden reports whether the tree node for dn is hidden by the quick filter.
+func nodeHidden(t *testing.T, ctx context.Context, dn string) bool {
+	t.Helper()
+	var hidden bool
+	js(t, ctx, fmt.Sprintf(`(() => { const n = document.querySelector('.node[title=%s]'); return !n || n.closest('li').classList.contains('hidden'); })()`, q(dn)), &hidden)
+	return hidden
+}
+
+func TestUINavigation(t *testing.T) {
+	l := slapdtest.Start(t)
+	appURL := startApp(t)
+	ctx := browser(t)
+	run(t, ctx, chromedp.Navigate(appURL), chromedp.WaitVisible("#btnConn"))
+	connect(t, ctx, l.URL, slapdtest.AliceDN, slapdtest.AlicePW)
+	waitText(t, ctx, "#status", "Connected to")
+	base := slapdtest.BaseDN
+	people, bulk := "ou=people,"+base, "ou=bulk,"+base
+
+	root := `.node[title="` + base + `"]`
+	run(t, ctx, chromedp.WaitVisible(root), chromedp.Click(root+" .tw"), chromedp.WaitVisible(`.node[title="`+people+`"]`))
+
+	// Quick filter: only matching nodes (and their ancestors) stay.
+	run(t, ctx, set("#treeFilter", "peop"), chromedp.Evaluate(`document.getElementById('treeFilter').dispatchEvent(new Event('input'))`, nil))
+	waitJS(t, ctx, "bulk hidden", `document.querySelector('.node[title="`+bulk+`"]').closest('li').classList.contains('hidden')`)
+	if nodeHidden(t, ctx, people) || nodeHidden(t, ctx, base) {
+		t.Error("the matching node and its ancestor must stay visible")
+	}
+	waitJS(t, ctx, "hint", `!document.getElementById('treeHint').classList.contains('hidden')`)
+	// Escape clears it.
+	run(t, ctx, chromedp.Focus("#treeFilter"), chromedp.SendKeys("#treeFilter", "\x1b"))
+	waitJS(t, ctx, "filter cleared", `document.getElementById('treeFilter').value === '' && !document.querySelector('.node[title="`+bulk+`"]').closest('li').classList.contains('hidden')`)
+
+	// Go to a DN typed in any case, in a branch that is not open yet: the tree opens it.
+	run(t, ctx, set("#treeFilter", strings.ToUpper(slapdtest.AliceDN)), chromedp.SendKeys("#treeFilter", "\r"))
+	waitText(t, ctx, "#pane-entry .dn", slapdtest.AliceDN)
+	waitJS(t, ctx, "alice selected in the tree", `document.querySelector('.node.sel') && document.querySelector('.node.sel').title === `+q(slapdtest.AliceDN))
+
+	// Breadcrumb: every ancestor in the DN is a link; the entry itself is not.
+	var crumbs []string
+	js(t, ctx, `[...document.querySelectorAll('#pane-entry .dn .crumb')].map(a => a.textContent)`, &crumbs)
+	if strings.Join(crumbs, "|") != "ou=people|dc=example|dc=org" {
+		t.Errorf("breadcrumb links: %v", crumbs)
+	}
+	run(t, ctx, chromedp.Click(`#pane-entry .dn .crumb`)) // ou=people
+	waitText(t, ctx, "#pane-entry .dn", "ou=people,"+base)
+	waitJS(t, ctx, "people selected", `document.querySelector('.node.sel').title === `+q(people))
+
+	// DN-valued attributes are links: a group's member opens that person.
+	admins := "cn=admins,ou=groups," + base
+	run(t, ctx, set("#treeFilter", admins), chromedp.SendKeys("#treeFilter", "\r"))
+	waitText(t, ctx, "#pane-entry .dn", admins)
+	waitJS(t, ctx, "member link", `!!document.querySelector('#pane-entry a.dnlink')`)
+	var link string
+	js(t, ctx, `document.querySelector('#pane-entry a.dnlink').textContent`, &link)
+	if link != slapdtest.AliceDN {
+		t.Errorf("member link text: %q", link)
+	}
+	run(t, ctx, chromedp.Click(`#pane-entry a.dnlink`))
+	waitText(t, ctx, "#pane-entry .dn", slapdtest.AliceDN)
+	waitJS(t, ctx, "alice selected after the link", `document.querySelector('.node.sel').title === `+q(slapdtest.AliceDN))
+	// ...and ordinary attributes are not links.
+	var plain bool
+	js(t, ctx, `![...document.querySelectorAll('#pane-entry table.attrs tr')].some(tr => tr.querySelector('td.k').textContent === 'mail' && tr.querySelector('a'))`, &plain)
+	if !plain {
+		t.Error("mail must not be a link")
+	}
+
+	// A DN that does not exist is reported, not ignored.
+	run(t, ctx, set("#treeFilter", "uid=nobody,"+people), chromedp.SendKeys("#treeFilter", "\r"))
+	waitText(t, ctx, "#pane-entry .err", "No Such Object")
+}

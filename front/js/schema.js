@@ -5,15 +5,16 @@ import { api } from "./api.js";
 import { on } from "./events.js";
 
 let loading = null; // Promise<index | null>
+let current = null; // the index once loaded, for code that cannot wait
 
-on("connected", () => { loading = null; });
-on("disconnected", () => { loading = null; });
+on("connected", () => { loading = null; current = null; });
+on("disconnected", () => { loading = null; current = null; });
 
 // Resolves to the schema index, or null when the server does not publish one
 // (the builder then works without suggestions).
 export function getSchema() {
   if (!loading) {
-    loading = api("/api/schema").then(buildIndex).catch(() => null);
+    loading = api("/api/schema").then(buildIndex).then((idx) => (current = idx)).catch(() => null);
   }
   return loading;
 }
@@ -32,3 +33,7 @@ function buildIndex(raw) {
 }
 
 export const attrInfo = (idx, name) => (idx ? idx.attrs.get((name || "").trim().toLowerCase()) || null : null);
+
+// Is this attribute's value a DN (member, manager, owner...)? Uses the schema loaded
+// so far; false while it is not available.
+export const isDNAttr = (name) => attrInfo(current, name)?.kind === "dn";

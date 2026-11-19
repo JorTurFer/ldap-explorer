@@ -18,7 +18,11 @@
   <span id="status" class="status">Not connected</span>
 </header>
 <main>
-  <nav id="tree"><div class="empty">Connect to a server to browse.</div></nav>
+  <nav id="treeBox">
+    <div class="treebar"><input type="text" id="treeFilter" placeholder="Filter the tree, or paste a DN and press Enter" disabled autocomplete="off" spellcheck="false"></div>
+    <div id="treeHint" class="muted small hidden">Only the nodes you have already opened are filtered. Use Search to look through the whole directory.</div>
+    <div id="tree"><div class="empty">Connect to a server to browse.</div></div>
+  </nav>
   <section id="right">
     <div class="tabs">
       <button data-tab="entry" class="on">Entry</button>
