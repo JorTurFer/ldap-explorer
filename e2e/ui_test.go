@@ -535,12 +535,22 @@ func TestUIRecipes(t *testing.T) {
 		t.Errorf("categories: %v", cats)
 	}
 
-	// A recipe this server cannot answer is shown greyed out, with the reason.
-	waitText(t, ctx, "#recipe-locked-accounts .reason", "nsAccountLock")
-	var disabled bool
-	js(t, ctx, `document.querySelector('#recipe-locked-accounts button.primary').disabled && document.getElementById('recipe-locked-accounts').classList.contains('unavailable')`, &disabled)
-	if !disabled {
-		t.Error("an unavailable recipe should be disabled")
+	// A recipe this server cannot answer is shown greyed out, with the reason. Which ones
+	// depend on the build (Homebrew's OpenLDAP 2.7 defines the ppolicy lock attribute), so
+	// look for any: "expired accounts" needs attributes no stock OpenLDAP schema has.
+	var unavailable struct {
+		Found    bool   `json:"found"`
+		Reason   string `json:"reason"`
+		Disabled bool   `json:"disabled"`
+	}
+	js(t, ctx, `(() => { const c = document.querySelector('#pane-recipes .recipe.unavailable');
+		if (!c) return { found: false, reason: '', disabled: false };
+		return { found: true, reason: c.querySelector('.reason').textContent, disabled: c.querySelector('button.primary').disabled }; })()`, &unavailable)
+	if !unavailable.Found {
+		t.Fatal("this server cannot answer every recipe: at least one should be greyed out")
+	}
+	if !strings.HasPrefix(unavailable.Reason, "Not available on this server: this server's schema has no ") || !unavailable.Disabled {
+		t.Errorf("unavailable recipe: reason %q, button disabled=%v", unavailable.Reason, unavailable.Disabled)
 	}
 
 	// Parameters are validated by the server and the message is shown on the card.
