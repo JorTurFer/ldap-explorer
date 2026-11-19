@@ -530,18 +530,10 @@ func without(s []string, v string) []string {
 
 // ---------- arranque ----------
 
-func main() {
-	port := flag.Int("port", 0, "puerto local (0 = aleatorio)")
-	noOpen := flag.Bool("no-open", false, "no abrir el navegador automáticamente")
-	idle := flag.Duration("idle-exit", 3*time.Minute, "salir si la UI deja de dar señales este tiempo (0 = nunca)")
-	flag.Parse()
-
-	tokBytes := make([]byte, 16)
-	if _, err := rand.Read(tokBytes); err != nil {
-		log.Fatal(err)
-	}
-	token := hex.EncodeToString(tokBytes)
-
+// newHandler construye el servidor HTTP: UI embebida en "/" y API bajo
+// /api/*, que exige la cabecera X-Token. lastPing se actualiza con cada
+// latido de la UI.
+func newHandler(token string, lastPing *atomic.Int64) http.Handler {
 	api := http.NewServeMux()
 	api.HandleFunc("/api/profiles", handleProfiles)
 	api.HandleFunc("POST /api/connect", handleConnect)
@@ -552,22 +544,10 @@ func main() {
 
 	// Latido: la UI hace ping periódicamente. Si se cierra la pestaña,
 	// el proceso termina solo (útil cuando se lanza como .app).
-	var lastPing atomic.Int64
 	api.HandleFunc("POST /api/ping", func(w http.ResponseWriter, _ *http.Request) {
 		lastPing.Store(time.Now().Unix())
 		writeJSON(w, map[string]bool{"ok": true})
 	})
-	if *idle > 0 {
-		go func() {
-			for range time.Tick(5 * time.Second) {
-				lp := lastPing.Load()
-				if lp != 0 && time.Since(time.Unix(lp, 0)) > *idle {
-					fmt.Println("UI cerrada, saliendo.")
-					os.Exit(0)
-				}
-			}
-		}()
-	}
 
 	root := http.NewServeMux()
 	root.Handle("/api/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -584,6 +564,34 @@ func main() {
 		w.Header().Set("Referrer-Policy", "no-referrer")
 		_, _ = w.Write(b)
 	})
+	return root
+}
+
+func main() {
+	port := flag.Int("port", 0, "puerto local (0 = aleatorio)")
+	noOpen := flag.Bool("no-open", false, "no abrir el navegador automáticamente")
+	idle := flag.Duration("idle-exit", 3*time.Minute, "salir si la UI deja de dar señales este tiempo (0 = nunca)")
+	flag.Parse()
+
+	tokBytes := make([]byte, 16)
+	if _, err := rand.Read(tokBytes); err != nil {
+		log.Fatal(err)
+	}
+	token := hex.EncodeToString(tokBytes)
+
+	var lastPing atomic.Int64
+	if *idle > 0 {
+		go func() {
+			for range time.Tick(5 * time.Second) {
+				lp := lastPing.Load()
+				if lp != 0 && time.Since(time.Unix(lp, 0)) > *idle {
+					fmt.Println("UI cerrada, saliendo.")
+					os.Exit(0)
+				}
+			}
+		}()
+	}
+	handler := newHandler(token, &lastPing)
 
 	ln, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", *port))
 	if err != nil {
@@ -606,6 +614,6 @@ func main() {
 			}
 		}()
 	}
-	srv := &http.Server{Handler: root, ReadHeaderTimeout: 10 * time.Second}
+	srv := &http.Server{Handler: handler, ReadHeaderTimeout: 10 * time.Second}
 	log.Fatal(srv.Serve(ln))
 }
