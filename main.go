@@ -128,6 +128,7 @@ type session struct {
 	profile Profile
 	schema  *schemaResponse                // cached for the life of the connection
 	attrs   map[string]ldapfilter.AttrInfo // lower-cased names and OIDs, built with the schema
+	classes map[string]bool                // lower-cased object class names and OIDs
 }
 
 var sess session
@@ -379,7 +380,7 @@ func handleConnect(w http.ResponseWriter, r *http.Request) {
 	if sess.conn != nil {
 		sess.conn.Close()
 	}
-	sess.conn, sess.profile, sess.schema, sess.attrs = c, p, nil, nil
+	sess.conn, sess.profile, sess.schema, sess.attrs, sess.classes = c, p, nil, nil, nil
 	sess.mu.Unlock()
 
 	writeJSON(w, map[string]any{"ok": true, "roots": contexts})
@@ -390,7 +391,7 @@ func handleDisconnect(w http.ResponseWriter, _ *http.Request) {
 	if sess.conn != nil {
 		sess.conn.Close()
 		sess.conn = nil
-		sess.schema, sess.attrs = nil, nil
+		sess.schema, sess.attrs, sess.classes = nil, nil, nil
 	}
 	sess.mu.Unlock()
 	writeJSON(w, map[string]bool{"ok": true})
@@ -566,6 +567,8 @@ func newHandler(token string, lastPing *atomic.Int64) http.Handler {
 	api.HandleFunc("GET /api/schema", handleSchema)
 	api.HandleFunc("GET /api/sample", handleSample)
 	api.HandleFunc("POST /api/filter", handleFilter)
+	api.HandleFunc("GET /api/recipes", handleRecipes)
+	api.HandleFunc("POST /api/recipes/{id}", handleRecipe)
 
 	// Heartbeat: the UI pings periodically. If the tab is closed, the process
 	// exits on its own (useful when launched as an .app).

@@ -3,7 +3,7 @@ import { api } from "./api.js";
 import { on } from "./events.js";
 import { showTab } from "./tabs.js";
 import { showResults } from "./results.js";
-import { resolveFilter } from "./builder.js";
+import { resolveFilter, setQuery } from "./builder.js";
 
 let mode = "builder"; // "builder" | "raw"
 
@@ -14,6 +14,8 @@ function setMode(m) {
   $("builderBox").classList.toggle("hidden", m !== "builder");
   $("rawBox").classList.toggle("hidden", m !== "raw");
 }
+
+const hideNote = () => $("sNote").classList.add("hidden");
 
 async function doSearch() {
   if ($("btnSearch").disabled) return;
@@ -40,8 +42,21 @@ export function initSearch() {
   $("modeBuilder").onclick = () => setMode("builder");
   $("modeRaw").onclick = () => setMode("raw");
   on("builder-to-raw", ({ filter }) => { $("sFilter").value = filter; setMode("raw"); });
-  on("run-search", doSearch);
-  $("btnSearch").onclick = doSearch;
+  on("run-search", () => { hideNote(); doSearch(); });
+  on("load-query", async (plan) => {
+    // A recipe or the explorer hands over a query: show it in the builder, run it.
+    if (plan.base) $("sBase").value = plan.base;
+    $("sScope").value = plan.scope || "sub";
+    $("sAttrs").value = plan.attrs || "";
+    await setQuery(plan.query);
+    setMode("builder");
+    const note = $("sNote");
+    note.textContent = plan.title + (plan.note ? " — " + plan.note : "");
+    note.classList.remove("hidden");
+    showTab("search");
+    doSearch();
+  });
+  $("btnSearch").onclick = () => { hideNote(); doSearch(); };
   for (const id of ["sBase", "sFilter", "sAttrs", "sLimit"])
-    $(id).addEventListener("keydown", (ev) => { if (ev.key === "Enter") doSearch(); });
+    $(id).addEventListener("keydown", (ev) => { if (ev.key === "Enter") { hideNote(); doSearch(); } });
 }

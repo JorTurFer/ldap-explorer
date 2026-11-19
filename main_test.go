@@ -266,6 +266,37 @@ func TestUIHasNoInlineCode(t *testing.T) {
 	})
 }
 
+// A tag that is opened and never closed silently reshapes the page (this once
+// swallowed a whole tab), so index.html must be balanced.
+func TestIndexHTMLIsBalanced(t *testing.T) {
+	b, err := os.ReadFile("front/index.html")
+	if err != nil {
+		t.Fatal(err)
+	}
+	void := map[string]bool{"meta": true, "link": true, "input": true, "br": true, "img": true, "hr": true}
+	tag := regexp.MustCompile(`(?s)<!--.*?-->|<(/?)([a-zA-Z][a-zA-Z0-9]*)\b[^>]*?(/?)>`)
+	var stack []string
+	for _, m := range tag.FindAllStringSubmatch(string(b), -1) {
+		if strings.HasPrefix(m[0], "<!--") {
+			continue
+		}
+		name := strings.ToLower(m[2])
+		switch {
+		case void[name] || m[3] == "/":
+		case m[1] == "/":
+			if len(stack) == 0 || stack[len(stack)-1] != name {
+				t.Fatalf("</%s> does not match the open tags %v", name, stack)
+			}
+			stack = stack[:len(stack)-1]
+		default:
+			stack = append(stack, name)
+		}
+	}
+	if len(stack) != 0 {
+		t.Errorf("unclosed tags in index.html: %v", stack)
+	}
+}
+
 // Every relative import and every asset referenced from index.html must exist.
 func TestUIReferencesResolve(t *testing.T) {
 	imp := regexp.MustCompile(`(?m)(?:from|import)\s*\(?\s*["'](\.{1,2}/[^"']+)["']`)

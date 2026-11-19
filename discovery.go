@@ -183,23 +183,40 @@ func loadSchema(c *ldap.Conn) (*schemaResponse, error) {
 // use. It is cached for the life of the connection (schemas are large and rarely
 // change), together with an index of attributes for the filter builder.
 func getSchema(c *ldap.Conn) (*schemaResponse, map[string]ldapfilter.AttrInfo, error) {
+	sc, idx, _, err := getSchemaFull(c)
+	return sc, idx, err
+}
+
+func getSchemaFull(c *ldap.Conn) (*schemaResponse, map[string]ldapfilter.AttrInfo, map[string]bool, error) {
 	sess.mu.Lock()
-	sc, idx := sess.schema, sess.attrs
+	sc, idx, classes := sess.schema, sess.attrs, sess.classes
 	sess.mu.Unlock()
 	if sc != nil {
-		return sc, idx, nil
+		return sc, idx, classes, nil
 	}
 	sc, err := loadSchema(c)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	idx = indexAttributes(sc)
+	classes = indexClasses(sc)
 	sess.mu.Lock()
 	if sess.conn == c { // the session may have been replaced meanwhile
-		sess.schema, sess.attrs = sc, idx
+		sess.schema, sess.attrs, sess.classes = sc, idx, classes
 	}
 	sess.mu.Unlock()
-	return sc, idx, nil
+	return sc, idx, classes, nil
+}
+
+func indexClasses(sc *schemaResponse) map[string]bool {
+	m := make(map[string]bool, len(sc.Classes)*2)
+	for _, c := range sc.Classes {
+		m[strings.ToLower(c.OID)] = true
+		for _, n := range c.Names {
+			m[strings.ToLower(n)] = true
+		}
+	}
+	return m
 }
 
 // indexAttributes maps every name and OID (lower-cased) to what the filter

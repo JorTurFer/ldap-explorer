@@ -8,6 +8,8 @@ import { initTree } from "./tree.js";
 import { initEntry } from "./entry.js";
 import { initSearch } from "./search.js";
 import { initBuilder } from "./builder.js";
+import { initRecipes } from "./recipes.js";
+import { initExplore } from "./explore.js";
 
 initTabs();
 initProfiles();
@@ -16,6 +18,8 @@ initTree();
 initEntry();
 initBuilder();
 initSearch();
+initRecipes();
+initExplore();
 
 loadProfiles();
 // Heartbeat: if the tab is closed the server notices and exits.

@@ -496,3 +496,112 @@ func TestUIQueryBuilder(t *testing.T) {
 	run(t, ctx, chromedp.Click("#bToRaw"))
 	waitJS(t, ctx, "text mode with the filter", `!document.getElementById('rawBox').classList.contains('hidden') && document.getElementById('sFilter').value.startsWith('(')`)
 }
+
+// ---------- recipes and explorer ----------
+
+func TestUIRecipes(t *testing.T) {
+	l := slapdtest.Start(t)
+	appURL := startApp(t)
+	ctx := browser(t)
+	run(t, ctx, chromedp.Navigate(appURL), chromedp.WaitVisible("#btnConn"))
+	connect(t, ctx, l.URL, slapdtest.AliceDN, slapdtest.AlicePW)
+	waitText(t, ctx, "#status", "Connected to")
+	run(t, ctx, chromedp.Click(`button[data-tab="recipes"]`), chromedp.WaitVisible("#recipe-find-person"))
+
+	// Grouped by category.
+	var cats []string
+	js(t, ctx, `[...document.querySelectorAll('#pane-recipes h3')].map(h => h.textContent)`, &cats)
+	if strings.Join(cats, ",") != "People,Groups,Accounts,Explore" {
+		t.Errorf("categories: %v", cats)
+	}
+
+	// A recipe this server cannot answer is shown greyed out, with the reason.
+	waitText(t, ctx, "#recipe-locked-accounts .reason", "nsAccountLock")
+	var disabled bool
+	js(t, ctx, `document.querySelector('#recipe-locked-accounts button.primary').disabled && document.getElementById('recipe-locked-accounts').classList.contains('unavailable')`, &disabled)
+	if !disabled {
+		t.Error("an unavailable recipe should be disabled")
+	}
+
+	// Parameters are validated by the server and the message is shown on the card.
+	run(t, ctx, chromedp.Click(`#recipe-find-person button.primary`))
+	waitText(t, ctx, "#recipe-find-person .err", "is required")
+
+	// Object class and attribute parameters suggest names from the schema.
+	var lists [2]string
+	js(t, ctx, `[document.querySelector('#recipe-by-class [data-param="class"]').getAttribute('list'),
+		document.querySelector('#recipe-with-attribute [data-param="attribute"]').getAttribute('list')]`, &lists)
+	if lists != [2]string{"classList", "attrList"} {
+		t.Errorf("suggestion lists: %v", lists)
+	}
+
+	// Use a recipe: it opens in the builder (so it can be tweaked) and runs.
+	run(t, ctx, set(`#recipe-find-person [data-param="text"]`, "ali"), chromedp.Click(`#recipe-find-person button.primary`))
+	waitJS(t, ctx, "search tab", `document.getElementById('pane-search').classList.contains('on')`)
+	waitText(t, ctx, "#sNote", "Find a person")
+	waitText(t, ctx, "#bFilter", "(|(cn=*ali*)")
+	waitText(t, ctx, "#sOut", "1 result(s)")
+	waitText(t, ctx, "#sOut", "uid=alice,")
+	var conditions int
+	js(t, ctx, `document.querySelectorAll('#builder .bcond').length`, &conditions)
+	if conditions < 4 {
+		t.Errorf("the recipe should fill the builder with its conditions, got %d rows", conditions)
+	}
+
+	// Running a search by hand clears the recipe note.
+	run(t, ctx, chromedp.Click("#btnSearch"))
+	waitJS(t, ctx, "note hidden", `document.getElementById('sNote').classList.contains('hidden')`)
+
+	// Groups of a user: the DN matches `member` and the login matches `memberUid`.
+	run(t, ctx, chromedp.Click(`button[data-tab="recipes"]`),
+		set(`#recipe-user-groups [data-param="dn"]`, slapdtest.AliceDN),
+		set(`#recipe-user-groups [data-param="uid"]`, "alice"),
+		chromedp.Click(`#recipe-user-groups button.primary`))
+	waitText(t, ctx, "#sOut", "2 result(s)")
+	waitText(t, ctx, "#sOut", "cn=admins,")
+	waitText(t, ctx, "#sOut", "cn=staff,")
+}
+
+func TestUIExplore(t *testing.T) {
+	l := slapdtest.Start(t)
+	appURL := startApp(t)
+	ctx := browser(t)
+	run(t, ctx, chromedp.Navigate(appURL), chromedp.WaitVisible("#btnConn"))
+	connect(t, ctx, l.URL, slapdtest.AliceDN, slapdtest.AlicePW)
+	waitText(t, ctx, "#status", "Connected to")
+	run(t, ctx, chromedp.Click(`button[data-tab="explore"]`), chromedp.WaitVisible("#xBase"))
+
+	var base string
+	js(t, ctx, `document.getElementById('xBase').value`, &base)
+	if base != slapdtest.BaseDN {
+		t.Errorf("the explorer should start at the first root, got %q", base)
+	}
+
+	people := "ou=people," + slapdtest.BaseDN
+	run(t, ctx, set("#xBase", people), set("#xScope", "one"), chromedp.Click("#btnExplore"))
+	waitText(t, ctx, "#xSummary", "Looked at 3 entries")
+	waitText(t, ctx, "#xList-class", "inetOrgPerson")
+	waitText(t, ctx, "#xList-class", "3 (100%)")
+	waitText(t, ctx, "#xList-attr", "mail")
+	waitText(t, ctx, "#xList-attr", "2 (67%)") // alice and bob have mail, zoe does not
+
+	// Click a kind of entry: it becomes a search and runs.
+	run(t, ctx, chromedp.Click(`#xList-class li:first-child a`))
+	waitJS(t, ctx, "search tab", `document.getElementById('pane-search').classList.contains('on')`)
+	waitText(t, ctx, "#sNote", "Entries of class inetOrgPerson")
+	waitText(t, ctx, "#bFilter", "(objectClass=inetOrgPerson)")
+	waitText(t, ctx, "#sOut", "3 result(s)")
+	var sbase string
+	js(t, ctx, `document.getElementById('sBase').value`, &sbase)
+	if sbase != people {
+		t.Errorf("the search should use the explored base, got %q", sbase)
+	}
+
+	// Selecting a node in the tree points the explorer at it.
+	run(t, ctx, chromedp.Click(`button[data-tab="explore"]`))
+	root := `.node[title="` + slapdtest.BaseDN + `"]`
+	run(t, ctx, chromedp.Click(root+" .tw"))
+	groups := `.node[title="ou=groups,` + slapdtest.BaseDN + `"]`
+	run(t, ctx, chromedp.WaitVisible(groups), chromedp.Click(groups))
+	waitJS(t, ctx, "explorer base follows the tree", `document.getElementById('xBase').value === `+q("ou=groups,"+slapdtest.BaseDN))
+}

@@ -23,9 +23,12 @@
     <div class="tabs">
       <button data-tab="entry" class="on">Entry</button>
       <button data-tab="search">Search</button>
+      <button data-tab="recipes">Recipes</button>
+      <button data-tab="explore">Explore</button>
     </div>
     <div id="pane-entry" class="pane on"><div class="empty">Select an entry in the tree.</div></div>
     <div id="pane-search" class="pane">
+      <div id="sNote" class="bnote hidden"></div>
       <div class="sform">
         <label>Base</label><input type="text" id="sBase" placeholder="dc=example,dc=com">
         <label>Filter</label>
@@ -55,6 +58,20 @@
         </div>
       </div>
       <div id="sOut"></div>
+    </div>
+    <div id="pane-recipes" class="pane"><div class="empty">Connect to a server to see the recipes.</div></div>
+    <div id="pane-explore" class="pane">
+      <div class="sform">
+        <label>Base</label><input type="text" id="xBase" placeholder="dc=example,dc=com">
+        <label>Scope</label>
+        <div class="row">
+          <select id="xScope"><option value="sub">subtree</option><option value="one">one level</option></select>
+          <label class="muted">Entries to look at</label><input type="text" id="xLimit" value="200" class="w80">
+          <button id="btnExplore" class="primary" disabled>Analyze</button>
+        </div>
+      </div>
+      <p class="muted">See what a branch contains: which kinds of entries and which attributes are in use. Click one to search for it.</p>
+      <div id="xOut"></div>
     </div>
   </section>
 </main>
