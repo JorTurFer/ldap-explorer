@@ -1,0 +1,54 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  # gofmt, go mod tidy, vet, tests contra OpenLDAP real (slapd) y smoke del binario.
+  # Todo dentro de hack/Dockerfile.test: lo mismo que `make test-docker` en local.
+  linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Construir imagen de tests
+        run: docker build -f hack/Dockerfile.test -t ldapnav-test .
+      - name: Ejecutar
+        run: docker run --rm ldapnav-test
+
+  # Llavero real (Keychain / Credential Manager), tests sin LDAP, binario y .app.
+  native:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    env:
+      CGO_ENABLED: "0"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Llavero real
+        run: go test -count=1 -v -run TestRealKeyring ./...
+        env:
+          LDAPNAV_TEST_REAL_KEYRING: "1"
+      - name: Resto de tests (sin slapd)
+        run: go test -count=1 ./...
+      - name: Compilar y smoke del binario
+        shell: bash
+        run: |
+          ext=""; [ "$RUNNER_OS" = "Windows" ] && ext=".exe"
+          go build -trimpath -ldflags="-s -w" -o "ldapnav$ext" .
+          hack/smoke.sh "./ldapnav$ext"
+      - name: make app y smoke del .app
+        if: runner.os == 'macOS'
+        run: |
+          make app
+          codesign --verify --deep --strict LDAPNav.app
+          hack/smoke.sh LDAPNav.app/Contents/MacOS/ldapnav
