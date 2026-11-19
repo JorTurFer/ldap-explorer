@@ -8,6 +8,11 @@ on:
 permissions:
   contents: read
 
+# The LDAP server is only a validation tool: what is under test is the app running
+# on each OS, against a real OpenLDAP reachable on 127.0.0.1. Docker is only an
+# option on Linux (macOS runners have no Docker engine and Windows runners only run
+# Windows containers), so macOS and Windows install a real slapd on the agent.
+
 jobs:
   # gofmt, go mod tidy, vet, tests against a real OpenLDAP (slapd) and binary smoke test.
   # All inside hack/Dockerfile.test: the same as `make test-docker` locally.
@@ -20,28 +25,53 @@ jobs:
       - name: Run
         run: docker run --rm ldapnav-test
 
-  # Real keychain (Keychain / Credential Manager), binary and .app. On macOS the whole
-  # suite also runs against a Homebrew OpenLDAP (Windows has no slapd: LDAP tests only run on Linux/macOS).
-  native:
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [macos-latest, windows-latest]
-    runs-on: ${{ matrix.os }}
+  # Homebrew OpenLDAP (slapd in libexec, slapadd in sbin).
+  macos:
+    runs-on: macos-latest
     env:
       CGO_ENABLED: "0"
+      LDAPNAV_SLAPD_DIR: /opt/homebrew/opt/openldap/libexec
+      LDAPNAV_REQUIRE_SLAPD: "1"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
-      - name: Install OpenLDAP (macOS)
-        if: runner.os == 'macOS'
+      - run: brew install openldap
+      - name: Real keychain
+        run: go test -count=1 -v -run TestRealKeyring ./...
+        env:
+          LDAPNAV_TEST_REAL_KEYRING: "1"
+      - name: Remaining tests
+        run: go test -count=1 ./...
+      - name: Build and smoke-test the binary
         run: |
-          brew install openldap
-          echo "LDAPNAV_SLAPD_DIR=$(brew --prefix openldap)/libexec" >> "$GITHUB_ENV"
-          # The integration tests must run here, not be skipped.
-          echo "LDAPNAV_REQUIRE_SLAPD=1" >> "$GITHUB_ENV"
+          go build -trimpath -ldflags="-s -w" -o ldapnav .
+          hack/smoke.sh ./ldapnav
+      - name: make app and smoke-test the .app
+        run: |
+          make app
+          codesign --verify --deep --strict LDAPNav.app
+          hack/smoke.sh LDAPNav.app/Contents/MacOS/ldapnav
+
+  # Ubuntu's slapd running in WSL1 (no nested virtualization needed). The test
+  # harness starts it as a child process and reaches it on 127.0.0.1.
+  windows:
+    runs-on: windows-latest
+    env:
+      CGO_ENABLED: "0"
+      LDAPNAV_SLAPD_WSL: Ubuntu-24.04
+      LDAPNAV_REQUIRE_SLAPD: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - uses: Vampire/setup-wsl@v6
+        with:
+          distribution: Ubuntu-24.04
+          wsl-version: 1
+          additional-packages: slapd ldap-utils
       - name: Real keychain
         run: go test -count=1 -v -run TestRealKeyring ./...
         env:
@@ -51,12 +81,5 @@ jobs:
       - name: Build and smoke-test the binary
         shell: bash
         run: |
-          ext=""; [ "$RUNNER_OS" = "Windows" ] && ext=".exe"
-          go build -trimpath -ldflags="-s -w" -o "ldapnav$ext" .
-          hack/smoke.sh "./ldapnav$ext"
-      - name: make app and smoke-test the .app
-        if: runner.os == 'macOS'
-        run: |
-          make app
-          codesign --verify --deep --strict LDAPNav.app
-          hack/smoke.sh LDAPNav.app/Contents/MacOS/ldapnav
+          go build -trimpath -ldflags="-s -w" -o ldapnav.exe .
+          hack/smoke.sh ./ldapnav.exe
