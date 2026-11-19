@@ -19,7 +19,16 @@ Navegador LDAP mínimo y de solo lectura. Es un binario Go único que sirve una 
 - Llavero: `go-keyring` en macOS sigue llamando a `/usr/bin/security` internamente y guarda con prefijo `go-keyring-base64:`; lee bien las contraseñas antiguas en texto plano. Sin probar en Windows/macOS reales.
 - hasSubordinates no existe en AD, así que todos los nodos muestran ▶.
 
+## Tests (qué validan y reglas)
+- `main_test.go`: API (403/200 con token), UI/CSP, perfiles sin contraseña en disco, formato servicio/cuenta del llavero (mock), invariantes de código (solo lectura, solo 127.0.0.1, sin recursos externos en `ui.html`) y compilación sin CGO para los 3 destinos.
+- `integration_test.go` + `slapd_test.go` + `testdata/seed.ldif`: contra un OpenLDAP real efímero (un único slapd compartido; la app es solo lectura). Incluye TLS/StartTLS, paginación (usuarios con `limits` en slapd.conf que solo ven >100 resultados paginando) y size limit del servidor.
+- `keyring_real_test.go`: llavero real; solo con `LDAPNAV_TEST_REAL_KEYRING=1` y en proceso aparte (`-run TestRealKeyring`), porque los demás tests usan `keyring.MockInit`, irreversible.
+- `hack/ci-test.sh` es lo que valida un PR; `hack/Dockerfile.test` lo ejecuta en un entorno reproducible (`make test-docker`); `hack/smoke.sh <binario>` prueba un binario compilado.
+- La CI (`.github/workflows/ci.yml`) usa `LDAPNAV_REQUIRE_SLAPD=1`: sin slapd falla en vez de saltarse. No añadir tests que se salten en silencio.
+- Todo cambio de comportamiento lleva test. `main()` solo cablea; la lógica HTTP está en `newHandler` para poder testearla con `httptest`.
+- Los tests no deben subir dependencias al binario más allá de las ya justificadas; el servidor LDAP de pruebas es el `slapd` del sistema, no una librería Go.
+
 ## Comandos
 - `go build -o ldapnav .` y `./ldapnav` (o `make build` / `make app` en macOS).
 - Windows: `go build -o ldapnav.exe .`
-- `go vet ./...` antes de dar algo por bueno.
+- `go vet ./...` y `make test` (o `make test-docker`) antes de dar algo por bueno.
