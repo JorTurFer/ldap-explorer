@@ -34,6 +34,7 @@ sn: Builder
 mail: bob@example.org
 telephoneNumber: +34 600 000 001
 telephoneNumber: +34 600 000 002
+description: =1+1
 userPassword: bobpw
 
 # cn with non-ASCII characters (Zoë Ñandú)

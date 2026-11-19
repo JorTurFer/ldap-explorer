@@ -45,6 +45,11 @@ jobs:
           LDAPNAV_TEST_REAL_KEYRING: "1"
       - name: Remaining tests
         run: go test -count=1 ./...
+      - name: JS unit tests
+        shell: bash
+        run: hack/jstest.sh
+        env:
+          LDAPNAV_REQUIRE_NODE: "1"
       - name: Browser tests
         working-directory: e2e
         run: go test -count=1 -v ./...
@@ -84,6 +89,11 @@ jobs:
           LDAPNAV_TEST_REAL_KEYRING: "1"
       - name: Remaining tests
         run: go test -count=1 ./...
+      - name: JS unit tests
+        shell: bash
+        run: hack/jstest.sh
+        env:
+          LDAPNAV_REQUIRE_NODE: "1"
       - name: Browser tests
         working-directory: e2e
         run: go test -count=1 -v ./...

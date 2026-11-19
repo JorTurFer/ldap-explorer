@@ -55,6 +55,14 @@ Open the **Search** tab:
 
 Press **Search** or Enter in any field. Results are collapsible; click **view** to open an entry in the Entry tab. A single result opens automatically.
 
+### Results: list, table and CSV
+
+Above the results there are two views, **List** and **Table**, and an **Export CSV** button. The chosen view is remembered for the next search.
+
+- **List**: one collapsible block per entry with all its attributes.
+- **Table**: one row per entry. The columns are the attributes you asked for, in your order; if you left the field empty (or used `*` / `+`), they are the attributes found in the results, most frequent first. Click a header to sort (natural order, so `u2` comes before `u10`; empty cells always go last) and click again to reverse. **Columns** lets you hide the ones you do not need. Click a DN to open the entry. The table draws at most 1000 rows; the CSV always has all of them.
+- **Export CSV** saves exactly what the table shows now (visible columns, current order) plus a `dn` column. The file is UTF-8 with a byte order mark, so Excel opens accents correctly. Multiple values of one attribute are joined with `; `. Cells that start with `=`, `@`, `+` or `-` are prefixed with an apostrophe so spreadsheets do not run them as formulas (a directory is untrusted input); phone numbers such as `+34 600 000 001` are left as they are.
+
 Results are paged internally (up to 500 per request). If the server (or the limit you set) stops the search early, you get the entries received plus a `⚠` warning, such as `Size Limit Exceeded`, instead of an error.
 
 ## 5. Passwords and the keychain
@@ -119,7 +127,7 @@ Tested against OpenLDAP 2.5, 2.6 and 2.7 only. Microsoft Active Directory and ot
 - **Client certificates** (mutual TLS) and **custom CA bundles**: server certificates are checked against the system trust store, or not at all with *Skip certificate verification*.
 - **Referrals** are not followed.
 - **Several connections or sessions at once**; a second browser tab shares the same connection.
-- **Exporting** results (LDIF, CSV, JSON), importing, saved searches or search history.
+- **LDIF or JSON export**, importing, saved searches or search history. (CSV export is supported.)
 - **Schema browsing**, ACL inspection, and decoding of binary attributes (no image preview, no GUID/SID formatting).
 - **Server-side sorting, virtual list view and other LDAP controls.**
 - **Proxy settings**: connections are direct.

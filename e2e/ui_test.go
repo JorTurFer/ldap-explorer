@@ -4,10 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
+	cdpbrowser "github.com/chromedp/cdproto/browser"
 	"github.com/chromedp/chromedp"
 	"ldapnav/internal/slapdtest"
 )
@@ -247,4 +250,122 @@ func TestUIProfiles(t *testing.T) {
 	// Delete it.
 	run(t, ctx, chromedp.Click("#btnDelProfile"))
 	waitJS(t, ctx, "profile gone", `![...document.querySelectorAll('#cProfile option')].some(o=>o.value==='lab')`)
+}
+
+// headers returns the text of the results table header cells.
+func headers(t *testing.T, ctx context.Context) []string {
+	t.Helper()
+	var h []string
+	js(t, ctx, `[...document.querySelectorAll('#sOut table.rtable thead th')].map(th => th.textContent)`, &h)
+	return h
+}
+
+// column returns the text of one column of the results table body (0 = DN).
+func column(t *testing.T, ctx context.Context, n int) []string {
+	t.Helper()
+	var c []string
+	js(t, ctx, fmt.Sprintf(`[...document.querySelectorAll('#sOut table.rtable tbody tr')].map(tr => tr.children[%d].textContent)`, n), &c)
+	return c
+}
+
+func TestUISearchTableAndCSV(t *testing.T) {
+	l := slapdtest.Start(t)
+	appURL := startApp(t)
+	ctx := browser(t)
+	downloads := t.TempDir()
+	run(t, ctx, chromedp.Navigate(appURL), chromedp.WaitVisible("#btnConn"),
+		cdpbrowser.SetDownloadBehavior(cdpbrowser.SetDownloadBehaviorBehaviorAllow).WithDownloadPath(downloads))
+
+	connect(t, ctx, l.URL, slapdtest.AliceDN, slapdtest.AlicePW)
+	waitText(t, ctx, "#status", "Connected to")
+
+	run(t, ctx, chromedp.Click(`button[data-tab="search"]`), chromedp.WaitVisible("#sBase"),
+		set("#sBase", "ou=people,"+slapdtest.BaseDN), set("#sScope", "one"),
+		set("#sFilter", "(objectClass=inetOrgPerson)"), set("#sAttrs", "uid, mail, description, telephoneNumber"),
+		chromedp.Click("#btnSearch"))
+	waitText(t, ctx, "#sOut", "3 result(s)")
+
+	// The list is the default view; the table keeps the requested columns in order.
+	waitJS(t, ctx, "list view", `document.querySelectorAll('#sOut details.result').length === 3`)
+	run(t, ctx, chromedp.Click("#viewTable"), chromedp.WaitVisible("#sOut table.rtable"))
+	if got, want := strings.Join(headers(t, ctx), "|"), "DN|uid|mail|description|telephoneNumber"; got != want {
+		t.Fatalf("headers: %q, want %q", got, want)
+	}
+	if rows := column(t, ctx, 1); len(rows) != 3 {
+		t.Fatalf("rows: %v", rows)
+	}
+
+	// Sorting: first click ascending, second descending, with the arrow shown.
+	run(t, ctx, chromedp.Click(`#sOut table.rtable thead th:nth-child(2)`))
+	if got := strings.Join(column(t, ctx, 1), ","); got != "alice,bob,zoe" {
+		t.Errorf("sorted ascending: %s", got)
+	}
+	run(t, ctx, chromedp.Click(`#sOut table.rtable thead th:nth-child(2)`))
+	if got := strings.Join(column(t, ctx, 1), ","); got != "zoe,bob,alice" {
+		t.Errorf("sorted descending: %s", got)
+	}
+	if got := headers(t, ctx)[1]; got != "uid ▼" {
+		t.Errorf("sort indicator: %q", got)
+	}
+
+	// Hide the mail column with the column chooser.
+	run(t, ctx, chromedp.Click("#colChooser summary"),
+		chromedp.Click(`#colChooser label:nth-child(2) input`)) // columns: uid, mail, description, telephoneNumber
+	if got, want := strings.Join(headers(t, ctx), "|"), "DN|uid ▼|description|telephoneNumber"; got != want {
+		t.Errorf("headers after hiding mail: %q, want %q", got, want)
+	}
+
+	// A DN opens the entry.
+	run(t, ctx, chromedp.Click(`#sOut table.rtable tbody tr:first-child td a`))
+	waitText(t, ctx, "#pane-entry .dn", "uid=zoe,")
+	run(t, ctx, chromedp.Click(`button[data-tab="search"]`))
+
+	// The view is remembered for the next search.
+	run(t, ctx, set("#sFilter", "(uid=bob)"), chromedp.Click("#btnSearch"))
+	waitText(t, ctx, "#sOut", "1 result(s)")
+	waitJS(t, ctx, "table view remembered", `!!document.querySelector('#sOut table.rtable')`)
+
+	// CSV export of the current columns and order.
+	run(t, ctx, set("#sFilter", "(objectClass=inetOrgPerson)"), chromedp.Click("#btnSearch"))
+	waitText(t, ctx, "#sOut", "3 result(s)")
+	// A new search starts with all requested columns and no sorting: click uid twice for descending.
+	run(t, ctx, chromedp.Click(`#sOut table.rtable thead th:nth-child(2)`),
+		chromedp.Click(`#sOut table.rtable thead th:nth-child(2)`))
+	run(t, ctx, chromedp.Click("#btnCsv"))
+
+	var file string
+	deadline := time.Now().Add(15 * time.Second)
+	for time.Now().Before(deadline) && file == "" {
+		matches, _ := filepath.Glob(filepath.Join(downloads, "ldapnav-*.csv"))
+		if len(matches) == 1 {
+			file = matches[0]
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	if file == "" {
+		t.Fatal("the CSV file was not downloaded")
+	}
+	raw, err := os.ReadFile(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	csv := string(raw)
+	if !strings.HasPrefix(csv, "\uFEFF") {
+		t.Error("the CSV should start with a UTF-8 BOM so Excel detects the encoding")
+	}
+	lines := strings.Split(strings.TrimSuffix(strings.TrimPrefix(csv, "\uFEFF"), "\r\n"), "\r\n")
+	// All four requested columns (the new search shows them again), sorted by uid descending.
+	if len(lines) != 4 {
+		t.Fatalf("CSV lines: %q", lines)
+	}
+	if want := "dn,uid,mail,description,telephoneNumber"; lines[0] != want {
+		t.Errorf("CSV header: %q, want %q", lines[0], want)
+	}
+	if !strings.HasPrefix(lines[1], `"uid=zoe,ou=people,`+slapdtest.BaseDN+`",zoe,`) {
+		t.Errorf("first CSV row should be zoe: %q", lines[1])
+	}
+	// bob: the formula in "description" is defused, both phone numbers are kept as is.
+	if want := `"uid=bob,ou=people,` + slapdtest.BaseDN + `",bob,bob@example.org,'=1+1,+34 600 000 001; +34 600 000 002`; lines[2] != want {
+		t.Errorf("bob's CSV row:\n got %q\nwant %q", lines[2], want)
+	}
 }

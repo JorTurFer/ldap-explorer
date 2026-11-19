@@ -23,6 +23,9 @@ CGO_ENABLED=0 go vet ./...
 echo "== go test (real OpenLDAP; no CGO)"
 CGO_ENABLED=0 LDAPNAV_REQUIRE_SLAPD=1 go test -count=1 -v ./...
 
+echo "== JS unit tests (node --test)"
+LDAPNAV_REQUIRE_NODE=1 hack/jstest.sh
+
 echo "== browser tests (real Chrome + real ldapnav + real OpenLDAP)"
 (cd e2e && CGO_ENABLED=0 go vet ./... && LDAPNAV_REQUIRE_CHROME=1 LDAPNAV_REQUIRE_SLAPD=1 go test -count=1 -v ./...)
 

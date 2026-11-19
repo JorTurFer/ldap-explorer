@@ -2,7 +2,7 @@ import { $, el } from "./dom.js";
 import { api } from "./api.js";
 import { on } from "./events.js";
 import { showTab } from "./tabs.js";
-import { attrTable, showEntry } from "./entry.js";
+import { showResults } from "./results.js";
 
 async function doSearch() {
   if ($("btnSearch").disabled) return;
@@ -14,14 +14,7 @@ async function doSearch() {
       base: $("sBase").value.trim(), filter: $("sFilter").value.trim(), scope: $("sScope").value,
       attrs: $("sAttrs").value, limit: parseInt($("sLimit").value, 10) || 500 } });
     const ms = Math.round(performance.now() - t0);
-    const items = res.entries.map(e => el("details", { class: "result" },
-      el("summary", {}, e.dn, el("a", { class: "jump", textContent: "view", onclick: (ev) => { ev.preventDefault(); showEntry(e.dn); } })),
-      el("div", { class: "body" }, attrTable(e.attrs))));
-    out.replaceChildren(
-      el("div", { class: "muted mt12", textContent: `${res.entries.length} result(s) in ${ms} ms` }),
-      ...(res.warning ? [el("div", { class: "warn", textContent: "⚠ " + res.warning })] : []),
-      ...items);
-    if (items.length === 1) items[0].open = true;
+    showResults(out, res, $("sAttrs").value, ms);
   } catch (e) { out.replaceChildren(el("div", { class: "err mt12", textContent: e.message })); }
 }
 

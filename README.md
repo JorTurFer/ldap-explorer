@@ -57,6 +57,8 @@ good/bad/anonymous bind, TLS and StartTLS, tree, entry view, searches, paging an
 unless `LDAPNAV_REQUIRE_SLAPD=1` (CI sets it, so a missing server fails the run). To install it:
 `apt install slapd ldap-utils` (Debian/Ubuntu) or `brew install openldap` (macOS; the OpenLDAP bundled with macOS has no mdb backend and is not used).
 
+The JavaScript logic that needs no DOM (`front/js/table.js`: columns, sorting, CSV with spreadsheet-formula protection) has unit tests run by `node --test` (`hack/jstest.sh`; Node is only dev tooling, never shipped).
+
 The browser tests (`e2e/`, a separate Go module so the app's `go.mod` stays free of the browser-automation dependency)
 build the real binary, start it next to the same ephemeral OpenLDAP and drive its web UI in a headless Chrome
 ([chromedp](https://github.com/chromedp/chromedp)): connect, browse the tree, view entries, search, error messages and profiles.
