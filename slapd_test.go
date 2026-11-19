@@ -53,7 +53,7 @@ func findBin(name string) string {
 	if p, err := exec.LookPath(name); err == nil {
 		cands = append(cands, p)
 	}
-	for _, d := range []string{"/usr/sbin", "/usr/libexec", "/usr/lib/openldap", "/opt/homebrew/opt/openldap/libexec", "/usr/local/opt/openldap/libexec"} {
+	for _, d := range []string{"/usr/sbin", "/usr/lib/openldap", "/opt/homebrew/opt/openldap/libexec", "/usr/local/opt/openldap/libexec"} {
 		cands = append(cands, filepath.Join(d, name))
 	}
 	for _, c := range cands {
@@ -240,6 +240,11 @@ limits dn.exact="%s" size.soft=100 size.hard=100 size.pr=500 size.prtotal=unlimi
 	}
 	// -q: quick mode (no sync on every entry).
 	if out, err := exec.Command(slapadd, "-q", "-f", confPath, "-l", ldifPath).CombinedOutput(); err != nil {
+		if strings.Contains(string(out), "Unrecognized database type (mdb)") {
+			// e.g. the OpenLDAP bundled with macOS has no mdb backend.
+			stop()
+			return nil, func() {}, slapd + " does not support the mdb backend (install a full OpenLDAP, e.g. brew install openldap)", nil
+		}
 		return fail(fmt.Errorf("slapadd: %v\n%s", err, out))
 	}
 
