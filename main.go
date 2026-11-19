@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"github.com/go-ldap/ldap/v3"
+	"github.com/zalando/go-keyring"
 )
 
 //go:embed ui.html
@@ -79,31 +80,26 @@ func saveProfiles(ps []Profile) error {
 	return os.WriteFile(p, b, 0o600)
 }
 
-// ---------- llavero de macOS (vía /usr/bin/security) ----------
+// ---------- llavero del sistema (go-keyring) ----------
+// macOS: Keychain; Windows: Credential Manager; Linux: Secret Service.
 
 const keychainService = "ldapnav"
 
 func keychainAccount(p Profile) string { return p.BindDN + "@" + p.URL }
 
 func keychainGet(p Profile) (string, error) {
-	if runtime.GOOS != "darwin" {
-		return "", errors.New("llavero solo disponible en macOS")
-	}
-	out, err := exec.Command("/usr/bin/security", "find-generic-password",
-		"-s", keychainService, "-a", keychainAccount(p), "-w").Output()
+	pw, err := keyring.Get(keychainService, keychainAccount(p))
 	if err != nil {
-		return "", errors.New("no hay contraseña en el llavero para este perfil")
+		if errors.Is(err, keyring.ErrNotFound) {
+			return "", errors.New("no hay contraseña en el llavero para este perfil")
+		}
+		return "", fmt.Errorf("llavero: %w", err)
 	}
-	return strings.TrimRight(string(out), "\n"), nil
+	return pw, nil
 }
 
 func keychainSet(p Profile, pw string) error {
-	if runtime.GOOS != "darwin" {
-		return errors.New("llavero solo disponible en macOS")
-	}
-	// -U actualiza si ya existe.
-	return exec.Command("/usr/bin/security", "add-generic-password", "-U",
-		"-s", keychainService, "-a", keychainAccount(p), "-w", pw).Run()
+	return keyring.Set(keychainService, keychainAccount(p), pw)
 }
 
 // ---------- sesión LDAP ----------

@@ -1,12 +1,12 @@
 # ldapnav
 
-Navegador LDAP mínimo y de solo lectura para macOS (arm64 nativo). Es un binario Go que sirve la UI en `127.0.0.1` y abre tu navegador.
+Navegador LDAP mínimo y de solo lectura (macOS y Windows). Es un binario Go que sirve la UI en `127.0.0.1` y abre tu navegador.
 
 - Árbol navegable (doble clic o ▶ para expandir, clic para ver los atributos)
 - Búsquedas con base, filtro, ámbito, atributos y límite (paginadas)
 - Atributos operacionales opcionales; los binarios se muestran como resumen hex
 - Perfiles guardados en `~/Library/Application Support/ldapnav/profiles.json` (sin contraseña)
-- Contraseña opcional en el llavero de macOS (`security`, servicio `ldapnav`)
+- Contraseña opcional en el llavero del sistema (Keychain en macOS, Credential Manager en Windows, Secret Service en Linux) vía `go-keyring`; servicio `ldapnav`, cuenta `bindDN@url`
 - `ldap://`, `ldaps://` y StartTLS; base DN autodetectada del RootDSE
 
 ## Compilar
