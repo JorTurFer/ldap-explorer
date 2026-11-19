@@ -1,15 +1,15 @@
-# ldapnav
+# ldap-explorer
 
 A minimal, read-only LDAP browser for macOS and Windows. A single Go binary that serves the UI on `127.0.0.1` and opens your browser.
 
-![ldapnav browsing a directory](docs/img/browse.png)
+![ldap-explorer browsing a directory](docs/img/browse.png)
 
 - Browsable tree (double-click or ▶ to expand, click to view attributes), with a quick filter, "go to DN", links on DN-valued attributes and a breadcrumb
 - **Assisted searches, no LDAP knowledge needed**: a visual query builder (attribute suggestions from the server's schema, operators and inputs that fit each attribute, live filter preview with a plain-language explanation), ready-made recipes adapted to the server ("find a person", "members of a group", "locked accounts"...), and an explorer that shows what a branch contains
 - Searches with base, filter (builder or text), scope, attributes and limit (paged); results as a list or a sortable table with CSV export; saved queries per profile
 - Optional operational attributes; binary values are shown as a hex summary
-- Profiles saved in `~/Library/Application Support/ldapnav/profiles.json` on macOS (no password); the equivalent user config directory on other systems
-- Optional password in the system keychain (Keychain on macOS, Credential Manager on Windows, Secret Service on Linux) via `go-keyring`; service `ldapnav`, account `bindDN@url`
+- Profiles saved in `~/Library/Application Support/ldap-explorer/profiles.json` on macOS (no password); the equivalent user config directory on other systems
+- Optional password in the system keychain (Keychain on macOS, Credential Manager on Windows, Secret Service on Linux) via `go-keyring`; service `ldap-explorer`, account `bindDN@url`
 - `ldap://`, `ldaps://` and StartTLS; base DN auto-detected from the RootDSE
 
 See the [user manual](docs/USAGE.md) for how to use it and exactly what is and is not supported.
@@ -19,13 +19,13 @@ See the [user manual](docs/USAGE.md) for how to use it and exactly what is and i
 Requires Go ≥ 1.27. No CGO needed.
 
 ```sh
-make build        # ./ldapnav binary
-./ldapnav         # opens the browser
+make build        # ./ldap-explorer binary
+./ldap-explorer         # opens the browser
 
-make app          # LDAPNav.app (ad-hoc signed), drag it to /Applications
+make app          # LDAPExplorer.app (ad-hoc signed), drag it to /Applications
 ```
 
-On Windows: `go build -o ldapnav.exe .`
+On Windows: `go build -o ldap-explorer.exe .`
 
 When you build it on your own machine the binary has no quarantine attribute, so Gatekeeper does not complain.
 
@@ -55,9 +55,9 @@ The integration tests start an ephemeral `slapd` (OpenLDAP) loaded with `interna
 plus 600 generated entries, on `ldap://` and `ldaps://` (self-signed certificate), and exercise the real API:
 good/bad/anonymous bind, TLS and StartTLS, tree, entry view, searches, paging and server limits.
 `slapd` is only a validation tool; what is under test is the app running on each OS. It is looked up in
-`LDAPNAV_SLAPD_DIR`, in `PATH` and in common locations (apt, Homebrew…), or run inside WSL with
-`LDAPNAV_SLAPD_WSL=<distro>` (Debian/Ubuntu layout). If no `slapd` is available the tests are skipped,
-unless `LDAPNAV_REQUIRE_SLAPD=1` (CI sets it, so a missing server fails the run). To install it:
+`LDAP_EXPLORER_SLAPD_DIR`, in `PATH` and in common locations (apt, Homebrew…), or run inside WSL with
+`LDAP_EXPLORER_SLAPD_WSL=<distro>` (Debian/Ubuntu layout). If no `slapd` is available the tests are skipped,
+unless `LDAP_EXPLORER_REQUIRE_SLAPD=1` (CI sets it, so a missing server fails the run). To install it:
 `apt install slapd ldap-utils` (Debian/Ubuntu) or `brew install openldap` (macOS; the OpenLDAP bundled with macOS has no mdb backend and is not used).
 
 The JavaScript logic that needs no DOM (`front/js/table.js`: columns, sorting, CSV with spreadsheet-formula protection) has unit tests run by `node --test` (`hack/jstest.sh`; Node is only dev tooling, never shipped).
@@ -66,10 +66,10 @@ The browser tests (`e2e/`, a separate Go module so the app's `go.mod` stays free
 build the real binary, start it next to the same ephemeral OpenLDAP and drive its web UI in a headless Chrome
 ([chromedp](https://github.com/chromedp/chromedp)): connect, browse the tree, view entries, search, error messages and profiles.
 Any JavaScript exception or console error fails the test. They need Chrome or Chromium installed; without it they are skipped,
-unless `LDAPNAV_REQUIRE_CHROME=1`.
+unless `LDAP_EXPLORER_REQUIRE_CHROME=1`.
 
 The real-keychain tests (Keychain / Credential Manager) only run with
-`LDAPNAV_TEST_REAL_KEYRING=1 go test -run TestRealKeyring ./...`; they use temporary accounts under the `ldapnav` service and delete them afterwards.
+`LDAP_EXPLORER_TEST_REAL_KEYRING=1 go test -run TestRealKeyring ./...`; they use temporary accounts under the `ldap-explorer` service and delete them afterwards.
 
 ### CI
 
@@ -77,6 +77,10 @@ The real-keychain tests (Keychain / Credential Manager) only run with
 Three independent jobs; every one runs the whole suite (LDAP integration tests and browser tests included) against a real OpenLDAP, with no skips:
 - **linux**: `hack/Dockerfile.test` (Go, OpenLDAP and Chromium) → gofmt, `go mod tidy` with no changes (both modules), `go vet`, tests, browser tests and a binary smoke test.
 - **macos**: Homebrew OpenLDAP; real Keychain tests (including an end-to-end one: password in the Keychain, connect without typing it), build + smoke test, and `make app` + `codesign --verify` + `.app` smoke test.
-- **windows**: Ubuntu's `slapd` in WSL1; real Credential Manager tests (same end-to-end one), build + smoke test of `ldapnav.exe`.
+- **windows**: Ubuntu's `slapd` in WSL1; real Credential Manager tests (same end-to-end one), build + smoke test of `ldap-explorer.exe`.
 
 Docker is only an option on Linux: macOS runners have no Docker engine and Windows runners only run Windows containers.
+
+## Upgrading from ldapnav
+
+The project used to be called ldapnav. Nothing is lost when you upgrade: the configuration folder (`profiles.json`, `queries.json`) is moved to the new `ldap-explorer` folder the first time the new version starts, and passwords saved in the system keychain under the old service name `ldapnav` are still read (and copied to the new `ldap-explorer` service). The old entries are never deleted.

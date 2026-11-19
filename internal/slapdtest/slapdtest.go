@@ -7,15 +7,15 @@ package slapdtest
 // The LDAP server is only a validation tool; what is under test is the app
 // running on the current OS. slapd can therefore run anywhere reachable on
 // 127.0.0.1:
-//   - locally: found via LDAPNAV_SLAPD_DIR, PATH or common locations (Linux apt,
+//   - locally: found via LDAP_EXPLORER_SLAPD_DIR, PATH or common locations (Linux apt,
 //     macOS Homebrew);
-//   - in WSL: LDAPNAV_SLAPD_WSL=<distro> runs the distro's slapd (Debian/Ubuntu
+//   - in WSL: LDAP_EXPLORER_SLAPD_WSL=<distro> runs the distro's slapd (Debian/Ubuntu
 //     layout) as a child of the test process. This is how Windows gets a real
 //     OpenLDAP (there is no maintained native Windows slapd, and Windows runners
 //     only run Windows containers).
 //
 // If no slapd is available the tests that need it are skipped (t.Skip), unless
-// LDAPNAV_REQUIRE_SLAPD=1 (CI): then they fail. A single slapd is started per
+// LDAP_EXPLORER_REQUIRE_SLAPD=1 (CI): then they fail. A single slapd is started per
 // test run and shared (the app is read-only). See the README.
 
 import (
@@ -63,7 +63,7 @@ type Server struct {
 
 func findBin(name string) string {
 	var cands []string
-	if d := os.Getenv("LDAPNAV_SLAPD_DIR"); d != "" {
+	if d := os.Getenv("LDAP_EXPLORER_SLAPD_DIR"); d != "" {
 		cands = append(cands, filepath.Join(d, name))
 	}
 	if p, err := exec.LookPath(name); err == nil {
@@ -160,8 +160,8 @@ func Start(t testing.TB) *Server {
 		t.Fatalf("could not start slapd: %v", slapdErr)
 	}
 	if slapdSkip != "" {
-		if os.Getenv("LDAPNAV_REQUIRE_SLAPD") == "1" {
-			t.Fatalf("LDAPNAV_REQUIRE_SLAPD=1 but: %s", slapdSkip)
+		if os.Getenv("LDAP_EXPLORER_REQUIRE_SLAPD") == "1" {
+			t.Fatalf("LDAP_EXPLORER_REQUIRE_SLAPD=1 but: %s", slapdSkip)
 		}
 		t.Skip(slapdSkip + "; skipping the integration test")
 	}
@@ -215,7 +215,7 @@ func (h *slapdHost) mkdir(rel string) (string, error) {
 
 func launchSlapd() (l *Server, stop func(), skip string, err error) {
 	stop = func() {}
-	h := &slapdHost{wsl: os.Getenv("LDAPNAV_SLAPD_WSL")}
+	h := &slapdHost{wsl: os.Getenv("LDAP_EXPLORER_SLAPD_WSL")}
 	var slapd, slapadd, schemaDir, modDir string
 	if h.wsl != "" {
 		// Debian/Ubuntu layout inside the distro.
@@ -232,7 +232,7 @@ func launchSlapd() (l *Server, stop func(), skip string, err error) {
 			}
 		}
 		if slapd == "" || slapadd == "" {
-			return nil, stop, "slapd/slapadd not found (install OpenLDAP or set LDAPNAV_SLAPD_DIR / LDAPNAV_SLAPD_WSL)", nil
+			return nil, stop, "slapd/slapadd not found (install OpenLDAP or set LDAP_EXPLORER_SLAPD_DIR / LDAP_EXPLORER_SLAPD_WSL)", nil
 		}
 		root := filepath.Dir(filepath.Dir(slapd)) // .../usr/sbin/slapd -> .../usr
 		schemaDir = firstDir(filepath.Join(root, "etc/ldap/schema"), filepath.Join(root, "../etc/ldap/schema"),
@@ -250,14 +250,14 @@ func launchSlapd() (l *Server, stop func(), skip string, err error) {
 	}
 
 	// Local dir: slapd log (and, when running locally, the whole work dir).
-	localDir, err := os.MkdirTemp("", "ldapnav-slapd-")
+	localDir, err := os.MkdirTemp("", "ldap-explorer-slapd-")
 	if err != nil {
 		return nil, stop, "", err
 	}
 	if h.wsl == "" {
 		h.dir = localDir
 	} else {
-		out, err := h.command("mktemp", "-d", "/tmp/ldapnav-slapd-XXXXXX").Output()
+		out, err := h.command("mktemp", "-d", "/tmp/ldap-explorer-slapd-XXXXXX").Output()
 		if err != nil {
 			_ = os.RemoveAll(localDir)
 			return nil, stop, "", fmt.Errorf("mktemp in WSL: %w", err)

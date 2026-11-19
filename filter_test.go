@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"ldapnav/internal/ldapfilter"
-	"ldapnav/internal/slapdtest"
+	"ldap-explorer/internal/ldapfilter"
+	"ldap-explorer/internal/slapdtest"
 )
 
 // The query builder's filters are built by the API and then RUN against a real

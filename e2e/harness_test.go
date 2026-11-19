@@ -17,19 +17,19 @@ import (
 	"github.com/chromedp/cdproto/log"
 	cdpruntime "github.com/chromedp/cdproto/runtime"
 	"github.com/chromedp/chromedp"
-	"ldapnav/internal/slapdtest"
+	"ldap-explorer/internal/slapdtest"
 )
 
 var binPath string
 
-// TestMain builds the real ldapnav binary once and stops the shared slapd at the end.
+// TestMain builds the real ldap-explorer binary once and stops the shared slapd at the end.
 func TestMain(m *testing.M) {
-	dir, err := os.MkdirTemp("", "ldapnav-e2e-")
+	dir, err := os.MkdirTemp("", "ldap-explorer-e2e-")
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
-	binPath = filepath.Join(dir, "ldapnav")
+	binPath = filepath.Join(dir, "ldap-explorer")
 	if runtime.GOOS == "windows" {
 		binPath += ".exe"
 	}
@@ -37,7 +37,7 @@ func TestMain(m *testing.M) {
 	build.Dir = ".."
 	build.Env = append(os.Environ(), "CGO_ENABLED=0")
 	if out, err := build.CombinedOutput(); err != nil {
-		fmt.Fprintf(os.Stderr, "building ldapnav: %v\n%s", err, out)
+		fmt.Fprintf(os.Stderr, "building ldap-explorer: %v\n%s", err, out)
 		os.Exit(1)
 	}
 	code := m.Run()
@@ -79,7 +79,7 @@ func startApp(t *testing.T) string {
 	case u := <-found:
 		return u
 	case <-time.After(15 * time.Second):
-		t.Fatal("ldapnav did not print its URL")
+		t.Fatal("ldap-explorer did not print its URL")
 		return ""
 	}
 }
@@ -89,7 +89,7 @@ var chromeErr error
 
 // browser starts a headless Chrome tab. Any JavaScript exception, console error
 // or CSP violation fails the test. The test is skipped if Chrome is missing,
-// unless LDAPNAV_REQUIRE_CHROME=1 (CI).
+// unless LDAP_EXPLORER_REQUIRE_CHROME=1 (CI).
 func browser(t *testing.T) context.Context {
 	t.Helper()
 	opts := append(chromedp.DefaultExecAllocatorOptions[:],
@@ -106,8 +106,8 @@ func browser(t *testing.T) context.Context {
 	t.Cleanup(func() { cancelTimeout(); cancelCtx(); cancelAlloc() })
 
 	if err := chromedp.Run(ctx); err != nil {
-		if os.Getenv("LDAPNAV_REQUIRE_CHROME") == "1" {
-			t.Fatalf("LDAPNAV_REQUIRE_CHROME=1 but Chrome could not start: %v", err)
+		if os.Getenv("LDAP_EXPLORER_REQUIRE_CHROME") == "1" {
+			t.Fatalf("LDAP_EXPLORER_REQUIRE_CHROME=1 but Chrome could not start: %v", err)
 		}
 		t.Skipf("Chrome not available: %v", err)
 	}

@@ -1,18 +1,18 @@
 package main
 
 // Tests against the system's REAL keychain (macOS Keychain, Windows
-// Credential Manager). They only run with LDAPNAV_TEST_REAL_KEYRING=1 and in a
+// Credential Manager). They only run with LDAP_EXPLORER_TEST_REAL_KEYRING=1 and in a
 // separate process from the other tests (the others use keyring.MockInit, which
 // cannot be undone):
 //
-//	LDAPNAV_TEST_REAL_KEYRING=1 go test -run TestRealKeyring ./...
+//	LDAP_EXPLORER_TEST_REAL_KEYRING=1 go test -run TestRealKeyring ./...
 //
-// They use unique accounts under the "ldapnav" service and delete them when done.
+// They use unique accounts under the "ldap-explorer" service and delete them when done.
 
 import (
 	"crypto/rand"
 	"encoding/hex"
-	"ldapnav/internal/slapdtest"
+	"ldap-explorer/internal/slapdtest"
 	"net/url"
 	"os"
 	"os/exec"
@@ -25,8 +25,8 @@ import (
 
 func realKeyringProfile(t *testing.T) Profile {
 	t.Helper()
-	if os.Getenv("LDAPNAV_TEST_REAL_KEYRING") != "1" {
-		t.Skip("LDAPNAV_TEST_REAL_KEYRING != 1")
+	if os.Getenv("LDAP_EXPLORER_TEST_REAL_KEYRING") != "1" {
+		t.Skip("LDAP_EXPLORER_TEST_REAL_KEYRING != 1")
 	}
 	if keyringMocked {
 		t.Fatal("the keychain has already been replaced by the mock: run these tests with -run TestRealKeyring")
@@ -35,9 +35,12 @@ func realKeyringProfile(t *testing.T) Profile {
 	_, _ = rand.Read(b)
 	p := Profile{
 		URL:    "ldaps://ldap.example.test:636",
-		BindDN: "cn=ldapnav-ci-" + hex.EncodeToString(b) + ",ou=Ñandú,dc=example,dc=org",
+		BindDN: "cn=ldap-explorer-ci-" + hex.EncodeToString(b) + ",ou=Ñandú,dc=example,dc=org",
 	}
-	t.Cleanup(func() { _ = keyring.Delete(keychainService, keychainAccount(p)) })
+	t.Cleanup(func() {
+		_ = keyring.Delete(keychainService, keychainAccount(p))
+		_ = keyring.Delete(legacyKeychainService, keychainAccount(p))
+	})
 	return p
 }
 
@@ -65,8 +68,9 @@ func TestRealKeyringRoundTrip(t *testing.T) {
 	}
 }
 
-// On macOS, a password stored the way the previous version did it
-// (security add-generic-password -w, plain text) must still be readable.
+// On macOS, a password stored the way the previous version did it (security
+// add-generic-password -w, plain text, under the old service name ldapnav) must
+// still be readable.
 //
 // Known limitation, not a regression: `security find-generic-password -w`
 // prints non-ASCII values hex-encoded, and the previous version read entries
@@ -83,7 +87,7 @@ func TestRealKeyringLegacyMacOSEntries(t *testing.T) {
 			continue // see the known limitation above
 		}
 		out, err := exec.Command("/usr/bin/security", "add-generic-password", "-U",
-			"-s", keychainService, "-a", keychainAccount(p), "-w", pw).CombinedOutput()
+			"-s", legacyKeychainService, "-a", keychainAccount(p), "-w", pw).CombinedOutput()
 		if err != nil {
 			t.Fatalf("security add: %v\n%s", err, out)
 		}

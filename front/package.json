@@ -1,5 +1,5 @@
 {
-  "name": "ldapnav-front",
+  "name": "ldap-explorer-front",
   "private": true,
   "type": "module",
   "description": "Only here so Node runs the ES modules in js/ for unit tests (node --test). No dependencies, never shipped."

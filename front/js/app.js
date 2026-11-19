@@ -25,5 +25,5 @@ initSavedQueries();
 
 loadProfiles();
 // Heartbeat: if the tab is closed the server notices and exits.
-const ping = () => api("/api/ping", { method: "POST" }).catch(() => setStatus("The ldapnav process is not responding", true));
+const ping = () => api("/api/ping", { method: "POST" }).catch(() => setStatus("The ldap-explorer process is not responding", true));
 ping(); setInterval(ping, 10000);

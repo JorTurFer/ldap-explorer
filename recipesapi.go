@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"ldapnav/internal/recipes"
+	"ldap-explorer/internal/recipes"
 )
 
 func recipeEnv() (*recipes.Env, error) {

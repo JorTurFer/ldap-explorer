@@ -1,4 +1,4 @@
-// Package e2e holds the browser tests: a real Chrome drives the real ldapnav
+// Package e2e holds the browser tests: a real Chrome drives the real ldap-explorer
 // binary against a real OpenLDAP. It is a separate module so that the app's
 // go.mod does not carry the browser-automation dependency.
 package e2e

@@ -22,17 +22,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Build the test image
-        run: docker build -f hack/Dockerfile.test -t ldapnav-test .
+        run: docker build -f hack/Dockerfile.test -t ldap-explorer-test .
       - name: Run
-        run: docker run --rm ldapnav-test
+        run: docker run --rm ldap-explorer-test
 
   # Homebrew OpenLDAP (slapd in libexec, slapadd in sbin); Chrome is preinstalled.
   macos:
     runs-on: macos-latest
     env:
       CGO_ENABLED: "0"
-      LDAPNAV_SLAPD_DIR: /opt/homebrew/opt/openldap/libexec
-      LDAPNAV_REQUIRE_SLAPD: "1"
+      LDAP_EXPLORER_SLAPD_DIR: /opt/homebrew/opt/openldap/libexec
+      LDAP_EXPLORER_REQUIRE_SLAPD: "1"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -42,28 +42,28 @@ jobs:
       - name: Real keychain
         run: go test -count=1 -v -run TestRealKeyring ./...
         env:
-          LDAPNAV_TEST_REAL_KEYRING: "1"
+          LDAP_EXPLORER_TEST_REAL_KEYRING: "1"
       - name: Remaining tests
         run: go test -count=1 ./...
       - name: JS unit tests
         shell: bash
         run: hack/jstest.sh
         env:
-          LDAPNAV_REQUIRE_NODE: "1"
+          LDAP_EXPLORER_REQUIRE_NODE: "1"
       - name: Browser tests
         working-directory: e2e
         run: go test -count=1 -v ./...
         env:
-          LDAPNAV_REQUIRE_CHROME: "1"
+          LDAP_EXPLORER_REQUIRE_CHROME: "1"
       - name: Build and smoke-test the binary
         run: |
-          go build -trimpath -ldflags="-s -w" -o ldapnav .
-          hack/smoke.sh ./ldapnav
+          go build -trimpath -ldflags="-s -w" -o ldap-explorer .
+          hack/smoke.sh ./ldap-explorer
       - name: make app and smoke-test the .app
         run: |
           make app
-          codesign --verify --deep --strict LDAPNav.app
-          hack/smoke.sh LDAPNav.app/Contents/MacOS/ldapnav
+          codesign --verify --deep --strict LDAPExplorer.app
+          hack/smoke.sh LDAPExplorer.app/Contents/MacOS/ldap-explorer
 
   # Chrome is preinstalled. Ubuntu's slapd running in WSL1 (no nested virtualization needed). The test
   # harness starts it as a child process and reaches it on 127.0.0.1.
@@ -71,8 +71,8 @@ jobs:
     runs-on: windows-latest
     env:
       CGO_ENABLED: "0"
-      LDAPNAV_SLAPD_WSL: Ubuntu-24.04
-      LDAPNAV_REQUIRE_SLAPD: "1"
+      LDAP_EXPLORER_SLAPD_WSL: Ubuntu-24.04
+      LDAP_EXPLORER_REQUIRE_SLAPD: "1"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -86,21 +86,21 @@ jobs:
       - name: Real keychain
         run: go test -count=1 -v -run TestRealKeyring ./...
         env:
-          LDAPNAV_TEST_REAL_KEYRING: "1"
+          LDAP_EXPLORER_TEST_REAL_KEYRING: "1"
       - name: Remaining tests
         run: go test -count=1 ./...
       - name: JS unit tests
         shell: bash
         run: hack/jstest.sh
         env:
-          LDAPNAV_REQUIRE_NODE: "1"
+          LDAP_EXPLORER_REQUIRE_NODE: "1"
       - name: Browser tests
         working-directory: e2e
         run: go test -count=1 -v ./...
         env:
-          LDAPNAV_REQUIRE_CHROME: "1"
+          LDAP_EXPLORER_REQUIRE_CHROME: "1"
       - name: Build and smoke-test the binary
         shell: bash
         run: |
-          go build -trimpath -ldflags="-s -w" -o ldapnav.exe .
-          hack/smoke.sh ./ldapnav.exe
+          go build -trimpath -ldflags="-s -w" -o ldap-explorer.exe .
+          hack/smoke.sh ./ldap-explorer.exe

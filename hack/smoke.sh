@@ -2,7 +2,7 @@
 # Smoke test of an already built binary: starts it with -no-open, checks that
 # the API returns 403 without a token (or with a wrong one) and 200 with
 # X-Token, and that the UI is served with a CSP.
-# Usage: hack/smoke.sh ./ldapnav   (or ldapnav.exe, or the one inside the .app)
+# Usage: hack/smoke.sh ./ldap-explorer   (or ldap-explorer.exe, or the one inside the .app)
 set -euo pipefail
 bin="${1:?usage: $0 <binary>}"
 out="$(mktemp)"

@@ -13,7 +13,7 @@ import (
 
 	cdpbrowser "github.com/chromedp/cdproto/browser"
 	"github.com/chromedp/chromedp"
-	"ldapnav/internal/slapdtest"
+	"ldap-explorer/internal/slapdtest"
 )
 
 // ---------- helpers ----------
@@ -352,7 +352,7 @@ func TestUISearchTableAndCSV(t *testing.T) {
 	var file string
 	deadline := time.Now().Add(15 * time.Second)
 	for time.Now().Before(deadline) && file == "" {
-		matches, _ := filepath.Glob(filepath.Join(downloads, "ldapnav-*.csv"))
+		matches, _ := filepath.Glob(filepath.Join(downloads, "ldap-explorer-*.csv"))
 		if len(matches) == 1 {
 			file = matches[0]
 		}

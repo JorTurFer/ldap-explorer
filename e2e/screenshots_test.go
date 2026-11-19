@@ -7,7 +7,7 @@ import (
 
 	"github.com/chromedp/cdproto/emulation"
 	"github.com/chromedp/chromedp"
-	"ldapnav/internal/slapdtest"
+	"ldap-explorer/internal/slapdtest"
 )
 
 // TestScreenshots regenerates the images used in docs/USAGE.md from the real UI
@@ -15,11 +15,11 @@ import (
 //
 //	make screenshots
 //
-// It only runs when LDAPNAV_SCREENSHOTS names an output directory.
+// It only runs when LDAP_EXPLORER_SCREENSHOTS names an output directory.
 func TestScreenshots(t *testing.T) {
-	out := os.Getenv("LDAPNAV_SCREENSHOTS")
+	out := os.Getenv("LDAP_EXPLORER_SCREENSHOTS")
 	if out == "" {
-		t.Skip("LDAPNAV_SCREENSHOTS not set")
+		t.Skip("LDAP_EXPLORER_SCREENSHOTS not set")
 	}
 	if err := os.MkdirAll(out, 0o755); err != nil {
 		t.Fatal(err)

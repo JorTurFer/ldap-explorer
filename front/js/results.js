@@ -100,7 +100,7 @@ function downloadCSV(state) {
   const text = toCSV(idx.map((i) => state.columns[i]), currentRows(state), { bom: true });
   const url = URL.createObjectURL(new Blob([text], { type: "text/csv;charset=utf-8" }));
   const stamp = new Date().toISOString().replace(/[:T]/g, "-").slice(0, 19);
-  const a = el("a", { href: url, download: `ldapnav-${stamp}.csv` });
+  const a = el("a", { href: url, download: `ldap-explorer-${stamp}.csv` });
   document.body.append(a);
   a.click();
   a.remove();

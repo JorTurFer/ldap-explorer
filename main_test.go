@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"io"
-	"ldapnav/internal/slapdtest"
+	"ldap-explorer/internal/slapdtest"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -336,7 +336,7 @@ func TestProfilesCRUDNoPasswordOnDisk(t *testing.T) {
 		t.Fatalf("update: %+v", list)
 	}
 	// the password goes to the keychain with a fixed service and account, not to disk
-	got, err := keyring.Get("ldapnav", "cn=a,dc=x@ldap://h:389")
+	got, err := keyring.Get("ldap-explorer", "cn=a,dc=x@ldap://h:389")
 	if err != nil || got != "s3cr3t-pw" {
 		t.Fatalf("keychain: %q, %v", got, err)
 	}
@@ -365,7 +365,7 @@ func TestKeychainAccountFormat(t *testing.T) {
 	if got := keychainAccount(Profile{BindDN: "cn=a,dc=x", URL: "ldaps://h"}); got != "cn=a,dc=x@ldaps://h" {
 		t.Errorf("account: %q", got)
 	}
-	if keychainService != "ldapnav" {
+	if keychainService != "ldap-explorer" {
 		t.Errorf("service: %q", keychainService)
 	}
 }
@@ -439,5 +439,86 @@ func TestBuildsWithoutCGO(t *testing.T) {
 				t.Errorf("packages that use cgo:\n%s", s)
 			}
 		})
+	}
+}
+
+// Passwords saved by the versions called ldapnav must keep working.
+func TestLegacyKeychainEntriesStillWork(t *testing.T) {
+	keyring.MockInit()
+	keyringMocked = true
+	p := Profile{BindDN: "cn=a,dc=x", URL: "ldap://h"}
+	if _, err := keychainGet(p); err == nil || !strings.Contains(err.Error(), "no password in the keychain") {
+		t.Fatalf("nothing saved yet: %v", err)
+	}
+	if err := keyring.Set("ldapnav", keychainAccount(p), "oldpw"); err != nil {
+		t.Fatal(err)
+	}
+	got, err := keychainGet(p)
+	if err != nil || got != "oldpw" {
+		t.Fatalf("legacy entry: %q %v", got, err)
+	}
+	// it was copied to the new service, and the old entry was not touched
+	if v, err := keyring.Get(keychainService, keychainAccount(p)); err != nil || v != "oldpw" {
+		t.Errorf("not copied to the new service: %q %v", v, err)
+	}
+	if v, err := keyring.Get("ldapnav", keychainAccount(p)); err != nil || v != "oldpw" {
+		t.Errorf("the legacy entry must stay: %q %v", v, err)
+	}
+	// a newer password wins over the legacy one
+	if err := keychainSet(p, "newpw"); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := keychainGet(p); got != "newpw" {
+		t.Errorf("new entry should win: %q", got)
+	}
+}
+
+func TestLegacyConfigFolderIsMigrated(t *testing.T) {
+	cfg := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", cfg)
+	t.Setenv("HOME", cfg)
+	t.Setenv("AppData", cfg)
+	old := filepath.Join(filepath.Dir(configDir()), "ldapnav")
+	if err := os.MkdirAll(old, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	profiles := `[{"name":"lab","url":"ldap://h:389","bindDN":"cn=a","baseDN":"","startTLS":false,"skipVerify":false,"useKeychain":true}]`
+	for name, content := range map[string]string{"profiles.json": profiles, "queries.json": "[]"} {
+		if err := os.WriteFile(filepath.Join(old, name), []byte(content), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	migrateLegacyConfig()
+	if _, err := os.Stat(old); err == nil {
+		t.Error("the old folder should be gone")
+	}
+	ps, err := loadProfiles()
+	if err != nil || len(ps) != 1 || ps[0].Name != "lab" || !ps[0].UseKeychain {
+		t.Fatalf("profiles after the migration: %+v %v", ps, err)
+	}
+	if b, _ := os.ReadFile(queriesPath()); string(b) != "[]" {
+		t.Errorf("queries.json: %q", b)
+	}
+	if runtime.GOOS != "windows" {
+		if st, _ := os.Stat(profilesPath()); st.Mode().Perm() != 0o600 {
+			t.Errorf("permissions were not kept: %v", st.Mode().Perm())
+		}
+	}
+
+	// Running it again is harmless, and it never overwrites a folder that already exists.
+	migrateLegacyConfig()
+	if err := os.MkdirAll(old, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(old, "profiles.json"), []byte("[]"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	migrateLegacyConfig()
+	if ps, _ := loadProfiles(); len(ps) != 1 {
+		t.Errorf("an existing new folder must not be overwritten: %+v", ps)
+	}
+	if b, _ := os.ReadFile(filepath.Join(old, "profiles.json")); string(b) != "[]" {
+		t.Error("the old folder must be left alone when the new one exists")
 	}
 }

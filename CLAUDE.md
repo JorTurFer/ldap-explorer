@@ -1,4 +1,4 @@
-# ldapnav
+# ldap-explorer
 
 A minimal, read-only LDAP browser. A single Go binary that serves an embedded web UI (`front/`, via `embed`) on 127.0.0.1 and opens the browser.
 
@@ -18,7 +18,7 @@ A minimal, read-only LDAP browser. A single Go binary that serves an embedded we
 ## Invariants (do not break)
 - Read-only: no Add/Modify/Delete against the LDAP server unless explicitly requested.
 - Listens on 127.0.0.1 only. The whole API requires the `X-Token` header; the token goes in the URL `#` fragment.
-- Never store passwords in `profiles.json`: only in the system keychain (`go-keyring`), service `ldapnav`, account `bindDN@url`. Do not change the service or account: it would break already-saved passwords.
+- Never store passwords in `profiles.json`: only in the system keychain (`go-keyring`), service `ldap-explorer`, account `bindDN@url`. Do not change the service or account format: it would break already-saved passwords. The previous service name `ldapnav` is still read (legacyKeychainService) and copied to the new one; never delete the old entries.
 - No CDNs or external resources in the UI: the CSP blocks them on purpose.
 - Must build with `CGO_ENABLED=0` for darwin/arm64, darwin/amd64 and windows/amd64.
 - Self-contained binary: no Java/Node/Electron runtime and nothing downloaded at run time.
@@ -33,12 +33,12 @@ A minimal, read-only LDAP browser. A single Go binary that serves an embedded we
 ## Tests (what they validate, and the rules)
 - `main_test.go`: API (403/200 with token), UI static serving and strict CSP, no inline code or external resources in `front/`, every import resolves, profiles without passwords on disk, keychain service/account format (mock), code invariants (read-only, 127.0.0.1 only) and CGO-free builds for the 3 targets.
 - `integration_test.go` + `internal/slapdtest` (harness and `seed.ldif`, importable by other modules): against a real ephemeral OpenLDAP (one shared slapd; the app is read-only). Covers TLS/StartTLS, paging (users with `limits` in slapd.conf who only see >100 results when paging) and the server size limit.
-- `front/test/*.test.js` + `hack/jstest.sh`: unit tests of the pure JS modules with `node --test` (no npm dependencies, Node is dev tooling only; `front/package.json` only marks the modules as ESM for Node). `LDAPNAV_REQUIRE_NODE=1` makes a missing Node fail instead of skip. Logic that needs no DOM goes in a pure module like `table.js`, not in the DOM modules.
-- `e2e/` (separate Go module, uses chromedp): builds the real binary and drives its UI in headless Chrome against a real slapd (`internal/slapdtest`). Fails on any JS exception, console error or CSP violation (HTTP 400 from `/api/` is expected). Any UI change comes with an e2e test. `LDAPNAV_REQUIRE_CHROME=1` makes a missing Chrome fail instead of skip. chromedp is pinned to v0.14.2 on purpose (v0.24 changed its API to generics); keep that dependency out of the root `go.mod`.
-- `keyring_real_test.go`: real keychain (including an end-to-end test with a real slapd); only with `LDAPNAV_TEST_REAL_KEYRING=1` and in a separate process (`-run TestRealKeyring`), because the other tests use `keyring.MockInit`, which cannot be undone.
-- slapd is a validation tool, not the code under test: it can run anywhere reachable on 127.0.0.1 (local binary, or `LDAPNAV_SLAPD_WSL=<distro>` for a Linux slapd inside WSL). What must run on each OS is the app.
+- `front/test/*.test.js` + `hack/jstest.sh`: unit tests of the pure JS modules with `node --test` (no npm dependencies, Node is dev tooling only; `front/package.json` only marks the modules as ESM for Node). `LDAP_EXPLORER_REQUIRE_NODE=1` makes a missing Node fail instead of skip. Logic that needs no DOM goes in a pure module like `table.js`, not in the DOM modules.
+- `e2e/` (separate Go module, uses chromedp): builds the real binary and drives its UI in headless Chrome against a real slapd (`internal/slapdtest`). Fails on any JS exception, console error or CSP violation (HTTP 400 from `/api/` is expected). Any UI change comes with an e2e test. `LDAP_EXPLORER_REQUIRE_CHROME=1` makes a missing Chrome fail instead of skip. chromedp is pinned to v0.14.2 on purpose (v0.24 changed its API to generics); keep that dependency out of the root `go.mod`.
+- `keyring_real_test.go`: real keychain (including an end-to-end test with a real slapd); only with `LDAP_EXPLORER_TEST_REAL_KEYRING=1` and in a separate process (`-run TestRealKeyring`), because the other tests use `keyring.MockInit`, which cannot be undone.
+- slapd is a validation tool, not the code under test: it can run anywhere reachable on 127.0.0.1 (local binary, or `LDAP_EXPLORER_SLAPD_WSL=<distro>` for a Linux slapd inside WSL). What must run on each OS is the app.
 - `hack/ci-test.sh` is what validates a PR; `hack/Dockerfile.test` runs it in a reproducible environment (`make test-docker`); `hack/smoke.sh <binary>` smoke-tests a built binary.
-- CI (`.github/workflows/ci.yml`) has one job per OS (no conditionals) and sets `LDAPNAV_REQUIRE_SLAPD=1`: without slapd the run fails instead of skipping. Linux: test container; macOS: Homebrew openldap; Windows: Ubuntu slapd in WSL1 (macOS runners have no Docker; Windows runners only run Windows containers). Do not add tests that skip silently, and do not make a failing environment skip to turn CI green.
+- CI (`.github/workflows/ci.yml`) has one job per OS (no conditionals) and sets `LDAP_EXPLORER_REQUIRE_SLAPD=1`: without slapd the run fails instead of skipping. Linux: test container; macOS: Homebrew openldap; Windows: Ubuntu slapd in WSL1 (macOS runners have no Docker; Windows runners only run Windows containers). Do not add tests that skip silently, and do not make a failing environment skip to turn CI green.
 - Pure JavaScript logic that grows in the UI (value formatting, CSV export, table sorting) goes in its own module with unit tests run by `node --test` (no npm dependencies; Node is dev tooling only, never shipped).
 - A layout bug is a bug: check that controls are not clipped (the builder test asserts it) and regenerate the screenshots after visible UI changes; they already exposed one clipped row.
 - Every behavior change comes with a test. `main()` only wires things up; the HTTP logic lives in `newHandler` so it can be tested with `httptest`.
@@ -55,8 +55,8 @@ A minimal, read-only LDAP browser. A single Go binary that serves an embedded we
 - Windows packaging (.exe with an icon, or without a console via `-ldflags -H=windowsgui`).
 
 ## Commands
-- `go build -o ldapnav .` and `./ldapnav` (or `make build` / `make app` on macOS).
-- Windows: `go build -o ldapnav.exe .`
+- `go build -o ldap-explorer .` and `./ldap-explorer` (or `make build` / `make app` on macOS).
+- Windows: `go build -o ldap-explorer.exe .`
 - `go vet ./...` and `make test` (or `make test-docker`) before calling anything done.
 
 ## Conventions

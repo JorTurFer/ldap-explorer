@@ -21,16 +21,16 @@ echo "== go vet"
 CGO_ENABLED=0 go vet ./...
 
 echo "== go test (real OpenLDAP; no CGO)"
-CGO_ENABLED=0 LDAPNAV_REQUIRE_SLAPD=1 go test -count=1 -v ./...
+CGO_ENABLED=0 LDAP_EXPLORER_REQUIRE_SLAPD=1 go test -count=1 -v ./...
 
 echo "== JS unit tests (node --test)"
-LDAPNAV_REQUIRE_NODE=1 hack/jstest.sh
+LDAP_EXPLORER_REQUIRE_NODE=1 hack/jstest.sh
 
-echo "== browser tests (real Chrome + real ldapnav + real OpenLDAP)"
-(cd e2e && CGO_ENABLED=0 go vet ./... && LDAPNAV_REQUIRE_CHROME=1 LDAPNAV_REQUIRE_SLAPD=1 go test -count=1 -v ./...)
+echo "== browser tests (real Chrome + real ldap-explorer + real OpenLDAP)"
+(cd e2e && CGO_ENABLED=0 go vet ./... && LDAP_EXPLORER_REQUIRE_CHROME=1 LDAP_EXPLORER_REQUIRE_SLAPD=1 go test -count=1 -v ./...)
 
 echo "== binary smoke test"
-bin="$(mktemp -d)/ldapnav"
+bin="$(mktemp -d)/ldap-explorer"
 CGO_ENABLED=0 go build -o "$bin" .
 hack/smoke.sh "$bin"
 echo "ALL OK"

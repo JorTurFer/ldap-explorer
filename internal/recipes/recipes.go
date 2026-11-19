@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"ldapnav/internal/ldapfilter"
+	"ldap-explorer/internal/ldapfilter"
 )
 
 // Param is one input a recipe asks for.
@@ -176,7 +176,7 @@ func classIs(classes []string) *ldapfilter.Node {
 
 func needSchema(e *Env) string {
 	if !e.HasSchema {
-		return "the server does not publish its schema, so ldapnav cannot tell which attributes it has"
+		return "the server does not publish its schema, so ldap-explorer cannot tell which attributes it has"
 	}
 	return ""
 }

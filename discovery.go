@@ -14,8 +14,8 @@ import (
 	"strings"
 
 	"github.com/go-ldap/ldap/v3"
-	"ldapnav/internal/ldapfilter"
-	"ldapnav/internal/ldapschema"
+	"ldap-explorer/internal/ldapfilter"
+	"ldap-explorer/internal/ldapschema"
 )
 
 // ---------- RootDSE / server flavor ----------

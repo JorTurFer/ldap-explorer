@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"ldapnav/internal/ldapfilter"
+	"ldap-explorer/internal/ldapfilter"
 )
 
 var now = time.Date(2026, 11, 19, 12, 0, 0, 0, time.UTC)

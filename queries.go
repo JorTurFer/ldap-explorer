@@ -14,7 +14,7 @@ import (
 	"strings"
 	"sync"
 
-	"ldapnav/internal/ldapfilter"
+	"ldap-explorer/internal/ldapfilter"
 )
 
 type SavedQuery struct {

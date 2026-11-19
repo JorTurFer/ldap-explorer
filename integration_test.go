@@ -1,7 +1,7 @@
 package main
 
 import (
-	"ldapnav/internal/slapdtest"
+	"ldap-explorer/internal/slapdtest"
 	"net/url"
 	"strings"
 	"testing"

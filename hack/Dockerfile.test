@@ -15,5 +15,5 @@ RUN cd e2e && go mod download
 COPY . .
 
 # In CI a missing slapd, Chrome or Node must fail the run, not silently skip tests.
-ENV LDAPNAV_REQUIRE_SLAPD=1 LDAPNAV_REQUIRE_CHROME=1 LDAPNAV_REQUIRE_NODE=1
+ENV LDAP_EXPLORER_REQUIRE_SLAPD=1 LDAP_EXPLORER_REQUIRE_CHROME=1 LDAP_EXPLORER_REQUIRE_NODE=1
 CMD ["bash", "hack/ci-test.sh"]

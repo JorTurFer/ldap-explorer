@@ -1,4 +1,4 @@
-module ldapnav
+module ldap-explorer
 
 go 1.27.4
 

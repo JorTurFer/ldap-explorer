@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"ldapnav/internal/ldapfilter"
+	"ldap-explorer/internal/ldapfilter"
 )
 
 const (

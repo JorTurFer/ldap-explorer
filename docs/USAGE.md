@@ -1,13 +1,13 @@
-# ldapnav user manual
+# ldap-explorer user manual
 
-ldapnav is a read-only LDAP browser. It runs as a local program, serves its interface on `127.0.0.1` and opens it in your web browser. This manual explains how to use it and states plainly what it does and does not support.
+ldap-explorer is a read-only LDAP browser. It runs as a local program, serves its interface on `127.0.0.1` and opens it in your web browser. This manual explains how to use it and states plainly what it does and does not support.
 
 ## 1. Quick start
 
 1. Build and start it (see the [README](../README.md#build)):
    ```sh
-   make build && ./ldapnav        # macOS / Linux
-   go build -o ldapnav.exe . && .\ldapnav.exe   # Windows
+   make build && ./ldap-explorer        # macOS / Linux
+   go build -o ldap-explorer.exe . && .\ldap-explorer.exe   # Windows
    ```
    Your browser opens on a local address such as `http://127.0.0.1:52341/#<token>`. If it does not, copy the URL printed in the terminal (start with `-no-open` to never open it automatically).
 2. Click **Connect…**, fill in the server, and press **Connect**.
@@ -49,7 +49,7 @@ There is one connection at a time. Connecting again replaces the previous one.
 
 - **Filter the tree**: type in the box above the tree. Only the nodes you have already opened are searched (use Search for the whole directory); the ancestors of a match stay visible. Escape clears it.
 - **Go to a DN**: paste a DN in that same box and press Enter. It works in any letter case, and the tree opens the branches that lead to the entry.
-- **Follow links**: attributes whose value is a DN (such as `member`, `manager` or `owner`; ldapnav knows them from the server's schema) are links to that entry.
+- **Follow links**: attributes whose value is a DN (such as `member`, `manager` or `owner`; ldap-explorer knows them from the server's schema) are links to that entry.
 - **Breadcrumb**: in the entry view, every ancestor in the DN is a link, so one click goes up a level.
 
 ## 4. Searching
@@ -126,11 +126,11 @@ Results are paged internally (up to 500 per request). If the server (or the limi
 ## 5. Passwords and the keychain
 
 - Passwords are **never** written to `profiles.json`.
-- If you tick **Save password in the keychain** and save the profile, the password goes to the operating system keychain: service `ldapnav`, account `<bind DN>@<URL>`. Connecting with the password field empty then uses it.
+- If you tick **Save password in the keychain** and save the profile, the password goes to the operating system keychain: service `ldap-explorer`, account `<bind DN>@<URL>`. Connecting with the password field empty then uses it.
 - Profiles are stored in your user configuration directory:
-  - macOS: `~/Library/Application Support/ldapnav/profiles.json`
-  - Windows: `%AppData%\ldapnav\profiles.json`
-  - Linux: `~/.config/ldapnav/profiles.json`
+  - macOS: `~/Library/Application Support/ldap-explorer/profiles.json`
+  - Windows: `%AppData%\ldap-explorer\profiles.json`
+  - Linux: `~/.config/ldap-explorer/profiles.json`
 - The password field is not remembered between runs unless it is in the keychain.
 - Entries saved by earlier versions in the macOS Keychain keep working, with one exception: a password containing non-ASCII characters saved by the old version could not be read back correctly then either. Save the profile password again to fix it.
 
@@ -166,7 +166,7 @@ The 3-minute default is deliberate: browsers throttle timers in background tabs,
 | Tree filter, go to DN, DN links, breadcrumb | Supported. |
 | Results as a sortable table with CSV export | Supported. |
 | Saved profiles (no password) | Supported. |
-| Passwords in the system keychain | macOS Keychain and Windows Credential Manager: supported and tested in CI. Linux (Secret Service): the library supports it but ldapnav is not tested against it. |
+| Passwords in the system keychain | macOS Keychain and Windows Credential Manager: supported and tested in CI. Linux (Secret Service): the library supports it but ldap-explorer is not tested against it. |
 | Dark and light theme (follows the system) | Supported. |
 
 ### Platforms
@@ -208,4 +208,4 @@ Tested against OpenLDAP 2.5, 2.6 and 2.7 only. The account recipes for 389 Direc
 | `No base was detected` | The server does not publish naming contexts to this user. Set **Base DN** in the connection. |
 | `⚠ … Size Limit Exceeded` | The server stopped the listing or search at its own limit. Narrow the filter or base. |
 | `Invalid filter` | The filter is not valid RFC 4515 syntax (check the parentheses). |
-| `The ldapnav process is not responding` | The program exited (idle timeout or Ctrl+C). Start it again. |
+| `The ldap-explorer process is not responding` | The program exited (idle timeout or Ctrl+C). Start it again. |

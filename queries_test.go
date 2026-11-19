@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"ldapnav/internal/ldapfilter"
-	"ldapnav/internal/slapdtest"
+	"ldap-explorer/internal/ldapfilter"
+	"ldap-explorer/internal/slapdtest"
 )
 
 func builderQuery() *SavedQuery {

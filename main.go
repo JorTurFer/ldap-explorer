@@ -1,4 +1,4 @@
-// ldapnav: a minimal, read-only LDAP browser that runs locally.
+// ldap-explorer: a minimal, read-only LDAP browser that runs locally.
 //
 // It serves a web UI on 127.0.0.1 (random port) and opens the browser.
 // Every API request requires a random token generated at startup, so no
@@ -32,7 +32,7 @@ import (
 
 	"github.com/go-ldap/ldap/v3"
 	"github.com/zalando/go-keyring"
-	"ldapnav/internal/ldapfilter"
+	"ldap-explorer/internal/ldapfilter"
 )
 
 // The web UI (plain HTML, CSS and ES modules; no build step). Tests under
@@ -66,12 +66,44 @@ type Profile struct {
 	UseKeychain bool `json:"useKeychain"`
 }
 
-func profilesPath() string {
+func configDir() string {
 	dir, err := os.UserConfigDir()
 	if err != nil {
 		dir = "."
 	}
-	return filepath.Join(dir, "ldapnav", "profiles.json")
+	return filepath.Join(dir, "ldap-explorer")
+}
+
+func profilesPath() string { return filepath.Join(configDir(), "profiles.json") }
+
+// migrateLegacyConfig moves the configuration folder of the versions that were
+// called ldapnav (profiles.json, queries.json) to the new name, once. If the new
+// folder already exists nothing is touched.
+func migrateLegacyConfig() {
+	dir := configDir()
+	old := filepath.Join(filepath.Dir(dir), "ldapnav")
+	if _, err := os.Stat(dir); err == nil {
+		return
+	}
+	if st, err := os.Stat(old); err != nil || !st.IsDir() {
+		return
+	}
+	if err := os.Rename(old, dir); err == nil {
+		return
+	}
+	// Rename can fail (for example across devices): copy the files instead.
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return
+	}
+	entries, _ := os.ReadDir(old)
+	for _, e := range entries {
+		if e.IsDir() {
+			continue
+		}
+		if b, err := os.ReadFile(filepath.Join(old, e.Name())); err == nil {
+			_ = os.WriteFile(filepath.Join(dir, e.Name()), b, 0o600)
+		}
+	}
 }
 
 func loadProfiles() ([]Profile, error) {
@@ -101,16 +133,26 @@ func saveProfiles(ps []Profile) error {
 // ---------- system keychain (go-keyring) ----------
 // macOS: Keychain; Windows: Credential Manager; Linux: Secret Service.
 
-const keychainService = "ldapnav"
+const (
+	keychainService = "ldap-explorer"
+	// legacyKeychainService is what versions called ldapnav used. Passwords saved then
+	// must keep working: they are read from here and copied to the new service.
+	legacyKeychainService = "ldapnav"
+)
 
 func keychainAccount(p Profile) string { return p.BindDN + "@" + p.URL }
 
 func keychainGet(p Profile) (string, error) {
-	pw, err := keyring.Get(keychainService, keychainAccount(p))
-	if err != nil {
-		if errors.Is(err, keyring.ErrNotFound) {
-			return "", errors.New("no password in the keychain for this profile")
+	account := keychainAccount(p)
+	pw, err := keyring.Get(keychainService, account)
+	if errors.Is(err, keyring.ErrNotFound) {
+		if old, oerr := keyring.Get(legacyKeychainService, account); oerr == nil {
+			_ = keyring.Set(keychainService, account, old) // best effort; the old entry is left alone
+			return old, nil
 		}
+		return "", errors.New("no password in the keychain for this profile")
+	}
+	if err != nil {
 		return "", fmt.Errorf("keychain: %w", err)
 	}
 	return pw, nil
@@ -556,6 +598,7 @@ func without(s []string, v string) []string {
 // /api/*, which requires the X-Token header. lastPing is updated on every
 // UI heartbeat.
 func newHandler(token string, lastPing *atomic.Int64) http.Handler {
+	migrateLegacyConfig()
 	api := http.NewServeMux()
 	api.HandleFunc("/api/profiles", handleProfiles)
 	api.HandleFunc("POST /api/connect", handleConnect)
@@ -636,7 +679,7 @@ func main() {
 	}
 	// The token goes in the fragment (#), which the browser never sends to the server.
 	url := fmt.Sprintf("http://%s/#%s", ln.Addr().String(), token)
-	fmt.Println("ldapnav listening on", url)
+	fmt.Println("ldap-explorer listening on", url)
 	fmt.Println("Press Ctrl+C to quit.")
 	if !*noOpen {
 		go func() {
