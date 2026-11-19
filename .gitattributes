@@ -1,0 +1,7 @@
+# One line ending everywhere. Without this, Windows checks files out with CRLF, which gofmt
+# reports as "not formatted" and which breaks shell scripts.
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.ico binary
