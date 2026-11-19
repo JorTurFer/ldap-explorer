@@ -20,7 +20,8 @@ jobs:
       - name: Run
         run: docker run --rm ldapnav-test
 
-  # Real keychain (Keychain / Credential Manager), tests without LDAP, binary and .app.
+  # Real keychain (Keychain / Credential Manager), binary and .app. On macOS the whole
+  # suite also runs against a Homebrew OpenLDAP (Windows has no slapd: LDAP tests only run on Linux/macOS).
   native:
     strategy:
       fail-fast: false
@@ -34,11 +35,18 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
+      - name: Install OpenLDAP (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          brew install openldap
+          echo "LDAPNAV_SLAPD_DIR=$(brew --prefix openldap)/libexec" >> "$GITHUB_ENV"
+          # The integration tests must run here, not be skipped.
+          echo "LDAPNAV_REQUIRE_SLAPD=1" >> "$GITHUB_ENV"
       - name: Real keychain
         run: go test -count=1 -v -run TestRealKeyring ./...
         env:
           LDAPNAV_TEST_REAL_KEYRING: "1"
-      - name: Remaining tests (no slapd)
+      - name: Remaining tests
         run: go test -count=1 ./...
       - name: Build and smoke-test the binary
         shell: bash

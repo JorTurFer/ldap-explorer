@@ -12,9 +12,11 @@ package main
 import (
 	"crypto/rand"
 	"encoding/hex"
+	"net/url"
 	"os"
 	"os/exec"
 	"runtime"
+	"strings"
 	"testing"
 
 	"github.com/zalando/go-keyring"
@@ -105,4 +107,36 @@ func isASCIISingleLine(s string) bool {
 		}
 	}
 	return true
+}
+
+// End to end with the real OS keychain and a real OpenLDAP: the password is
+// saved with keychainSet, then /api/connect is called WITHOUT a password and
+// must bind using the one stored in the keychain. It does not touch
+// profiles.json or HOME (the macOS keychain lives under HOME).
+func TestRealKeyringEndToEnd(t *testing.T) {
+	realKeyringProfile(t) // gate + mock check; the account below is unique too
+	l := startSlapd(t)
+	// The account is bindDN@url with the real DN and the ephemeral slapd URL
+	// (unique per run, random port); it is deleted on cleanup.
+	p := Profile{Name: "e2e", URL: l.URL, BindDN: testAliceDN, UseKeychain: true}
+	t.Cleanup(func() { _ = keyring.Delete(keychainService, keychainAccount(p)) })
+	if err := keychainSet(p, testAlicePW); err != nil {
+		t.Fatal(err)
+	}
+	srv := serveHandler(t)
+	connectOK(t, srv, p, "")
+
+	var e entryResp
+	if code := call(t, srv, "GET", "/api/entry?dn="+url.QueryEscape(testAliceDN), nil, &e); code != 200 || e.attr("mail") == nil {
+		t.Fatalf("entry through the keychain-authenticated session: %d %+v", code, e)
+	}
+
+	// A wrong password stored in the keychain must make the bind fail.
+	if err := keychainSet(p, "wrong-password"); err != nil {
+		t.Fatal(err)
+	}
+	var er errResp
+	if code := call(t, srv, "POST", "/api/connect", connectReq{p, ""}, &er); code != 400 || !strings.Contains(er.Error, "bind") {
+		t.Errorf("wrong keychain password: %d %q", code, er.Error)
+	}
 }

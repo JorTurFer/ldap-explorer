@@ -36,6 +36,12 @@ func newTestServer(t *testing.T) *httptest.Server {
 	t.Setenv("AppData", cfg)
 	keyring.MockInit()
 	keyringMocked = true
+	return serveHandler(t)
+}
+
+// serveHandler starts the real handler and closes the LDAP session on cleanup.
+func serveHandler(t *testing.T) *httptest.Server {
+	t.Helper()
 	var lp atomic.Int64
 	srv := httptest.NewServer(newHandler(testToken, &lp))
 	t.Cleanup(func() {
