@@ -35,10 +35,10 @@ There is one connection at a time. Connecting again replaces the previous one.
 ## 3. Browsing
 
 - The tree starts at the detected (or configured) base DN(s). Click ▶ or double-click a node to expand it; click a node to see its entry.
-- Every node shows ▶ even if it has no children. When a server does not report whether an entry has children (Active Directory never does), ldapnav cannot know in advance; expanding an empty node simply removes the arrow.
+- Servers that report whether an entry has children (OpenLDAP does, through `hasSubordinates`) get a ▶ only on nodes that have some. Servers that do not report it (Active Directory never does) make every node show ▶; expanding an empty node simply removes the arrow.
 - Children are read in pages of 500, so servers that cap results per request still list everything the server allows. If the server's size limit cuts a listing, a `⚠` line appears at the end of that node with the server's message; what was received is still shown.
 - The entry view lists attributes alphabetically with `objectClass` first. Multi-valued attributes show one value per line. **copy** copies the DN; **search from here** jumps to the Search tab with that DN as the base.
-- Tick **operational attributes** to also show attributes such as `entryUUID`, `createTimestamp` or `memberOf` (when the server exposes them as operational attributes).
+- Tick **operational attributes** to also show the server's operational attributes, such as `entryUUID` or `createTimestamp` on OpenLDAP.
 - Binary values (for example `jpegPhoto`, `objectGUID`, `objectSid`) are shown as `(binary, N bytes)` followed by the first 16 bytes in hex. They cannot be downloaded, previewed or decoded.
 
 ## 4. Searching
