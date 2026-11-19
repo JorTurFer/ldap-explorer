@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"io"
 	"ldap-explorer/internal/slapdtest"
+	"ldap-explorer/internal/vault"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -44,6 +45,7 @@ func newTestServer(t *testing.T) *httptest.Server {
 	t.Setenv("AppData", cfg)
 	keyring.MockInit()
 	keyringMocked = true
+	vaultKDF = vault.KDF{Time: 1, MemoryKiB: 8, Threads: 1} // the real cost would only slow the tests down
 	return serveHandler(t)
 }
 

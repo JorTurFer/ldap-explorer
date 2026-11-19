@@ -62,7 +62,9 @@ type Profile struct {
 	SkipVerify bool   `json:"skipVerify"`
 	BindDN     string `json:"bindDN"`
 	BaseDN     string `json:"baseDN"`
-	// If true, the password is stored in / read from the system keychain.
+	// Where the password is kept: "none" (typed each time), "keychain" or "vault".
+	Storage string `json:"storage"`
+	// UseKeychain is what versions before the vault wrote; it is read as Storage "keychain".
 	UseKeychain bool `json:"useKeychain"`
 }
 
@@ -117,6 +119,9 @@ func loadProfiles() ([]Profile, error) {
 	var ps []Profile
 	if err := json.Unmarshal(b, &ps); err != nil {
 		return nil, err
+	}
+	for i := range ps {
+		ps[i].normalize()
 	}
 	return ps, nil
 }
@@ -324,14 +329,42 @@ func handleProfiles(w http.ResponseWriter, r *http.Request) {
 			writeErr(w, errors.New("the profile needs a name"))
 			return
 		}
+		req.Profile.normalize()
+		if !validStorage(req.Profile.Storage) {
+			writeErr(w, errors.New("storage must be none, keychain or vault"))
+			return
+		}
 		ps, err := loadProfiles()
 		if err != nil {
 			writeErr(w, err)
 			return
 		}
+		// Changing where the password is kept, without retyping it: move it.
+		password := req.Password
+		for _, old := range ps {
+			if old.Name == req.Profile.Name && password == "" && old.Storage != storeNone && req.Profile.Storage != storeNone &&
+				old.Storage != req.Profile.Storage && keychainAccount(old) == keychainAccount(req.Profile) {
+				if pw, err := secretGet(old); errors.Is(err, errVaultLocked) {
+					writeCode(w, http.StatusLocked, "vault_locked", errors.New("unlock the vault to move the password out of it"))
+					return
+				} else if err == nil {
+					password = pw
+				}
+			}
+		}
+		// Refuse before saving anything if the chosen store cannot take the password.
+		if req.Profile.Storage != storeNone && password != "" {
+			if status, code, err := checkStorage(req.Profile); err != nil {
+				writeCode(w, status, code, err)
+				return
+			}
+		}
+		var previous *Profile
 		replaced := false
 		for i := range ps {
 			if ps[i].Name == req.Profile.Name {
+				old := ps[i]
+				previous = &old
 				ps[i] = req.Profile
 				replaced = true
 			}
@@ -343,11 +376,16 @@ func handleProfiles(w http.ResponseWriter, r *http.Request) {
 			writeErr(w, err)
 			return
 		}
-		if req.Profile.UseKeychain && req.Password != "" {
-			if err := keychainSet(req.Profile, req.Password); err != nil {
-				writeErr(w, fmt.Errorf("profile saved, but the keychain failed: %w", err))
+		if req.Profile.Storage != storeNone && password != "" {
+			if err := secretSet(req.Profile, password); err != nil {
+				writeErr(w, fmt.Errorf("profile saved, but the password could not be stored: %w", err))
 				return
 			}
+		}
+		// If the password now lives somewhere else (or for another user or server), do not
+		// leave the old copy behind.
+		if previous != nil && (previous.Storage != req.Profile.Storage || keychainAccount(*previous) != keychainAccount(req.Profile)) {
+			_ = secretDelete(*previous)
 		}
 		writeJSON(w, ps)
 	case http.MethodDelete:
@@ -361,6 +399,8 @@ func handleProfiles(w http.ResponseWriter, r *http.Request) {
 		for _, p := range ps {
 			if p.Name != name {
 				out = append(out, p)
+			} else {
+				_ = secretDelete(p) // best effort: with a locked vault the entry stays listed as an orphan
 			}
 		}
 		if err := saveProfiles(out); err != nil {
@@ -387,10 +427,15 @@ func handleConnect(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, errors.New("the URL must start with ldap:// or ldaps://"))
 		return
 	}
+	p.normalize()
 	pw := req.Password
-	if pw == "" && p.UseKeychain && p.BindDN != "" {
+	if pw == "" && p.Storage != storeNone && p.BindDN != "" {
 		var err error
-		if pw, err = keychainGet(p); err != nil {
+		if pw, err = secretGet(p); err != nil {
+			if errors.Is(err, errVaultLocked) {
+				writeCode(w, http.StatusLocked, "vault_locked", err)
+				return
+			}
 			writeErr(w, err)
 			return
 		}
@@ -611,6 +656,12 @@ func newHandler(token string, lastPing *atomic.Int64) http.Handler {
 	api.HandleFunc("GET /api/sample", handleSample)
 	api.HandleFunc("POST /api/filter", handleFilter)
 	api.HandleFunc("/api/queries", handleQueries)
+	api.HandleFunc("GET /api/credentials/status", handleCredStatus)
+	api.HandleFunc("/api/credentials", handleCredentials)
+	api.HandleFunc("POST /api/vault/create", handleVaultCreate)
+	api.HandleFunc("POST /api/vault/unlock", handleVaultUnlock)
+	api.HandleFunc("POST /api/vault/lock", handleVaultLock)
+	api.HandleFunc("POST /api/vault/passphrase", handleVaultPassphrase)
 	api.HandleFunc("GET /api/recipes", handleRecipes)
 	api.HandleFunc("POST /api/recipes/{id}", handleRecipe)
 
@@ -627,6 +678,7 @@ func newHandler(token string, lastPing *atomic.Int64) http.Handler {
 			http.Error(w, "forbidden", http.StatusForbidden)
 			return
 		}
+		w.Header().Set("Cache-Control", "no-store") // nothing from the API (profiles, entries) is cached
 		api.ServeHTTP(w, r)
 	}))
 	front, err := fs.Sub(frontFS, "front")
