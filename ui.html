@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>ldapnav</title>
+<link rel="icon" href="data:,">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root {
+    --bg: #f6f6f4; --panel: #ffffff; --line: #e2e1dc; --text: #1d1d1b; --muted: #74736d;
+    --accent: #2f6fdb; --accent-bg: #e8f0fd; --err: #b3261e; --warn: #8a5a00;
+    --mono: ui-monospace, "SF Mono", Menlo, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#1b1b1d; --panel:#232326; --line:#36363a; --text:#e9e9e6; --muted:#9a9a95;
+            --accent:#6ea1ff; --accent-bg:#26324a; --err:#ff8a80; --warn:#f0c060; }
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body { font: 13px/1.4 -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
+         background: var(--bg); color: var(--text); display: flex; flex-direction: column; }
+  header { display: flex; gap: 8px; align-items: center; padding: 8px 12px;
+           border-bottom: 1px solid var(--line); background: var(--panel); flex-wrap: wrap; }
+  header strong { margin-right: 6px; }
+  input, select, button { font: inherit; color: inherit; }
+  input[type=text], input[type=password], select {
+    background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 4px 8px; }
+  button { background: var(--panel); border: 1px solid var(--line); border-radius: 6px;
+           padding: 4px 10px; cursor: pointer; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button:disabled { opacity: .5; cursor: default; }
+  .status { margin-left: auto; color: var(--muted); max-width: 45%; overflow: hidden;
+            text-overflow: ellipsis; white-space: nowrap; }
+  .status.err { color: var(--err); }
+  main { flex: 1; display: grid; grid-template-columns: 340px 1fr; min-height: 0; }
+  #tree { border-right: 1px solid var(--line); overflow: auto; padding: 6px 0; background: var(--panel); }
+  #right { display: flex; flex-direction: column; min-height: 0; }
+  .tabs { display: flex; border-bottom: 1px solid var(--line); background: var(--panel); }
+  .tabs button { border: 0; border-radius: 0; background: none; padding: 8px 14px;
+                 border-bottom: 2px solid transparent; }
+  .tabs button.on { border-bottom-color: var(--accent); color: var(--accent); }
+  .pane { flex: 1; overflow: auto; padding: 12px; display: none; }
+  .pane.on { display: block; }
+
+  /* árbol */
+  ul.t { list-style: none; margin: 0; padding-left: 14px; }
+  #tree > ul.t { padding-left: 4px; }
+  .node { display: flex; align-items: center; gap: 2px; padding: 1px 6px; border-radius: 4px;
+          cursor: pointer; white-space: nowrap; }
+  .node:hover { background: var(--bg); }
+  .node.sel { background: var(--accent-bg); }
+  .tw { width: 14px; text-align: center; color: var(--muted); flex: none; font-size: 10px; }
+  .rdn { font-family: var(--mono); font-size: 12px; }
+  .more { color: var(--muted); font-style: italic; padding-left: 22px; }
+
+  /* atributos */
+  .dn { font-family: var(--mono); font-size: 12px; word-break: break-all; margin-bottom: 10px;
+        display: flex; gap: 8px; align-items: flex-start; }
+  table.attrs { border-collapse: collapse; width: 100%; }
+  table.attrs td { border-bottom: 1px solid var(--line); padding: 4px 8px; vertical-align: top; }
+  table.attrs td.k { color: var(--muted); width: 1%; white-space: nowrap; font-weight: 500; }
+  table.attrs td.v { font-family: var(--mono); font-size: 12px; word-break: break-all; }
+  table.attrs td.v div + div { margin-top: 2px; }
+  .bin { color: var(--muted); }
+  .muted { color: var(--muted); }
+  .warn { color: var(--warn); margin: 6px 0; }
+  .err { color: var(--err); }
+  .copy { font-size: 11px; padding: 1px 6px; flex: none; }
+
+  /* búsqueda */
+  .sform { display: grid; grid-template-columns: 70px 1fr; gap: 6px 8px; align-items: center; max-width: 900px; }
+  .sform input { width: 100%; font-family: var(--mono); font-size: 12px; }
+  .sform .row { display: flex; gap: 8px; align-items: center; }
+  .result { border: 1px solid var(--line); border-radius: 6px; margin: 8px 0; background: var(--panel); }
+  .result summary { padding: 6px 10px; cursor: pointer; font-family: var(--mono); font-size: 12px; word-break: break-all; }
+  .result .body { padding: 0 6px 6px; }
+  a.jump { color: var(--accent); cursor: pointer; font-size: 11px; margin-left: 8px; }
+
+  /* diálogo conexión */
+  dialog { border: 1px solid var(--line); border-radius: 10px; background: var(--panel); color: var(--text);
+           padding: 16px; width: 520px; max-width: 95vw; }
+  dialog::backdrop { background: rgba(0,0,0,.35); }
+  .cform { display: grid; grid-template-columns: 110px 1fr; gap: 8px; align-items: center; }
+  .cform input[type=text], .cform input[type=password], .cform select { width: 100%; }
+  .cform .full { grid-column: 1 / -1; display: flex; gap: 14px; flex-wrap: wrap; }
+  .actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 14px; }
+  .actions .left { margin-right: auto; }
+  .empty { color: var(--muted); padding: 30px; text-align: center; }
+</style>
+</head>
+<body>
+<header>
+  <strong>ldapnav</strong>
+  <button id="btnConn" class="primary">Conectar…</button>
+  <button id="btnDisc" disabled>Desconectar</button>
+  <button id="btnRefresh" disabled title="Recargar el árbol">↻</button>
+  <label class="muted"><input type="checkbox" id="chkOp"> atributos operacionales</label>
+  <span id="status" class="status">Sin conexión</span>
+</header>
+<main>
+  <nav id="tree"><div class="empty">Conecta a un servidor para navegar.</div></nav>
+  <section id="right">
+    <div class="tabs">
+      <button data-tab="entry" class="on">Entrada</button>
+      <button data-tab="search">Búsqueda</button>
+    </div>
+    <div id="pane-entry" class="pane on"><div class="empty">Selecciona una entrada del árbol.</div></div>
+    <div id="pane-search" class="pane">
+      <div class="sform">
+        <label>Base</label><input type="text" id="sBase" placeholder="dc=example,dc=com">
+        <label>Filtro</label><input type="text" id="sFilter" placeholder="(objectClass=*)">
+        <label>Atributos</label><input type="text" id="sAttrs" placeholder="vacío = todos  (p.ej. cn, mail, memberOf)">
+        <label>Ámbito</label>
+        <div class="row">
+          <select id="sScope"><option value="sub">subárbol</option><option value="one">un nivel</option><option value="base">solo base</option></select>
+          <label class="muted">Límite</label><input type="text" id="sLimit" value="500" style="width:80px">
+          <button id="btnSearch" class="primary" disabled>Buscar</button>
+        </div>
+      </div>
+      <div id="sOut"></div>
+    </div>
+  </section>
+</main>
+
+<dialog id="dlg">
+  <form method="dialog" id="cform">
+    <div class="cform">
+      <label>Perfil</label>
+      <div style="display:flex;gap:6px">
+        <select id="cProfile" style="flex:1"><option value="">— nuevo —</option></select>
+        <button type="button" id="btnDelProfile" title="Borrar perfil">🗑</button>
+      </div>
+      <label>Nombre</label><input type="text" id="cName" placeholder="p.ej. AD producción">
+      <label>URL</label><input type="text" id="cURL" placeholder="ldaps://ldap.example.com:636" required>
+      <label>Bind DN</label><input type="text" id="cBind" placeholder="vacío = anónimo  (o usuario@dominio en AD)">
+      <label>Contraseña</label><input type="password" id="cPass" autocomplete="off">
+      <label>Base DN</label><input type="text" id="cBase" placeholder="vacío = se detecta del RootDSE">
+      <div class="full">
+        <label><input type="checkbox" id="cStartTLS"> StartTLS (con ldap://)</label>
+        <label><input type="checkbox" id="cSkip"> No verificar certificado</label>
+        <label><input type="checkbox" id="cKeychain"> Guardar contraseña en el llavero</label>
+      </div>
+    </div>
+    <div id="cErr" class="err" style="margin-top:10px"></div>
+    <div class="actions">
+      <button type="button" id="btnSaveProfile" class="left">Guardar perfil</button>
+      <button type="button" id="btnCancel">Cancelar</button>
+      <button type="submit" id="btnDoConn" class="primary">Conectar</button>
+    </div>
+  </form>
+</dialog>
+
+<script>
+"use strict";
+const TOKEN = location.hash.slice(1);
+history.replaceState(null, "", location.pathname); // quita el token de la barra
+const $ = (id) => document.getElementById(id);
+const el = (tag, props = {}, ...kids) => {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(props)) {
+    if (k === "class") e.className = v; else if (k.startsWith("on")) e.addEventListener(k.slice(2), v); else e[k] = v;
+  }
+  for (const k of kids) if (k != null) e.append(k);
+  return e;
+};
+
+async function api(path, opts = {}) {
+  const r = await fetch(path, {
+    method: opts.method || (opts.body ? "POST" : "GET"),
+    headers: { "X-Token": TOKEN, "Content-Type": "application/json" },
+    body: opts.body ? JSON.stringify(opts.body) : undefined,
+  });
+  let data; try { data = await r.json(); } catch { data = {}; }
+  if (!r.ok) throw new Error(data.error || r.statusText);
+  return data;
+}
+
+function setStatus(msg, isErr = false) {
+  const s = $("status"); s.textContent = msg; s.title = msg; s.className = "status" + (isErr ? " err" : "");
+}
+
+// ---------- perfiles ----------
+let profiles = [];
+async function loadProfiles() {
+  try { profiles = await api("/api/profiles"); } catch (e) { profiles = []; }
+  const sel = $("cProfile"); const cur = sel.value;
+  sel.replaceChildren(el("option", { value: "", textContent: "— nuevo —" }),
+    ...profiles.map(p => el("option", { value: p.name, textContent: p.name })));
+  sel.value = profiles.some(p => p.name === cur) ? cur : "";
+}
+function formProfile() {
+  return {
+    name: $("cName").value.trim(), url: $("cURL").value.trim(), bindDN: $("cBind").value.trim(),
+    baseDN: $("cBase").value.trim(), startTLS: $("cStartTLS").checked, skipVerify: $("cSkip").checked,
+    useKeychain: $("cKeychain").checked,
+  };
+}
+function fillForm(p) {
+  $("cName").value = p?.name || ""; $("cURL").value = p?.url || ""; $("cBind").value = p?.bindDN || "";
+  $("cBase").value = p?.baseDN || ""; $("cStartTLS").checked = !!p?.startTLS; $("cSkip").checked = !!p?.skipVerify;
+  $("cKeychain").checked = !!p?.useKeychain; $("cPass").value = "";
+  $("cPass").placeholder = p?.useKeychain ? "vacío = usar la del llavero" : "";
+}
+$("cProfile").onchange = () => fillForm(profiles.find(p => p.name === $("cProfile").value));
+$("btnSaveProfile").onclick = async () => {
+  $("cErr").textContent = "";
+  try {
+    const p = formProfile(); if (!p.name) throw new Error("Ponle un nombre al perfil");
+    await api("/api/profiles", { body: { profile: p, password: $("cPass").value } });
+    await loadProfiles(); $("cProfile").value = p.name; setStatus("Perfil guardado");
+  } catch (e) { $("cErr").textContent = e.message; }
+};
+$("btnDelProfile").onclick = async () => {
+  const n = $("cProfile").value; if (!n) return;
+  await api("/api/profiles?name=" + encodeURIComponent(n), { method: "DELETE" });
+  await loadProfiles(); fillForm(null);
+};
+
+// ---------- conexión ----------
+$("btnConn").onclick = async () => { $("cErr").textContent = ""; await loadProfiles(); $("dlg").showModal(); };
+$("btnCancel").onclick = () => $("dlg").close();
+$("cform").onsubmit = async (ev) => {
+  ev.preventDefault();
+  $("cErr").textContent = ""; $("btnDoConn").disabled = true;
+  try {
+    const p = formProfile();
+    const res = await api("/api/connect", { body: { profile: p, password: $("cPass").value } });
+    $("cPass").value = "";
+    $("dlg").close();
+    connected(p, res.roots || []);
+  } catch (e) { $("cErr").textContent = e.message; }
+  finally { $("btnDoConn").disabled = false; }
+};
+$("btnDisc").onclick = async () => {
+  await api("/api/disconnect", { method: "POST" }).catch(() => {});
+  roots = []; $("tree").replaceChildren(el("div", { class: "empty", textContent: "Sin conexión." }));
+  $("pane-entry").replaceChildren(el("div", { class: "empty", textContent: "Selecciona una entrada del árbol." }));
+  for (const b of ["btnDisc", "btnRefresh", "btnSearch"]) $(b).disabled = true;
+  setStatus("Sin conexión");
+};
+
+let roots = [];
+function connected(p, rs) {
+  roots = rs;
+  for (const b of ["btnDisc", "btnRefresh", "btnSearch"]) $(b).disabled = false;
+  setStatus(`Conectado a ${p.url}` + (p.bindDN ? ` como ${p.bindDN}` : " (anónimo)"));
+  if (!$("sBase").value && rs[0]) $("sBase").value = rs[0];
+  buildTree();
+}
+$("btnRefresh").onclick = buildTree;
+
+// ---------- árbol ----------
+let selectedNode = null;
+function buildTree() {
+  const ul = el("ul", { class: "t" });
+  if (!roots.length) {
+    $("tree").replaceChildren(el("div", { class: "empty", textContent: "No se detectó ninguna base. Indica Base DN en la conexión." }));
+    return;
+  }
+  for (const r of roots) ul.append(makeNode({ dn: r, rdn: r, leaf: false }));
+  $("tree").replaceChildren(ul);
+  const first = ul.querySelector(".node"); if (first) first.click();
+}
+
+function makeNode(n) {
+  const li = el("li");
+  const tw = el("span", { class: "tw", textContent: n.leaf ? "" : "▶" });
+  const row = el("div", { class: "node", title: n.dn }, tw, el("span", { class: "rdn", textContent: n.rdn }));
+  let kids = null, open = false;
+  const toggle = async () => {
+    if (n.leaf) return;
+    open = !open;
+    if (open && !kids) {
+      tw.textContent = "…";
+      try {
+        const res = await api("/api/children?dn=" + encodeURIComponent(n.dn));
+        kids = el("ul", { class: "t" });
+        if (!res.children.length) { n.leaf = true; tw.textContent = ""; return; }
+        for (const c of res.children) kids.append(makeNode(c));
+        if (res.warning) kids.append(el("li", { class: "more", textContent: "⚠ " + res.warning }));
+        li.append(kids);
+      } catch (e) { setStatus(e.message, true); open = false; tw.textContent = "▶"; return; }
+    }
+    if (kids) kids.style.display = open ? "" : "none";
+    tw.textContent = open ? "▼" : "▶";
+  };
+  tw.addEventListener("click", (ev) => { ev.stopPropagation(); toggle(); });
+  row.addEventListener("click", () => {
+    if (selectedNode) selectedNode.classList.remove("sel");
+    row.classList.add("sel"); selectedNode = row;
+    showEntry(n.dn);
+  });
+  row.addEventListener("dblclick", toggle);
+  li.append(row);
+  return li;
+}
+
+// ---------- entrada ----------
+function copyBtn(text) {
+  return el("button", { class: "copy", textContent: "copiar", onclick: (ev) => {
+    ev.stopPropagation(); navigator.clipboard.writeText(text);
+    ev.target.textContent = "✓"; setTimeout(() => ev.target.textContent = "copiar", 900);
+  }});
+}
+function attrTable(attrs) {
+  const t = el("table", { class: "attrs" });
+  for (const a of attrs || []) {
+    const v = el("td", { class: "v" });
+    for (const x of a.values || []) v.append(el("div", { class: a.binary ? "bin" : "", textContent: x }));
+    t.append(el("tr", {}, el("td", { class: "k", textContent: a.name }), v));
+  }
+  return t;
+}
+async function showEntry(dn) {
+  showTab("entry");
+  const pane = $("pane-entry");
+  pane.replaceChildren(el("div", { class: "muted", textContent: "Cargando…" }));
+  try {
+    const e = await api("/api/entry?dn=" + encodeURIComponent(dn) + ($("chkOp").checked ? "&operational=1" : ""));
+    pane.replaceChildren(
+      el("div", { class: "dn" }, el("span", { textContent: e.dn }), copyBtn(e.dn),
+        el("a", { class: "jump", textContent: "buscar desde aquí", onclick: () => { $("sBase").value = e.dn; showTab("search"); $("sFilter").focus(); } })),
+      attrTable(e.attrs));
+  } catch (err) { pane.replaceChildren(el("div", { class: "err", textContent: err.message })); }
+}
+$("chkOp").onchange = () => { if (selectedNode) showEntry(selectedNode.title); };
+
+// ---------- búsqueda ----------
+async function doSearch() {
+  if ($("btnSearch").disabled) return;
+  const out = $("sOut");
+  out.replaceChildren(el("div", { class: "muted", textContent: "Buscando…" }));
+  try {
+    const t0 = performance.now();
+    const res = await api("/api/search", { body: {
+      base: $("sBase").value.trim(), filter: $("sFilter").value.trim(), scope: $("sScope").value,
+      attrs: $("sAttrs").value, limit: parseInt($("sLimit").value, 10) || 500 } });
+    const ms = Math.round(performance.now() - t0);
+    const items = res.entries.map(e => el("details", { class: "result" },
+      el("summary", {}, e.dn, el("a", { class: "jump", textContent: "ver", onclick: (ev) => { ev.preventDefault(); showEntry(e.dn); } })),
+      el("div", { class: "body" }, attrTable(e.attrs))));
+    out.replaceChildren(
+      el("div", { class: "muted", style: "margin-top:12px", textContent: `${res.entries.length} resultado(s) en ${ms} ms` }),
+      ...(res.warning ? [el("div", { class: "warn", textContent: "⚠ " + res.warning })] : []),
+      ...items);
+    if (items.length === 1) items[0].open = true;
+  } catch (e) { out.replaceChildren(el("div", { class: "err", style: "margin-top:12px", textContent: e.message })); }
+}
+$("btnSearch").onclick = doSearch;
+for (const id of ["sBase", "sFilter", "sAttrs", "sLimit"])
+  $(id).addEventListener("keydown", (ev) => { if (ev.key === "Enter") doSearch(); });
+
+// ---------- pestañas ----------
+function showTab(name) {
+  for (const b of document.querySelectorAll(".tabs button")) b.classList.toggle("on", b.dataset.tab === name);
+  for (const p of document.querySelectorAll(".pane")) p.classList.toggle("on", p.id === "pane-" + name);
+}
+for (const b of document.querySelectorAll(".tabs button")) b.onclick = () => showTab(b.dataset.tab);
+
+loadProfiles();
+const ping = () => api("/api/ping", { method: "POST" }).catch(() => setStatus("El proceso ldapnav no responde", true));
+ping(); setInterval(ping, 10000);
+</script>
+</body>
+</html>
