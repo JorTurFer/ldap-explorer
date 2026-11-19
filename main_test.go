@@ -53,7 +53,7 @@ func newTestServer(t *testing.T) *httptest.Server {
 func serveHandler(t *testing.T) *httptest.Server {
 	t.Helper()
 	var lp atomic.Int64
-	srv := httptest.NewServer(newHandler(testToken, &lp))
+	srv := httptest.NewServer(newHandler(testToken, &lp, embeddedFront()))
 	t.Cleanup(func() {
 		sess.mu.Lock()
 		if sess.conn != nil {
@@ -522,5 +522,70 @@ func TestLegacyConfigFolderIsMigrated(t *testing.T) {
 	}
 	if b, _ := os.ReadFile(filepath.Join(old, "profiles.json")); string(b) != "[]" {
 		t.Error("the old folder must be left alone when the new one exists")
+	}
+}
+
+// -front-dir serves the UI from disk, so the front end can be edited without rebuilding.
+func TestFrontDirServesFromDisk(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dir, "js"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	write := func(name, content string) {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write("index.html", "<html>DISK ONE</html>")
+	write("js/app.js", "// one")
+
+	var lp atomic.Int64
+	srv := httptest.NewServer(newHandler(testToken, &lp, os.DirFS(dir)))
+	defer srv.Close()
+	get := func(path string) (*http.Response, string) {
+		resp, err := http.Get(srv.URL + path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer resp.Body.Close()
+		b, _ := io.ReadAll(resp.Body)
+		return resp, string(b)
+	}
+
+	resp, body := get("/")
+	if !strings.Contains(body, "DISK ONE") {
+		t.Fatalf("not served from disk: %s", body)
+	}
+	// the same strict policy applies in development
+	if csp := resp.Header.Get("Content-Security-Policy"); !strings.Contains(csp, "script-src 'self'") || strings.Contains(csp, "unsafe-inline") {
+		t.Errorf("CSP in development mode: %q", csp)
+	}
+	// an edit is visible on the next request: no rebuild
+	write("index.html", "<html>DISK TWO</html>")
+	write("js/app.js", "// two")
+	if _, body := get("/"); !strings.Contains(body, "DISK TWO") {
+		t.Errorf("an edited file must be served as soon as it changes: %s", body)
+	}
+	if _, body := get("/js/app.js"); body != "// two" {
+		t.Errorf("js: %q", body)
+	}
+	// the API is untouched
+	if resp, _ := get("/api/profiles"); resp.StatusCode != 403 {
+		t.Errorf("the API still needs the token: %d", resp.StatusCode)
+	}
+}
+
+// A -front-dir without an index.html must be refused at startup with a clear message.
+func TestFrontDirWithoutIndexIsRefused(t *testing.T) {
+	bin := filepath.Join(t.TempDir(), "ldap-explorer")
+	if runtime.GOOS == "windows" {
+		bin += ".exe"
+	}
+	if out, err := exec.Command("go", "build", "-o", bin, ".").CombinedOutput(); err != nil {
+		t.Fatalf("build: %v\n%s", err, out)
+	}
+	out, err := exec.Command(bin, "-no-open", "-front-dir", t.TempDir()).CombinedOutput()
+	if err == nil || !strings.Contains(string(out), "does not contain index.html") {
+		t.Errorf("expected a clear refusal, got err=%v output=%q", err, out)
 	}
 }

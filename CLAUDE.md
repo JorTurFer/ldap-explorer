@@ -56,9 +56,8 @@ A minimal, read-only LDAP browser. A single Go binary that serves an embedded we
 - Windows packaging (.exe with an icon, or without a console via `-ldflags -H=windowsgui`).
 
 ## Commands
-- `go build -o ldap-explorer .` and `./ldap-explorer` (or `make build` / `make app` on macOS).
-- Windows: `go build -o ldap-explorer.exe .`
-- `go vet ./...` and `make test` (or `make test-docker`) before calling anything done.
+- Everything is a `make` target and CI runs the same ones (`make help`): `make ci` (lint + all tests + smoke), `make test-docker` (that, reproducibly, in a container), `make test-keychain` (real OS keychain), `make build-all`, `make screenshots`, `make front-dev` (serve `front/` from disk with `-front-dir`: edit and refresh, no rebuild). Add a Makefile target for anything new that is run by hand or by CI; do not put logic only in a workflow.
+- Before calling anything done run `make ci` (or `make test-docker` when slapd, Chrome or Node are not installed locally).
 
 ## Conventions
 - Everything in the repo is in English: code comments, UI text, error messages, docs, commit messages.

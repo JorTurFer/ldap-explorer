@@ -8,71 +8,62 @@ on:
 permissions:
   contents: read
 
-# The LDAP server is only a validation tool: what is under test is the app running
-# on each OS (including its web UI, in a real Chrome), against a real OpenLDAP
-# reachable on 127.0.0.1. Docker is only an
-# option on Linux (macOS runners have no Docker engine and Windows runners only run
-# Windows containers), so macOS and Windows install a real slapd on the agent.
+# Every job runs the targets of the Makefile (`make ci`, `make test-keychain`...), the
+# same ones you run locally; `make help` lists them.
+#
+# The LDAP server is only a validation tool: what is under test is the app running on
+# each OS (including its web UI, in a real Chrome), against a real OpenLDAP reachable on
+# 127.0.0.1. Docker is only an option on Linux (macOS runners have no Docker engine and
+# Windows runners only run Windows containers), so macOS and Windows install a real
+# slapd on the agent. Every job makes a missing slapd, Chrome or Node a failure
+# instead of a skip.
 
 jobs:
-  # gofmt, go mod tidy, vet, tests against a real OpenLDAP (slapd) and binary smoke test.
-  # All inside hack/Dockerfile.test: the same as `make test-docker` locally.
+  # Go, OpenLDAP, Chromium and Node in a container (hack/Dockerfile.test) running
+  # `make ci`: the same as `make test-docker`. On amd64 and on arm64.
   linux:
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-latest, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
-      - name: Build the test image
-        run: docker build -f hack/Dockerfile.test -t ldap-explorer-test .
-      - name: Run
-        run: docker run --rm ldap-explorer-test
+      - run: make test-docker
 
   # Homebrew OpenLDAP (slapd in libexec, slapadd in sbin); Chrome is preinstalled.
   macos:
     runs-on: macos-latest
     env:
-      CGO_ENABLED: "0"
       LDAP_EXPLORER_SLAPD_DIR: /opt/homebrew/opt/openldap/libexec
       LDAP_EXPLORER_REQUIRE_SLAPD: "1"
+      LDAP_EXPLORER_REQUIRE_CHROME: "1"
+      LDAP_EXPLORER_REQUIRE_NODE: "1"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
       - run: brew install openldap
-      - name: Real keychain
-        run: go test -count=1 -v -run TestRealKeyring ./...
-        env:
-          LDAP_EXPLORER_TEST_REAL_KEYRING: "1"
-      - name: Remaining tests
-        run: go test -count=1 ./...
-      - name: JS unit tests
-        shell: bash
-        run: hack/jstest.sh
-        env:
-          LDAP_EXPLORER_REQUIRE_NODE: "1"
-      - name: Browser tests
-        working-directory: e2e
-        run: go test -count=1 -v ./...
-        env:
-          LDAP_EXPLORER_REQUIRE_CHROME: "1"
-      - name: Build and smoke-test the binary
-        run: |
-          go build -trimpath -ldflags="-s -w" -o ldap-explorer .
-          hack/smoke.sh ./ldap-explorer
-      - name: make app and smoke-test the .app
+      - name: make ci
+        run: make ci V=-v
+      - name: make test-keychain (the real macOS Keychain)
+        run: make test-keychain
+      - name: make app, then check and smoke-test the .app
         run: |
           make app
           codesign --verify --deep --strict LDAPExplorer.app
           hack/smoke.sh LDAPExplorer.app/Contents/MacOS/ldap-explorer
 
-  # Chrome is preinstalled. Ubuntu's slapd running in WSL1 (no nested virtualization needed). The test
-  # harness starts it as a child process and reaches it on 127.0.0.1.
+  # Chrome is preinstalled. Ubuntu's slapd runs in WSL1 (no nested virtualization needed);
+  # the test harness starts it as a child process and reaches it on 127.0.0.1.
   windows:
     runs-on: windows-latest
     env:
-      CGO_ENABLED: "0"
       LDAP_EXPLORER_SLAPD_WSL: Ubuntu-24.04
       LDAP_EXPLORER_REQUIRE_SLAPD: "1"
+      LDAP_EXPLORER_REQUIRE_CHROME: "1"
+      LDAP_EXPLORER_REQUIRE_NODE: "1"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -83,24 +74,24 @@ jobs:
           distribution: Ubuntu-24.04
           wsl-version: 1
           additional-packages: slapd ldap-utils
-      - name: Real keychain
-        run: go test -count=1 -v -run TestRealKeyring ./...
-        env:
-          LDAP_EXPLORER_TEST_REAL_KEYRING: "1"
-      - name: Remaining tests
-        run: go test -count=1 ./...
-      - name: JS unit tests
-        shell: bash
-        run: hack/jstest.sh
-        env:
-          LDAP_EXPLORER_REQUIRE_NODE: "1"
-      - name: Browser tests
-        working-directory: e2e
-        run: go test -count=1 -v ./...
-        env:
-          LDAP_EXPLORER_REQUIRE_CHROME: "1"
-      - name: Build and smoke-test the binary
-        shell: bash
+      - name: Install make if the image does not have it
+        shell: pwsh
         run: |
-          go build -trimpath -ldflags="-s -w" -o ldap-explorer.exe .
-          hack/smoke.sh ./ldap-explorer.exe
+          if (-not (Get-Command make -ErrorAction SilentlyContinue)) { choco install make --no-progress -y }
+          make --version
+      - name: make ci
+        shell: bash
+        run: make ci V=-v
+      - name: make test-keychain (the real Credential Manager)
+        shell: bash
+        run: make test-keychain
+
+  # The app must build, without cgo, for every platform we ship.
+  build-all:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - run: make build-all

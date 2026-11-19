@@ -642,7 +642,7 @@ func without(s []string, v string) []string {
 // newHandler builds the HTTP server: embedded UI at "/" and the API under
 // /api/*, which requires the X-Token header. lastPing is updated on every
 // UI heartbeat.
-func newHandler(token string, lastPing *atomic.Int64) http.Handler {
+func newHandler(token string, lastPing *atomic.Int64, front fs.FS) http.Handler {
 	migrateLegacyConfig()
 	api := http.NewServeMux()
 	api.HandleFunc("/api/profiles", handleProfiles)
@@ -681,10 +681,6 @@ func newHandler(token string, lastPing *atomic.Int64) http.Handler {
 		w.Header().Set("Cache-Control", "no-store") // nothing from the API (profiles, entries) is cached
 		api.ServeHTTP(w, r)
 	}))
-	front, err := fs.Sub(frontFS, "front")
-	if err != nil {
-		panic(err)
-	}
 	static := http.FileServerFS(front)
 	root.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet && r.Method != http.MethodHead {
@@ -699,11 +695,30 @@ func newHandler(token string, lastPing *atomic.Int64) http.Handler {
 	return root
 }
 
+// embeddedFront is the UI compiled into the binary.
+func embeddedFront() fs.FS {
+	front, err := fs.Sub(frontFS, "front")
+	if err != nil {
+		panic(err)
+	}
+	return front
+}
+
 func main() {
 	port := flag.Int("port", 0, "local port (0 = random)")
+	frontDir := flag.String("front-dir", "", "development: serve the UI from this folder instead of the embedded one (edit and refresh, no rebuild)")
 	noOpen := flag.Bool("no-open", false, "do not open the browser automatically")
 	idle := flag.Duration("idle-exit", 3*time.Minute, "exit if the UI sends no heartbeat for this long (0 = never)")
 	flag.Parse()
+
+	front := embeddedFront()
+	if *frontDir != "" {
+		if _, err := os.Stat(filepath.Join(*frontDir, "index.html")); err != nil {
+			log.Fatalf("-front-dir %q does not contain index.html: %v", *frontDir, err)
+		}
+		front = os.DirFS(*frontDir)
+		fmt.Println("development mode: serving the UI from", *frontDir)
+	}
 
 	tokBytes := make([]byte, 16)
 	if _, err := rand.Read(tokBytes); err != nil {
@@ -723,7 +738,7 @@ func main() {
 			}
 		}()
 	}
-	handler := newHandler(token, &lastPing)
+	handler := newHandler(token, &lastPing, front)
 
 	ln, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", *port))
 	if err != nil {

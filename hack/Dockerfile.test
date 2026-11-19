@@ -1,4 +1,5 @@
-# Reproducible test environment: Go + OpenLDAP (slapd). See `make test-docker`.
+# Reproducible test environment: Go + OpenLDAP (slapd) + Chromium + Node. `make test-docker`
+# builds this image and runs `make ci` in it, exactly what the Linux CI job does.
 # Same image locally and in CI.
 FROM golang:1.27.4-bookworm
 
@@ -16,4 +17,4 @@ COPY . .
 
 # In CI a missing slapd, Chrome or Node must fail the run, not silently skip tests.
 ENV LDAP_EXPLORER_REQUIRE_SLAPD=1 LDAP_EXPLORER_REQUIRE_CHROME=1 LDAP_EXPLORER_REQUIRE_NODE=1
-CMD ["bash", "hack/ci-test.sh"]
+CMD ["make", "ci"]

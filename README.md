@@ -43,13 +43,23 @@ When you build it on your own machine the binary has no quarantine attribute, so
 - Every start generates a random token that goes in the URL `#` fragment. The API requires it in a header, so other web pages open in the browser cannot use the server.
 - Nothing is written to the LDAP server: it only does bind and search.
 
-## Tests
+## Development: everything is a `make` target
+
+`make help` lists them; CI runs the same ones, so what passes locally passes there.
 
 ```sh
-make test          # native go vet + go test; integration tests use slapd if installed
-make test-docker   # Go + OpenLDAP in a container (hack/Dockerfile.test): reproducible, same as CI
-make smoke         # build and check the binary (403 without a token, 200 with one)
+make build         # ./ldap-explorer          make build-all   # all platforms into dist/
+make app           # LDAPExplorer.app (macOS)
+make lint          # gofmt, go vet, go mod tidy, JS syntax
+make test          # Go + OpenLDAP integration, JS unit tests, browser tests
+make ci            # lint + test + smoke: what every CI job runs
+make test-docker   # make ci in a container with Go, OpenLDAP, Chromium and Node (reproducible)
+make test-keychain # the REAL OS keychain (macOS / Windows)
+make screenshots   # regenerate docs/img from the real UI
+make front-dev     # serve the UI from front/ on disk: edit, refresh, no rebuild
 ```
+
+## What the tests cover
 
 The integration tests start an ephemeral `slapd` (OpenLDAP) loaded with `internal/slapdtest/seed.ldif`
 plus 600 generated entries, on `ldap://` and `ldaps://` (self-signed certificate), and exercise the real API:
@@ -73,14 +83,10 @@ The real-keychain tests (Keychain / Credential Manager) only run with
 
 ### CI
 
-`.github/workflows/ci.yml` (on every PR and push to `main`):
-Three independent jobs; every one runs the whole suite (LDAP integration tests and browser tests included) against a real OpenLDAP, with no skips:
-- **linux**: `hack/Dockerfile.test` (Go, OpenLDAP and Chromium) → gofmt, `go mod tidy` with no changes (both modules), `go vet`, tests, browser tests and a binary smoke test.
-- **macos**: Homebrew OpenLDAP; real Keychain tests (including an end-to-end one: password in the Keychain, connect without typing it), build + smoke test, and `make app` + `codesign --verify` + `.app` smoke test.
-- **windows**: Ubuntu's `slapd` in WSL1; real Credential Manager tests (same end-to-end one), build + smoke test of `ldap-explorer.exe`.
+`.github/workflows/ci.yml` runs on every PR and push to `main`, always through the Makefile targets, with a missing slapd, Chrome or Node being a failure and not a skip:
+- **linux** (amd64 and arm64): `make test-docker`, that is `make ci` inside the test image (Go, OpenLDAP, Chromium, Node).
+- **macos** (arm64): Homebrew OpenLDAP; `make ci`, `make test-keychain` (the real Keychain), and `make app` with `codesign --verify` and a smoke test of the `.app`.
+- **windows** (amd64): Ubuntu's `slapd` in WSL1; `make ci` and `make test-keychain` (the real Credential Manager).
+- **build-all**: `make build-all` compiles for macOS (arm64, amd64), Windows and Linux (amd64, arm64).
 
 Docker is only an option on Linux: macOS runners have no Docker engine and Windows runners only run Windows containers.
-
-## Upgrading from ldapnav
-
-The project used to be called ldapnav. Nothing is lost when you upgrade: the configuration folder (`profiles.json`, `queries.json`) is moved to the new `ldap-explorer` folder the first time the new version starts, and passwords saved in the system keychain under the old service name `ldapnav` are still read (and copied to the new `ldap-explorer` service). The old entries are never deleted.
