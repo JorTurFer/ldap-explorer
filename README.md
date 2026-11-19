@@ -48,7 +48,7 @@ make test-docker   # Go + OpenLDAP in a container (hack/Dockerfile.test): reprod
 make smoke         # build and check the binary (403 without a token, 200 with one)
 ```
 
-The integration tests start an ephemeral `slapd` (OpenLDAP) loaded with `testdata/seed.ldif`
+The integration tests start an ephemeral `slapd` (OpenLDAP) loaded with `internal/slapdtest/seed.ldif`
 plus 600 generated entries, on `ldap://` and `ldaps://` (self-signed certificate), and exercise the real API:
 good/bad/anonymous bind, TLS and StartTLS, tree, entry view, searches, paging and server limits.
 `slapd` is only a validation tool; what is under test is the app running on each OS. It is looked up in

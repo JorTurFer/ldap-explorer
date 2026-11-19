@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"io"
+	"ldapnav/internal/slapdtest"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -17,6 +18,13 @@ import (
 
 	"github.com/zalando/go-keyring"
 )
+
+// TestMain shuts down the shared slapd (see internal/slapdtest) after the tests.
+func TestMain(m *testing.M) {
+	code := m.Run()
+	slapdtest.Stop()
+	os.Exit(code)
+}
 
 const testToken = "test-token"
 

@@ -12,6 +12,7 @@ package main
 import (
 	"crypto/rand"
 	"encoding/hex"
+	"ldapnav/internal/slapdtest"
 	"net/url"
 	"os"
 	"os/exec"
@@ -115,19 +116,19 @@ func isASCIISingleLine(s string) bool {
 // profiles.json or HOME (the macOS keychain lives under HOME).
 func TestRealKeyringEndToEnd(t *testing.T) {
 	realKeyringProfile(t) // gate + mock check; the account below is unique too
-	l := startSlapd(t)
+	l := slapdtest.Start(t)
 	// The account is bindDN@url with the real DN and the ephemeral slapd URL
 	// (unique per run, random port); it is deleted on cleanup.
-	p := Profile{Name: "e2e", URL: l.URL, BindDN: testAliceDN, UseKeychain: true}
+	p := Profile{Name: "e2e", URL: l.URL, BindDN: slapdtest.AliceDN, UseKeychain: true}
 	t.Cleanup(func() { _ = keyring.Delete(keychainService, keychainAccount(p)) })
-	if err := keychainSet(p, testAlicePW); err != nil {
+	if err := keychainSet(p, slapdtest.AlicePW); err != nil {
 		t.Fatal(err)
 	}
 	srv := serveHandler(t)
 	connectOK(t, srv, p, "")
 
 	var e entryResp
-	if code := call(t, srv, "GET", "/api/entry?dn="+url.QueryEscape(testAliceDN), nil, &e); code != 200 || e.attr("mail") == nil {
+	if code := call(t, srv, "GET", "/api/entry?dn="+url.QueryEscape(slapdtest.AliceDN), nil, &e); code != 200 || e.attr("mail") == nil {
 		t.Fatalf("entry through the keychain-authenticated session: %d %+v", code, e)
 	}
 

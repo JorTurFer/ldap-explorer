@@ -1,6 +1,8 @@
-package main
+// Package slapdtest starts an ephemeral, real OpenLDAP (slapd) for tests.
+//
+// It is only imported from tests (the app binary never links it).
+package slapdtest
 
-// Starts an ephemeral real OpenLDAP (slapd) for the integration tests.
 //
 // The LDAP server is only a validation tool; what is under test is the app
 // running on the current OS. slapd can therefore run anywhere reachable on
@@ -23,6 +25,7 @@ import (
 	"crypto/rand"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	_ "embed"
 	"encoding/pem"
 	"errors"
 	"fmt"
@@ -37,21 +40,24 @@ import (
 	"time"
 )
 
+//go:embed seed.ldif
+var seedLDIF []byte
+
 const (
-	testBaseDN  = "dc=example,dc=org"
-	testAdminDN = "cn=admin,dc=example,dc=org"
-	testAdminPW = "adminpw"
-	testAliceDN = "uid=alice,ou=people,dc=example,dc=org"
-	testAlicePW = "alicepw"
-	testBobDN   = "uid=bob,ou=people,dc=example,dc=org" // no size limit on the server
-	testBobPW   = "bobpw"
+	BaseDN  = "dc=example,dc=org"
+	AdminDN = "cn=admin,dc=example,dc=org"
+	AdminPW = "adminpw"
+	AliceDN = "uid=alice,ou=people,dc=example,dc=org"
+	AlicePW = "alicepw"
+	BobDN   = "uid=bob,ou=people,dc=example,dc=org" // no size limit on the server
+	BobPW   = "bobpw"
 	// Zoe can only see more than 100 results if she pages (like AD's MaxPageSize).
-	testZoeDN = "uid=zoe,ou=people,dc=example,dc=org"
-	testZoePW = "zoepw"
-	bulkCount = 600 // more than the page size (500) to test paging
+	ZoeDN     = "uid=zoe,ou=people,dc=example,dc=org"
+	ZoePW     = "zoepw"
+	BulkCount = 600 // more than the page size (500) to test paging
 )
 
-type testLDAP struct {
+type Server struct {
 	URL, LDAPSURL string
 }
 
@@ -134,31 +140,20 @@ func selfSignedCertPEM() (certPEM, keyPEM []byte, err error) {
 		pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: kb}), nil
 }
 
-func must(t *testing.T, err error) {
-	t.Helper()
-	if err != nil {
-		t.Fatal(err)
-	}
-}
-
 var (
 	slapdOnce   sync.Once
-	slapdShared *testLDAP
+	slapdShared *Server
 	slapdSkip   string // reason why there is no slapd (not an error)
 	slapdErr    error
 	slapdStop   = func() {}
 )
 
-// TestMain shuts down the shared slapd when done.
-func TestMain(m *testing.M) {
-	code := m.Run()
-	slapdStop()
-	os.Exit(code)
-}
+// Stop shuts the shared slapd down; call it from TestMain after m.Run().
+func Stop() { slapdStop() }
 
-// startSlapd returns the shared slapd loaded with testdata/seed.ldif plus
-// bulkCount entries in ou=bulk. It listens on ldap:// and ldaps:// (self-signed cert).
-func startSlapd(t *testing.T) *testLDAP {
+// Start returns the shared slapd loaded with seed.ldif plus
+// BulkCount entries in ou=bulk. It listens on ldap:// and ldaps:// (self-signed cert).
+func Start(t testing.TB) *Server {
 	t.Helper()
 	slapdOnce.Do(func() { slapdShared, slapdStop, slapdSkip, slapdErr = launchSlapd() })
 	if slapdErr != nil {
@@ -218,7 +213,7 @@ func (h *slapdHost) mkdir(rel string) (string, error) {
 	return p, nil
 }
 
-func launchSlapd() (l *testLDAP, stop func(), skip string, err error) {
+func launchSlapd() (l *Server, stop func(), skip string, err error) {
 	stop = func() {}
 	h := &slapdHost{wsl: os.Getenv("LDAPNAV_SLAPD_WSL")}
 	var slapd, slapadd, schemaDir, modDir string
@@ -282,7 +277,7 @@ func launchSlapd() (l *testLDAP, stop func(), skip string, err error) {
 		}
 		_ = os.RemoveAll(localDir)
 	}
-	fail := func(e error) (*testLDAP, func(), string, error) {
+	fail := func(e error) (*Server, func(), string, error) {
 		log := ""
 		if b, rerr := os.ReadFile(filepath.Join(localDir, "slapd.log")); rerr == nil {
 			log = "\nslapd log:\n" + string(b)
@@ -328,20 +323,16 @@ directory %s
 index objectClass eq
 limits dn.exact="%s" size=unlimited
 limits dn.exact="%s" size.soft=100 size.hard=100 size.pr=500 size.prtotal=unlimited
-`, h.path("slapd.pid"), certPath, keyPath, testBaseDN, testAdminDN, testAdminPW, data, testBobDN, testZoeDN)
+`, h.path("slapd.pid"), certPath, keyPath, BaseDN, AdminDN, AdminPW, data, BobDN, ZoeDN)
 	confPath, err := h.writeFile("slapd.conf", []byte(conf.String()))
 	if err != nil {
 		return fail(err)
 	}
 
-	seed, err := os.ReadFile("testdata/seed.ldif")
-	if err != nil {
-		return fail(err)
-	}
 	var ldif strings.Builder
-	ldif.Write(seed)
-	for i := 1; i <= bulkCount; i++ {
-		fmt.Fprintf(&ldif, "\ndn: uid=u%04d,ou=bulk,%s\nobjectClass: inetOrgPerson\nuid: u%04d\ncn: User %04d\nsn: Bulk\n", i, testBaseDN, i, i)
+	ldif.Write(seedLDIF)
+	for i := 1; i <= BulkCount; i++ {
+		fmt.Fprintf(&ldif, "\ndn: uid=u%04d,ou=bulk,%s\nobjectClass: inetOrgPerson\nuid: u%04d\ncn: User %04d\nsn: Bulk\n", i, BaseDN, i, i)
 	}
 	ldifPath, err := h.writeFile("seed.ldif", []byte(ldif.String()))
 	if err != nil {
@@ -386,7 +377,7 @@ limits dn.exact="%s" size.soft=100 size.hard=100 size.pr=500 size.prtotal=unlimi
 			c.Close()
 		}
 		if ok {
-			return &testLDAP{URL: fmt.Sprintf("ldap://127.0.0.1:%d", lp), LDAPSURL: fmt.Sprintf("ldaps://127.0.0.1:%d", sp)}, stop, "", nil
+			return &Server{URL: fmt.Sprintf("ldap://127.0.0.1:%d", lp), LDAPSURL: fmt.Sprintf("ldaps://127.0.0.1:%d", sp)}, stop, "", nil
 		}
 		time.Sleep(100 * time.Millisecond)
 	}
