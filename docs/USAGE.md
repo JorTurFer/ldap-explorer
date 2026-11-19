@@ -28,7 +28,7 @@ ldap-explorer is a read-only LDAP browser. It runs as a local program, serves it
 | **Base DN** | Optional. Empty means it is detected from the server's RootDSE (`namingContexts`). If detection finds nothing, set it here. |
 | **StartTLS** | Upgrade an `ldap://` connection to TLS. Ignored for `ldaps://`. |
 | **Skip certificate verification** | Accept any server certificate. Insecure; use it only for lab servers with self-signed certificates. |
-| **Save password in the keychain** | See section 5. |
+| **Password kept** | Where the password is saved: nowhere, the system keychain or the encrypted vault. See section 5. |
 
 **Save profile** stores the form (without the password) so you can reuse it. **Disconnect** closes the connection; **↻** reloads the tree.
 
@@ -123,15 +123,61 @@ The interface follows the system light or dark setting:
 
 Results are paged internally (up to 500 per request). If the server (or the limit you set) stops the search early, you get the entries received plus a `⚠` warning, such as `Size Limit Exceeded`, instead of an error.
 
-## 5. Passwords and the keychain
+## 5. Passwords, the vault and several users
 
-- Passwords are **never** written to `profiles.json`.
-- If you tick **Save password in the keychain** and save the profile, the password goes to the operating system keychain: service `ldap-explorer`, account `<bind DN>@<URL>`. Connecting with the password field empty then uses it.
-- Profiles are stored in your user configuration directory:
-  - macOS: `~/Library/Application Support/ldap-explorer/profiles.json`
-  - Windows: `%AppData%\ldap-explorer\profiles.json`
-  - Linux: `~/.config/ldap-explorer/profiles.json`
-- The password field is not remembered between runs unless it is in the keychain.
+![The Passwords panel: what each profile keeps, and the vault](img/passwords.png)
+
+### Where a password can be kept
+
+Each profile chooses, in **Password kept**:
+
+| Choice | What it does |
+|---|---|
+| **Do not save** | The password is never stored. You type it each time. The safest, the least convenient. |
+| **System keychain** | macOS Keychain, Windows Credential Manager or the Linux Secret Service. Protected by your operating system login. Not offered (and explained) on machines that have none, such as many Linux, WSL or headless setups. |
+| **Encrypted vault** | A file protected by a **master passphrase** you choose, for machines without a keychain or if you prefer not to depend on it. |
+
+Passwords are **never** written to `profiles.json` and the interface never receives one back: it only says whether one is saved. Leave the password field empty to use the saved one.
+
+### The vault
+
+- The first time you save a password in it you are asked to create it (a passphrase of at least 8 characters). **There is no way to recover the passwords if you forget it**: delete the vault and enter them again.
+- It starts **locked** and is unlocked by typing the passphrase when something needs it. It **locks itself after 15 minutes without use**; **Passwords → Lock now** locks it at once. The keys are wiped from memory when it locks.
+- The file (`vault.json`) is encrypted with AES-256-GCM using a key derived from the passphrase with Argon2id (64 MiB, 3 passes). It does not even reveal *which* users or servers it holds, only how many entries there are. Tampering with the file is detected.
+- Wrong passphrases are slowed down: after three failures each attempt has to wait longer (2 s, 4 s... up to a minute).
+- **Passwords → Change the passphrase** re-encrypts everything under a new one.
+
+### Several users, several servers
+
+Each profile is one *user on one server*, with its own saved password, so you can keep as many as you need:
+
+- **Connect as…** (top bar) lists your profiles as *name — user @ server*. Choosing one connects at once with its saved password, switching from whichever one you were using. If that profile keeps no password, the connection dialog opens ready for you to type it.
+- **Add another user** (in the connection dialog) copies the server settings of the profile you are editing so you only enter the other user's name, DN and password. Use it for several accounts on one LDAP, for example your own and an administrator.
+- The same user DN on two different servers (or on the same server over two URLs) are two different profiles with two different passwords.
+- **Passwords** (top bar) shows, for every profile, where its password is kept and whether it is there (*saved*, *vault locked*, *not saved*...). **Forget password** removes it and stops saving it for that profile. Entries in the vault that no profile uses any more (for example after deleting a profile while the vault was locked) are listed so you can remove them.
+
+When you change **where** a password is kept, it is **moved** (you do not retype it) and the old copy is removed. Changing the user of a profile, or deleting the profile, also removes the old password.
+
+### Where things are stored
+
+In your user configuration folder:
+
+| | |
+|---|---|
+| macOS | `~/Library/Application Support/ldap-explorer/` |
+| Windows | `%AppData%\ldap-explorer\` |
+| Linux | `~/.config/ldap-explorer/` |
+
+with `profiles.json` (server settings and which store each profile uses, never a password), `queries.json` (saved queries), and `vault.json` (the encrypted vault), all private to your user. The keychain keeps its entries under the service name `ldap-explorer`, account `<bind DN>@<URL>`.
+
+### What this does not protect against
+
+Be clear about the limits:
+
+- Someone who can run programs as **your user** while the vault is unlocked, or while you are logged in for the keychain, can read what you can read. The vault protects the file at rest (a copy of it, a backup, a lost laptop), not a compromised session.
+- The strength of the vault is the strength of your passphrase: a long one is far better than a short one if someone gets a copy of `vault.json`.
+- The passphrase and the passwords pass through the memory of the program, and a managed runtime cannot guarantee wiping them: they may stay there until the memory is reused. The vault's keys are wiped on lock; strings are not.
+- A saved password is used as it is to bind: ldap-explorer cannot make an LDAP server more secure than the connection to it, so prefer `ldaps://` or StartTLS and avoid *Skip certificate verification*.
 - Entries saved by earlier versions in the macOS Keychain keep working, with one exception: a password containing non-ASCII characters saved by the old version could not be read back correctly then either. Save the profile password again to fix it.
 
 ## 6. Command-line options
@@ -167,6 +213,8 @@ The 3-minute default is deliberate: browsers throttle timers in background tabs,
 | Results as a sortable table with CSV export | Supported. |
 | Saved profiles (no password) | Supported. |
 | Passwords in the system keychain | macOS Keychain and Windows Credential Manager: supported and tested in CI. Linux (Secret Service): the library supports it but ldap-explorer is not tested against it. |
+| Passwords in an encrypted vault with a master passphrase | Supported on every platform, tested. |
+| Several saved users and servers, with one-click switching | Supported. |
 | Dark and light theme (follows the system) | Supported. |
 
 ### Platforms
@@ -193,7 +241,9 @@ Tested against OpenLDAP 2.5, 2.6 and 2.7 only. The account recipes for 389 Direc
 - **Schema browsing**, ACL inspection, and decoding of binary attributes (no image preview, no GUID/SID formatting).
 - **Server-side sorting, virtual list view and other LDAP controls.**
 - **Proxy settings**: connections are direct.
-- **Changing or viewing a stored password** from inside the interface (delete and recreate the keychain entry, or save the profile again with a new password).
+- **Viewing a stored password**: by design there is no way to read one back; you can replace it (save the profile with a new password), move it or forget it.
+- **Recovering a forgotten vault passphrase**, and **a configurable auto-lock time** (it is 15 minutes).
+- **Client certificates, SASL or Kerberos** as saved credentials: only a bind DN and password can be stored.
 - **Windows `.exe` packaging** (icon, no console window) and a signed or notarized macOS build. The macOS `.app` is ad-hoc signed and meant to be built on the machine that runs it.
 
 ## 10. Troubleshooting
@@ -202,7 +252,10 @@ Tested against OpenLDAP 2.5, 2.6 and 2.7 only. The account recipes for 389 Direc
 |---|---|
 | `bind: LDAP Result Code 49 "Invalid Credentials"` | Wrong DN or password. On AD try `user@domain`. |
 | `ldap: empty password not allowed by the client` | A Bind DN is set but the password is empty. Enter it, use the keychain option, or clear the Bind DN for an anonymous connection. |
-| `no password in the keychain for this profile` | **Save password in the keychain** is ticked but nothing is stored for that DN and URL. Type the password and save the profile. |
+| `no password in the keychain for this profile` / `...in the vault...` | The profile says its password is kept there but nothing is stored for that DN and URL. Type the password and save the profile again. |
+| `the vault is locked` | Type the master passphrase when asked (or **Passwords → Unlock**). It locks itself after 15 minutes without use. |
+| `wrong passphrase` / `too many failed attempts` | After three failures each try waits longer, up to a minute. |
+| `the system keychain is not available here` | There is no usable keychain (no Secret Service on Linux, WSL, a headless session). Use the encrypted vault, or do not save the password. |
 | `keychain: …` | The operating system keychain is unavailable (for example no Secret Service on Linux). |
 | Certificate error on `ldaps://` or StartTLS | The server certificate is not trusted by the system. Install its CA in the system store, or (insecure) tick *Skip certificate verification*. |
 | `No base was detected` | The server does not publish naming contexts to this user. Set **Base DN** in the connection. |

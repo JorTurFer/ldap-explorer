@@ -9,7 +9,7 @@ A minimal, read-only LDAP browser for macOS and Windows. A single Go binary that
 - Searches with base, filter (builder or text), scope, attributes and limit (paged); results as a list or a sortable table with CSV export; saved queries per profile
 - Optional operational attributes; binary values are shown as a hex summary
 - Profiles saved in `~/Library/Application Support/ldap-explorer/profiles.json` on macOS (no password); the equivalent user config directory on other systems
-- Optional password in the system keychain (Keychain on macOS, Credential Manager on Windows, Secret Service on Linux) via `go-keyring`; service `ldap-explorer`, account `bindDN@url`
+- Passwords kept where you choose, per profile: nowhere, the system keychain (Keychain on macOS, Credential Manager on Windows, Secret Service on Linux) or an **encrypted vault** with a master passphrase (Argon2id + AES-256-GCM, locks itself when idle) for machines without a keychain. Several saved users and servers, with one-click "Connect as…" switching
 - `ldap://`, `ldaps://` and StartTLS; base DN auto-detected from the RootDSE
 
 See the [user manual](docs/USAGE.md) for how to use it and exactly what is and is not supported.

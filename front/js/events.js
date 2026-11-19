@@ -5,6 +5,10 @@
 //   search-from    { dn }   "search from here" on an entry
 //   builder-to-raw { filter }  "Edit as text" in the query builder
 //   run-search     {}       Enter pressed in the query builder
+//   profiles-changed   [profile]  the list of saved profiles was (re)loaded
+//   profiles-stale     {}       something changed a profile elsewhere: reload them
+//   open-connect       { profile, message? }  open the connection dialog for that profile
+//   vault-status       { keychain, vault }   the state of the stores changed
 //   load-query     { title, query, attrs, scope, note?, base? }  a recipe or the explorer wants this search run
 
 const bus = new EventTarget();

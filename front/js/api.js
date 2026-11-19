@@ -11,6 +11,11 @@ export async function api(path, opts = {}) {
     body: opts.body ? JSON.stringify(opts.body) : undefined,
   });
   let data; try { data = await r.json(); } catch { data = {}; }
-  if (!r.ok) throw new Error(data.error || r.statusText);
+  if (!r.ok) {
+    const err = new Error(data.error || r.statusText);
+    err.code = data.code;   // e.g. "vault_locked": the UI reacts to it
+    err.status = r.status;
+    throw err;
+  }
   return data;
 }

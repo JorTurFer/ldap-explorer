@@ -784,3 +784,209 @@ func TestUINavigation(t *testing.T) {
 	run(t, ctx, set("#treeFilter", "uid=nobody,"+people), chromedp.SendKeys("#treeFilter", "\r"))
 	waitText(t, ctx, "#pane-entry .err", "No Such Object")
 }
+
+// ---------- passwords: the vault and several users ----------
+
+const vaultPassphrase = "correct horse battery"
+
+// fillConnection fills the connection dialog (it must be open) without submitting it.
+func fillConnection(t *testing.T, ctx context.Context, name, url, bind, password, store string) {
+	t.Helper()
+	run(t, ctx, set("#cName", name), set("#cURL", url), set("#cBind", bind), set("#cPass", password), set("#cStore", store),
+		chromedp.Evaluate(`document.getElementById('cStore').dispatchEvent(new Event('change'))`, nil))
+}
+
+func unlockDialogOpen(t *testing.T, ctx context.Context) bool {
+	t.Helper()
+	var open bool
+	js(t, ctx, `document.getElementById('unlockDlg').open`, &open)
+	return open
+}
+
+// answerVault types a passphrase in the vault dialog (and its confirmation) and submits it.
+func answerVault(t *testing.T, ctx context.Context, pass, confirm string) {
+	t.Helper()
+	run(t, ctx, set("#uPass", pass), set("#uConfirm", confirm), chromedp.Click("#uOk"))
+}
+
+func quickOptions(t *testing.T, ctx context.Context) []string {
+	t.Helper()
+	var o []string
+	js(t, ctx, `[...document.querySelectorAll('#quickConn option')].map(o => o.textContent)`, &o)
+	return o
+}
+
+func TestUIPasswordVault(t *testing.T) {
+	l := slapdtest.Start(t)
+	appURL := startApp(t)
+	ctx := browser(t)
+	run(t, ctx, chromedp.Navigate(appURL), chromedp.WaitVisible("#btnConn"))
+
+	// Before any vault exists the button says so, and the selector explains each choice.
+	waitText(t, ctx, "#btnVault", "Passwords")
+	run(t, ctx, chromedp.Click("#btnConn"), chromedp.WaitVisible("#cStore"))
+	fillConnection(t, ctx, "lab", l.URL, slapdtest.AliceDN, slapdtest.AlicePW, "vault")
+	waitText(t, ctx, "#cStoreHint", "does not exist yet")
+	var opts []struct {
+		Value, Label string
+		Disabled     bool
+	}
+	js(t, ctx, `[...document.querySelectorAll('#cStore option')].map(o => ({value: o.value, label: o.textContent, disabled: o.disabled}))`, &opts)
+	if len(opts) != 3 {
+		t.Fatalf("storage options: %+v", opts)
+	}
+	// The keychain option is disabled exactly when the machine has no usable keychain, and says so.
+	if opts[1].Disabled != strings.Contains(opts[1].Label, "not available") {
+		t.Errorf("keychain option inconsistent: %+v", opts[1])
+	}
+
+	// Saving the profile needs the vault: it is created right there.
+	run(t, ctx, chromedp.Click("#btnSaveProfile"))
+	waitJS(t, ctx, "create dialog", `document.getElementById('unlockDlg').open`)
+	waitText(t, ctx, "#unlockTitle", "Create the vault")
+	answerVault(t, ctx, "short", "short")
+	waitText(t, ctx, "#uErr", "at least 8")
+	answerVault(t, ctx, vaultPassphrase, "something different")
+	waitText(t, ctx, "#uErr", "different")
+	answerVault(t, ctx, vaultPassphrase, vaultPassphrase)
+	waitJS(t, ctx, "dialog closed", `!document.getElementById('unlockDlg').open`)
+	waitText(t, ctx, "#status", "Profile saved") // the save went through after the vault was created
+	waitText(t, ctx, "#btnVault", "vault unlocked")
+	run(t, ctx, chromedp.Click("#btnCancel"))
+
+	// Quick switch: connect as that profile without typing the password.
+	waitJS(t, ctx, "quick switch lists the profile", `[...document.querySelectorAll('#quickConn option')].some(o => o.value === 'lab')`)
+	if got := quickOptions(t, ctx)[1]; !strings.HasPrefix(got, "lab — alice @ 127.0.0.1:") {
+		t.Errorf("quick switch label: %q", got)
+	}
+	run(t, ctx, set("#quickConn", "lab"), chromedp.Evaluate(`document.getElementById('quickConn').dispatchEvent(new Event('change'))`, nil))
+	waitText(t, ctx, "#status", "Connected to "+l.URL+" as "+slapdtest.AliceDN)
+	run(t, ctx, chromedp.Click("#btnDisc"))
+	waitText(t, ctx, "#status", "Not connected")
+
+	// The Passwords panel shows the state and can lock the vault.
+	run(t, ctx, chromedp.Click("#btnVault"), chromedp.WaitVisible("#mList"))
+	waitText(t, ctx, "#mStatus", "The vault is unlocked")
+	waitText(t, ctx, `#mList tr[data-profile="lab"] .state`, "saved")
+	run(t, ctx, chromedp.Click("#mLock"))
+	waitText(t, ctx, "#mStatus", "The vault is locked")
+	waitText(t, ctx, `#mList tr[data-profile="lab"] .state`, "vault locked")
+	waitText(t, ctx, "#btnVault", "vault locked")
+	run(t, ctx, chromedp.Click("#mClose"))
+
+	// Locked: connecting asks for the passphrase, a wrong one is refused, the right one connects.
+	run(t, ctx, set("#quickConn", "lab"), chromedp.Evaluate(`document.getElementById('quickConn').dispatchEvent(new Event('change'))`, nil))
+	waitJS(t, ctx, "unlock dialog", `document.getElementById('unlockDlg').open`)
+	waitText(t, ctx, "#unlockTitle", "Unlock the vault")
+	var confirmHidden bool
+	js(t, ctx, `document.getElementById('uConfirm').classList.contains('hidden')`, &confirmHidden)
+	if !confirmHidden {
+		t.Error("unlocking asks for the passphrase once, not twice")
+	}
+	answerVault(t, ctx, "not the passphrase", "")
+	waitText(t, ctx, "#uErr", "wrong passphrase")
+	if !unlockDialogOpen(t, ctx) {
+		t.Fatal("the dialog must stay open after a wrong passphrase")
+	}
+	answerVault(t, ctx, vaultPassphrase, "")
+	waitText(t, ctx, "#status", "Connected to "+l.URL+" as "+slapdtest.AliceDN) // retried by itself
+	waitText(t, ctx, "#btnVault", "vault unlocked")
+
+	// Forget the password: the profile no longer connects on its own.
+	run(t, ctx, chromedp.Click("#btnVault"), chromedp.WaitVisible("#mList"))
+	run(t, ctx, chromedp.Click(`#mList tr[data-profile="lab"] button.forget`))
+	waitText(t, ctx, `#mList tr[data-profile="lab"] .state`, "not saved")
+	run(t, ctx, chromedp.Click("#mClose"))
+	run(t, ctx, chromedp.Click("#btnDisc"))
+	waitText(t, ctx, "#status", "Not connected")
+	run(t, ctx, set("#quickConn", "lab"), chromedp.Evaluate(`document.getElementById('quickConn').dispatchEvent(new Event('change'))`, nil))
+	waitJS(t, ctx, "connection dialog asks for the password", `document.getElementById('dlg').open`)
+	waitText(t, ctx, "#cErr", "Enter the password for this user")
+	var form [2]string
+	js(t, ctx, `[document.getElementById('cBind').value, document.getElementById('cStore').value]`, &form)
+	if form != [2]string{slapdtest.AliceDN, "none"} {
+		t.Errorf("the dialog should be prefilled for that user: %v", form)
+	}
+}
+
+func TestUIChangePassphraseAndSeveralUsers(t *testing.T) {
+	l := slapdtest.Start(t)
+	appURL := startApp(t)
+	ctx := browser(t)
+	run(t, ctx, chromedp.Navigate(appURL), chromedp.WaitVisible("#btnConn"))
+
+	// First user: creates the vault while saving.
+	run(t, ctx, chromedp.Click("#btnConn"), chromedp.WaitVisible("#cStore"))
+	fillConnection(t, ctx, "alice@lab", l.URL, slapdtest.AliceDN, slapdtest.AlicePW, "vault")
+	run(t, ctx, chromedp.Click("#btnSaveProfile"))
+	waitJS(t, ctx, "create dialog", `document.getElementById('unlockDlg').open`)
+	answerVault(t, ctx, vaultPassphrase, vaultPassphrase)
+	waitText(t, ctx, "#status", "Profile saved")
+
+	// Second user on the same server: "Add another user" keeps the server settings.
+	run(t, ctx, chromedp.Click("#btnDupProfile"))
+	var kept [3]string
+	js(t, ctx, `[document.getElementById('cName').value, document.getElementById('cURL').value, document.getElementById('cStore').value]`, &kept)
+	if kept != [3]string{"", l.URL, "vault"} {
+		t.Errorf("Add another user must keep the URL and the storage and clear the name: %v", kept)
+	}
+	waitText(t, ctx, "#cErr", "Same server")
+	run(t, ctx, set("#cName", "bob@lab"), set("#cBind", slapdtest.BobDN), set("#cPass", slapdtest.BobPW), chromedp.Click("#btnSaveProfile"))
+	waitText(t, ctx, "#status", "Profile saved")
+	if unlockDialogOpen(t, ctx) {
+		t.Error("the vault is already unlocked: no prompt needed")
+	}
+
+	// A third one, on the same server over TLS, kept in nothing (typed each time).
+	run(t, ctx, chromedp.Click("#btnDupProfile"), set("#cName", "alice@lab-tls"), set("#cURL", l.LDAPSURL), set("#cBind", slapdtest.AliceDN),
+		set("#cStore", "none"), chromedp.Click("#cSkip"), chromedp.Click("#btnSaveProfile"))
+	waitJS(t, ctx, "three profiles", `document.querySelectorAll('#quickConn option').length === 4`)
+	run(t, ctx, chromedp.Click("#btnCancel"))
+
+	// Switch between them with one click; the status shows who is connected.
+	for _, who := range []struct{ profile, dn string }{{"alice@lab", slapdtest.AliceDN}, {"bob@lab", slapdtest.BobDN}, {"alice@lab", slapdtest.AliceDN}} {
+		run(t, ctx, set("#quickConn", who.profile), chromedp.Evaluate(`document.getElementById('quickConn').dispatchEvent(new Event('change'))`, nil))
+		waitText(t, ctx, "#status", "Connected to "+l.URL+" as "+who.dn)
+		var selected string
+		js(t, ctx, `document.getElementById('quickConn').value`, &selected)
+		if selected != who.profile {
+			t.Errorf("the quick switch should show the current profile: %q", selected)
+		}
+	}
+	// The one that keeps nothing asks for a password instead of failing.
+	run(t, ctx, set("#quickConn", "alice@lab-tls"), chromedp.Evaluate(`document.getElementById('quickConn').dispatchEvent(new Event('change'))`, nil))
+	waitJS(t, ctx, "dialog for the typed password", `document.getElementById('dlg').open`)
+	run(t, ctx, set("#cPass", slapdtest.AlicePW), chromedp.Click("#btnDoConn"))
+	waitText(t, ctx, "#status", "Connected to "+l.LDAPSURL+" as "+slapdtest.AliceDN)
+
+	// The panel lists everyone, each with its own state.
+	run(t, ctx, chromedp.Click("#btnVault"), chromedp.WaitVisible("#mList"))
+	waitText(t, ctx, `#mList tr[data-profile="alice@lab"] .state`, "saved")
+	waitText(t, ctx, `#mList tr[data-profile="bob@lab"] .state`, "saved")
+	waitText(t, ctx, `#mList tr[data-profile="alice@lab-tls"] .state`, "not saved")
+
+	// Changing the passphrase: checks, then the old one stops working.
+	run(t, ctx, chromedp.Click("#mChange"), chromedp.WaitVisible("#mOld"),
+		set("#mOld", vaultPassphrase), set("#mNew", "short"), set("#mNew2", "short"), chromedp.Click("#changeForm button[type=submit]"))
+	waitText(t, ctx, "#mErr", "at least 8")
+	run(t, ctx, set("#mNew", "a brand new passphrase"), set("#mNew2", "a brand new passphrase"), set("#mOld", "wrong wrong wrong"), chromedp.Click("#changeForm button[type=submit]"))
+	waitText(t, ctx, "#mErr", "wrong passphrase")
+	run(t, ctx, set("#mOld", vaultPassphrase), chromedp.Click("#changeForm button[type=submit]"))
+	waitJS(t, ctx, "change form closed", `document.getElementById('changeForm').classList.contains('hidden')`)
+	run(t, ctx, chromedp.Click("#mLock"))
+	waitText(t, ctx, "#mStatus", "The vault is locked")
+	run(t, ctx, chromedp.Click("#mUnlock"))
+	waitJS(t, ctx, "unlock dialog", `document.getElementById('unlockDlg').open`)
+	answerVault(t, ctx, vaultPassphrase, "") // the old passphrase no longer works
+	waitText(t, ctx, "#uErr", "wrong passphrase")
+	answerVault(t, ctx, "a brand new passphrase", "")
+	waitJS(t, ctx, "dialog closed", `!document.getElementById('unlockDlg').open`)
+	waitText(t, ctx, "#mStatus", "The vault is unlocked")
+
+	// Layout: nothing overflows the window, even with the new header controls.
+	var overflow bool
+	js(t, ctx, `document.documentElement.scrollWidth > document.documentElement.clientWidth + 1`, &overflow)
+	if overflow {
+		t.Error("the page has a horizontal scrollbar")
+	}
+}

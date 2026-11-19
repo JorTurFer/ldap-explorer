@@ -11,10 +11,14 @@ import { initBuilder } from "./builder.js";
 import { initRecipes } from "./recipes.js";
 import { initExplore } from "./explore.js";
 import { initSavedQueries } from "./savedqueries.js";
+import { initVault } from "./vault.js";
+import { initQuick } from "./quick.js";
 
 initTabs();
+initVault();
 initProfiles();
 initConnection();
+initQuick();
 initTree();
 initEntry();
 initBuilder();

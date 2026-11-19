@@ -91,6 +91,23 @@ func TestScreenshots(t *testing.T) {
 	waitText(t, ctx, "#xSummary", "Looked at")
 	shot("explore")
 
+	// 5c. Passwords: the vault, several users and the Passwords panel.
+	run(t, ctx, chromedp.Click("#btnConn"), chromedp.WaitVisible("#cStore"))
+	fillConnection(t, ctx, "alice@lab", l.URL, slapdtest.AliceDN, slapdtest.AlicePW, "vault")
+	run(t, ctx, chromedp.Click("#btnSaveProfile"))
+	waitJS(t, ctx, "create dialog", `document.getElementById('unlockDlg').open`)
+	run(t, ctx, set("#uPass", "correct horse battery"), set("#uConfirm", "correct horse battery"))
+	shot("vault-create")
+	run(t, ctx, chromedp.Click("#uOk"))
+	waitText(t, ctx, "#status", "Profile saved")
+	run(t, ctx, chromedp.Click("#btnDupProfile"), set("#cName", "bob@lab"), set("#cBind", slapdtest.BobDN), set("#cPass", slapdtest.BobPW),
+		chromedp.Click("#btnSaveProfile"))
+	waitJS(t, ctx, "bob saved", `document.querySelectorAll('#quickConn option').length === 3`)
+	run(t, ctx, chromedp.Click("#btnCancel"), chromedp.Click("#btnVault"), chromedp.WaitVisible("#mList"))
+	waitText(t, ctx, `#mList tr[data-profile="bob@lab"] .state`, "saved")
+	shot("passwords")
+	run(t, ctx, chromedp.Click("#mClose"))
+
 	// 6. Dark theme (follows the system setting), on the table again.
 	run(t, ctx, chromedp.Click(`button[data-tab="search"]`))
 	run(t, ctx, emulation.SetEmulatedMedia().WithFeatures([]*emulation.MediaFeature{

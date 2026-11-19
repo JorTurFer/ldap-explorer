@@ -131,7 +131,9 @@ func browser(t *testing.T) context.Context {
 			// The browser logs every failed HTTP response. The API answers 400 on
 			// purpose for user errors (bad password, invalid filter...): not a bug.
 			expected := e.Entry.Source == log.SourceNetwork && strings.Contains(e.Entry.URL, "/api/") &&
-				strings.Contains(e.Entry.Text, "status of 400")
+				(strings.Contains(e.Entry.Text, "status of 400") || // user errors: bad password, invalid filter...
+					strings.Contains(e.Entry.Text, "status of 423") || // the vault is locked: the UI asks for the passphrase and retries
+					strings.Contains(e.Entry.Text, "status of 429")) // unlock attempts throttled
 			if e.Entry.Level == log.LevelError && !expected {
 				add("browser log: " + e.Entry.Text + " " + e.Entry.URL)
 			}
