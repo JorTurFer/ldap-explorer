@@ -172,6 +172,10 @@ func TestDiscoverySample(t *testing.T) {
 	if count(s.Attributes, "uid") != 3 || count(s.Attributes, "mail") != 2 || count(s.Attributes, "jpegPhoto") != 1 {
 		t.Errorf("attribute usage: %+v", s.Attributes)
 	}
+	// attributes are counted per entry, not per value (bob has two telephone numbers)
+	if got := count(s.Attributes, "telephoneNumber"); got != 1 {
+		t.Errorf("telephoneNumber: %d, want 1 entry", got)
+	}
 	// most used first, then alphabetical
 	for i := 1; i < len(s.Attributes); i++ {
 		a, b := s.Attributes[i-1], s.Attributes[i]
