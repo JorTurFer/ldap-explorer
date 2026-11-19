@@ -40,6 +40,8 @@ userPassword: bobpw
 # cn with non-ASCII characters (Zoë Ñandú)
 dn: uid=zoe,ou=people,dc=example,dc=org
 objectClass: inetOrgPerson
+objectClass: shadowAccount
+shadowExpire: 15000
 uid: zoe
 cn:: Wm/DqyDDkWFuZMO6
 sn: Nandu
@@ -50,6 +52,23 @@ objectClass: groupOfNames
 cn: admins
 member: uid=alice,ou=people,dc=example,dc=org
 
+dn: cn=staff,ou=groups,dc=example,dc=org
+objectClass: posixGroup
+cn: staff
+gidNumber: 1000
+memberUid: alice
+memberUid: bob
+
 dn: ou=bulk,dc=example,dc=org
 objectClass: organizationalUnit
 ou: bulk
+
+# Characters that must be escaped in LDAP filters: ( ) * and a backslash
+dn: ou=special,dc=example,dc=org
+objectClass: organizationalUnit
+ou: special
+
+dn: cn=Weird (Name) *star* \5Cback,ou=special,dc=example,dc=org
+objectClass: person
+cn: Weird (Name) *star* \back
+sn: Weird

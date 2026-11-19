@@ -14,6 +14,7 @@ import (
 	"strings"
 
 	"github.com/go-ldap/ldap/v3"
+	"ldapnav/internal/ldapfilter"
 	"ldapnav/internal/ldapschema"
 )
 
@@ -178,31 +179,54 @@ func loadSchema(c *ldap.Conn) (*schemaResponse, error) {
 	return out, nil
 }
 
-// handleSchema returns the parsed schema. It is cached for the life of the
-// connection (schemas are large and rarely change).
+// getSchema returns the schema of the current connection, loading it on first
+// use. It is cached for the life of the connection (schemas are large and rarely
+// change), together with an index of attributes for the filter builder.
+func getSchema(c *ldap.Conn) (*schemaResponse, map[string]ldapfilter.AttrInfo, error) {
+	sess.mu.Lock()
+	sc, idx := sess.schema, sess.attrs
+	sess.mu.Unlock()
+	if sc != nil {
+		return sc, idx, nil
+	}
+	sc, err := loadSchema(c)
+	if err != nil {
+		return nil, nil, err
+	}
+	idx = indexAttributes(sc)
+	sess.mu.Lock()
+	if sess.conn == c { // the session may have been replaced meanwhile
+		sess.schema, sess.attrs = sc, idx
+	}
+	sess.mu.Unlock()
+	return sc, idx, nil
+}
+
+// indexAttributes maps every name and OID (lower-cased) to what the filter
+// builder needs to know.
+func indexAttributes(sc *schemaResponse) map[string]ldapfilter.AttrInfo {
+	idx := make(map[string]ldapfilter.AttrInfo, len(sc.Attributes)*2)
+	for _, a := range sc.Attributes {
+		info := ldapfilter.AttrInfo{Name: a.Name, Kind: a.Kind, CanEqual: a.CanEqual, CanOrder: a.CanOrder, CanSubstring: a.CanSubstring}
+		idx[strings.ToLower(a.OID)] = info
+		for _, n := range a.Names {
+			idx[strings.ToLower(n)] = info
+		}
+	}
+	return idx
+}
+
 func handleSchema(w http.ResponseWriter, _ *http.Request) {
 	c, _, err := sess.get()
 	if err != nil {
 		writeErr(w, err)
 		return
 	}
-	sess.mu.Lock()
-	cached := sess.schema
-	sess.mu.Unlock()
-	if cached != nil {
-		writeJSON(w, cached)
-		return
-	}
-	sc, err := loadSchema(c)
+	sc, _, err := getSchema(c)
 	if err != nil {
 		writeErr(w, err)
 		return
 	}
-	sess.mu.Lock()
-	if sess.conn == c { // the session may have been replaced meanwhile
-		sess.schema = sc
-	}
-	sess.mu.Unlock()
 	writeJSON(w, sc)
 }
 

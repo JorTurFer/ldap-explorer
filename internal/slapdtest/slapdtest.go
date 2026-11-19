@@ -304,7 +304,7 @@ func launchSlapd() (l *Server, stop func(), skip string, err error) {
 	}
 
 	var conf strings.Builder
-	for _, sc := range []string{"core", "cosine", "inetorgperson"} {
+	for _, sc := range []string{"core", "cosine", "inetorgperson", "nis"} {
 		fmt.Fprintf(&conf, "include %s/%s.schema\n", schemaDir, sc)
 	}
 	if modDir != "" {

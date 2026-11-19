@@ -32,6 +32,7 @@ import (
 
 	"github.com/go-ldap/ldap/v3"
 	"github.com/zalando/go-keyring"
+	"ldapnav/internal/ldapfilter"
 )
 
 // The web UI (plain HTML, CSS and ES modules; no build step). Tests under
@@ -125,7 +126,8 @@ type session struct {
 	mu      sync.Mutex
 	conn    *ldap.Conn
 	profile Profile
-	schema  *schemaResponse // cached for the life of the connection
+	schema  *schemaResponse                // cached for the life of the connection
+	attrs   map[string]ldapfilter.AttrInfo // lower-cased names and OIDs, built with the schema
 }
 
 var sess session
@@ -377,7 +379,7 @@ func handleConnect(w http.ResponseWriter, r *http.Request) {
 	if sess.conn != nil {
 		sess.conn.Close()
 	}
-	sess.conn, sess.profile, sess.schema = c, p, nil
+	sess.conn, sess.profile, sess.schema, sess.attrs = c, p, nil, nil
 	sess.mu.Unlock()
 
 	writeJSON(w, map[string]any{"ok": true, "roots": contexts})
@@ -388,7 +390,7 @@ func handleDisconnect(w http.ResponseWriter, _ *http.Request) {
 	if sess.conn != nil {
 		sess.conn.Close()
 		sess.conn = nil
-		sess.schema = nil
+		sess.schema, sess.attrs = nil, nil
 	}
 	sess.mu.Unlock()
 	writeJSON(w, map[string]bool{"ok": true})
@@ -563,6 +565,7 @@ func newHandler(token string, lastPing *atomic.Int64) http.Handler {
 	api.HandleFunc("GET /api/server", handleServer)
 	api.HandleFunc("GET /api/schema", handleSchema)
 	api.HandleFunc("GET /api/sample", handleSample)
+	api.HandleFunc("POST /api/filter", handleFilter)
 
 	// Heartbeat: the UI pings periodically. If the tab is closed, the process
 	// exits on its own (useful when launched as an .app).

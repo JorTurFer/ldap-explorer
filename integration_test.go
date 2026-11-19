@@ -121,7 +121,7 @@ func TestLDAPTreeChildren(t *testing.T) {
 		rdns = append(rdns, c.RDN)
 		byRDN[c.RDN] = c
 	}
-	want := []string{"ou=bulk", "ou=empty", "ou=groups", "ou=people"} // sorted
+	want := []string{"ou=bulk", "ou=empty", "ou=groups", "ou=people", "ou=special"} // sorted
 	if strings.Join(rdns, ",") != strings.Join(want, ",") {
 		t.Fatalf("children of the root: %v", rdns)
 	}
