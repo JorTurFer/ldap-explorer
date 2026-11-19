@@ -1,11 +1,14 @@
 # ldapnav
 
-A minimal, read-only LDAP browser. A single Go binary that serves an embedded web UI (`ui.html`, via `embed`) on 127.0.0.1 and opens the browser.
+A minimal, read-only LDAP browser. A single Go binary that serves an embedded web UI (`front/`, via `embed`) on 127.0.0.1 and opens the browser.
 
 ## Structure
 - `main.go`: HTTP server, JSON API under `/api/*`, LDAP client (github.com/go-ldap/ldap/v3) and keychain access (github.com/zalando/go-keyring).
 - `discovery.go` + `internal/ldapschema`: read-only server discovery for the query assistant (RootDSE and flavor, parsed schema with attribute syntaxes and matching rules, attribute usage sampling). Roadmap: `docs/ROADMAP.md`.
-- `ui.html`: vanilla HTML/CSS/JS UI, no build step, no dependencies.
+- `front/`: the web UI, plain HTML + CSS + native ES modules. No build step, no bundler, no framework, no npm dependencies. No authentication in the UI (the URL-fragment token is the only gate).
+  - `index.html`, `css/style.css`, `js/*.js` (one module per concern: `api`, `tree`, `entry`, `search`, `profiles`, `connection`, `tabs`, `status`; `app.js` wires them; modules talk through the tiny bus in `events.js`, not by importing each other in circles).
+  - Strict CSP (`script-src 'self'; style-src 'self'`): no inline `<script>`, `<style>`, `style=` attributes or `on*=` handlers, no `setAttribute("style")`, no `innerHTML`, no `eval`. Use CSS classes. Tests enforce it.
+  - Only `front/index.html`, `front/css` and `front/js` are embedded; `front/test` (Node unit tests) is not.
 - `Makefile` + `Info.plist`: packaging as a macOS `.app`.
 
 ## Invariants (do not break)
@@ -24,7 +27,7 @@ A minimal, read-only LDAP browser. A single Go binary that serves an embedded we
 - Known and accepted: `hasSubordinates` does not exist in AD, so every node shows ▶.
 
 ## Tests (what they validate, and the rules)
-- `main_test.go`: API (403/200 with token), UI/CSP, profiles without passwords on disk, keychain service/account format (mock), code invariants (read-only, 127.0.0.1 only, no external resources in `ui.html`) and CGO-free builds for the 3 targets.
+- `main_test.go`: API (403/200 with token), UI static serving and strict CSP, no inline code or external resources in `front/`, every import resolves, profiles without passwords on disk, keychain service/account format (mock), code invariants (read-only, 127.0.0.1 only) and CGO-free builds for the 3 targets.
 - `integration_test.go` + `internal/slapdtest` (harness and `seed.ldif`, importable by other modules): against a real ephemeral OpenLDAP (one shared slapd; the app is read-only). Covers TLS/StartTLS, paging (users with `limits` in slapd.conf who only see >100 results when paging) and the server size limit.
 - `e2e/` (separate Go module, uses chromedp): builds the real binary and drives its UI in headless Chrome against a real slapd (`internal/slapdtest`). Fails on any JS exception, console error or CSP violation (HTTP 400 from `/api/` is expected). Any UI change comes with an e2e test. `LDAPNAV_REQUIRE_CHROME=1` makes a missing Chrome fail instead of skip. chromedp is pinned to v0.14.2 on purpose (v0.24 changed its API to generics); keep that dependency out of the root `go.mod`.
 - `keyring_real_test.go`: real keychain (including an end-to-end test with a real slapd); only with `LDAPNAV_TEST_REAL_KEYRING=1` and in a separate process (`-run TestRealKeyring`), because the other tests use `keyring.MockInit`, which cannot be undone.

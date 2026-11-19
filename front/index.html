@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>ldapnav</title>
+<link rel="icon" href="data:,">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="css/style.css">
+<script type="module" src="js/app.js"></script>
+</head>
+<body>
+<header>
+  <strong>ldapnav</strong>
+  <button id="btnConn" class="primary">Connect…</button>
+  <button id="btnDisc" disabled>Disconnect</button>
+  <button id="btnRefresh" disabled title="Reload the tree">↻</button>
+  <label class="muted"><input type="checkbox" id="chkOp"> operational attributes</label>
+  <span id="status" class="status">Not connected</span>
+</header>
+<main>
+  <nav id="tree"><div class="empty">Connect to a server to browse.</div></nav>
+  <section id="right">
+    <div class="tabs">
+      <button data-tab="entry" class="on">Entry</button>
+      <button data-tab="search">Search</button>
+    </div>
+    <div id="pane-entry" class="pane on"><div class="empty">Select an entry in the tree.</div></div>
+    <div id="pane-search" class="pane">
+      <div class="sform">
+        <label>Base</label><input type="text" id="sBase" placeholder="dc=example,dc=com">
+        <label>Filter</label><input type="text" id="sFilter" placeholder="(objectClass=*)">
+        <label>Attributes</label><input type="text" id="sAttrs" placeholder="empty = all  (e.g. cn, mail, memberOf)">
+        <label>Scope</label>
+        <div class="row">
+          <select id="sScope"><option value="sub">subtree</option><option value="one">one level</option><option value="base">base only</option></select>
+          <label class="muted">Limit</label><input type="text" id="sLimit" value="500" class="w80">
+          <button id="btnSearch" class="primary" disabled>Search</button>
+        </div>
+      </div>
+      <div id="sOut"></div>
+    </div>
+  </section>
+</main>
+
+<dialog id="dlg">
+  <form method="dialog" id="cform">
+    <div class="cform">
+      <label>Profile</label>
+      <div class="row-flex">
+        <select id="cProfile" class="grow"><option value="">— new —</option></select>
+        <button type="button" id="btnDelProfile" title="Delete profile">🗑</button>
+      </div>
+      <label>Name</label><input type="text" id="cName" placeholder="e.g. AD production">
+      <label>URL</label><input type="text" id="cURL" placeholder="ldaps://ldap.example.com:636" required>
+      <label>Bind DN</label><input type="text" id="cBind" placeholder="empty = anonymous  (or user@domain on AD)">
+      <label>Password</label><input type="password" id="cPass" autocomplete="off">
+      <label>Base DN</label><input type="text" id="cBase" placeholder="empty = detected from the RootDSE">
+      <div class="full">
+        <label><input type="checkbox" id="cStartTLS"> StartTLS (with ldap://)</label>
+        <label><input type="checkbox" id="cSkip"> Skip certificate verification</label>
+        <label><input type="checkbox" id="cKeychain"> Save password in the keychain</label>
+      </div>
+    </div>
+    <div id="cErr" class="err mt10"></div>
+    <div class="actions">
+      <button type="button" id="btnSaveProfile" class="left">Save profile</button>
+      <button type="button" id="btnCancel">Cancel</button>
+      <button type="submit" id="btnDoConn" class="primary">Connect</button>
+    </div>
+  </form>
+</dialog>
+</body>
+</html>

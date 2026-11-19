@@ -154,31 +154,140 @@ func TestAPIRequiresToken(t *testing.T) {
 	}
 }
 
-func TestUIServedWithCSP(t *testing.T) {
+func TestUIServedWithStrictCSP(t *testing.T) {
 	srv := newTestServer(t)
-	resp, err := http.Get(srv.URL + "/")
-	if err != nil {
-		t.Fatal(err)
+	get := func(path string) (*http.Response, string) {
+		resp, err := http.Get(srv.URL + path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer resp.Body.Close()
+		b, _ := io.ReadAll(resp.Body)
+		return resp, string(b)
 	}
-	defer resp.Body.Close()
-	b, _ := io.ReadAll(resp.Body)
-	if resp.StatusCode != 200 || !bytes.Contains(b, []byte("<html")) {
+
+	resp, body := get("/")
+	if resp.StatusCode != 200 || !strings.Contains(body, "<html") {
 		t.Fatalf("UI not served: %d", resp.StatusCode)
 	}
 	csp := resp.Header.Get("Content-Security-Policy")
-	if !strings.Contains(csp, "default-src 'self'") || strings.Contains(csp, "http") {
-		t.Errorf("unexpected CSP: %q", csp)
+	for _, want := range []string{"default-src 'self'", "script-src 'self'", "style-src 'self'", "frame-ancestors 'none'"} {
+		if !strings.Contains(csp, want) {
+			t.Errorf("CSP lacks %q: %s", want, csp)
+		}
+	}
+	if strings.Contains(csp, "unsafe-inline") || strings.Contains(csp, "unsafe-eval") || strings.Contains(csp, "http") {
+		t.Errorf("CSP is too permissive: %s", csp)
+	}
+	if resp.Header.Get("X-Content-Type-Options") != "nosniff" || resp.Header.Get("Referrer-Policy") != "no-referrer" {
+		t.Error("missing security headers")
+	}
+
+	// Every asset index.html references is served, with the type browsers require
+	// for module scripts and stylesheets.
+	for path, wantType := range map[string]string{
+		"/js/app.js":        "text/javascript",
+		"/css/style.css":    "text/css",
+		"/js/api.js":        "text/javascript",
+		"/js/connection.js": "text/javascript",
+	} {
+		r, b := get(path)
+		if r.StatusCode != 200 || !strings.HasPrefix(r.Header.Get("Content-Type"), wantType) || len(b) == 0 {
+			t.Errorf("%s: status %d, content-type %q", path, r.StatusCode, r.Header.Get("Content-Type"))
+		}
+	}
+	if r, _ := get("/js/nothing.js"); r.StatusCode != 404 {
+		t.Errorf("unknown file: %d", r.StatusCode)
+	}
+	// tests under front/test are not embedded
+	if r, _ := get("/test/table.test.js"); r.StatusCode != 404 {
+		t.Errorf("front/test must not be served: %d", r.StatusCode)
+	}
+}
+
+// walkFront calls fn for every UI source file (HTML, CSS, JS) under front/.
+func walkFront(t *testing.T, fn func(path, content string)) {
+	t.Helper()
+	err := filepath.WalkDir("front", func(p string, d os.DirEntry, err error) error {
+		if err != nil || d.IsDir() {
+			return err
+		}
+		switch filepath.Ext(p) {
+		case ".html", ".css", ".js":
+			b, err := os.ReadFile(p)
+			if err != nil {
+				return err
+			}
+			fn(filepath.ToSlash(p), string(b))
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
 	}
 }
 
 func TestUIHasNoExternalResources(t *testing.T) {
-	b, err := os.ReadFile("ui.html")
+	external := regexp.MustCompile(`(?i)(src|href|action)\s*=\s*["']?\s*(https?:)?//|url\(\s*["']?(https?:)?//|@import\s+["']?(https?:)?//|fetch\(\s*["'` + "`" + `](https?:)?//|from\s+["']https?:|import\(\s*["']https?:|new\s+(WebSocket|EventSource)\(`)
+	n := 0
+	walkFront(t, func(path, content string) {
+		n++
+		if m := external.FindString(content); m != "" {
+			t.Errorf("%s references an external resource: %q", path, m)
+		}
+	})
+	if n < 10 {
+		t.Errorf("only %d UI files found: is front/ complete?", n)
+	}
+}
+
+// The strict CSP (no unsafe-inline) only works if the page has no inline code.
+func TestUIHasNoInlineCode(t *testing.T) {
+	html, err := os.ReadFile("front/index.html")
 	if err != nil {
 		t.Fatal(err)
 	}
-	re := regexp.MustCompile(`(?i)(src|href|action)\s*=\s*["']?\s*(https?:)?//|url\(\s*["']?(https?:)?//|@import\s+["']?(https?:)?//|fetch\(\s*["'` + "`" + `](https?:)?//`)
-	if m := re.Find(b); m != nil {
-		t.Errorf("ui.html references an external resource: %q", m)
+	for name, re := range map[string]*regexp.Regexp{
+		"inline <script> body": regexp.MustCompile(`(?is)<script(?:\s[^>]*)?>[^<]*\S[^<]*</script>`),
+		"<style> block":        regexp.MustCompile(`(?i)<style`),
+		"style attribute":      regexp.MustCompile(`(?i)\sstyle\s*=`),
+		"inline event handler": regexp.MustCompile(`(?i)\son[a-z]+\s*=`),
+		"javascript: URL":      regexp.MustCompile(`(?i)javascript:`),
+	} {
+		if m := re.Find(html); m != nil {
+			t.Errorf("index.html has %s: %q", name, m)
+		}
+	}
+	// setAttribute("style") and innerHTML would also bypass or fight the policy.
+	walkFront(t, func(path, content string) {
+		if strings.HasSuffix(path, ".js") && regexp.MustCompile(`setAttribute\(\s*["']style|\.innerHTML\s*=|\beval\(|new Function\(`).MatchString(content) {
+			t.Errorf("%s uses an unsafe construct (setAttribute style / innerHTML / eval)", path)
+		}
+	})
+}
+
+// Every relative import and every asset referenced from index.html must exist.
+func TestUIReferencesResolve(t *testing.T) {
+	imp := regexp.MustCompile(`(?m)(?:from|import)\s*\(?\s*["'](\.{1,2}/[^"']+)["']`)
+	walkFront(t, func(path, content string) {
+		if !strings.HasSuffix(path, ".js") {
+			return
+		}
+		for _, m := range imp.FindAllStringSubmatch(content, -1) {
+			target := filepath.Join(filepath.Dir(path), m[1])
+			if _, err := os.Stat(target); err != nil {
+				t.Errorf("%s imports %s, which does not exist", path, m[1])
+			}
+		}
+	})
+	html, _ := os.ReadFile("front/index.html")
+	for _, m := range regexp.MustCompile(`(?:src|href)="([^"#]+)"`).FindAllStringSubmatch(string(html), -1) {
+		if strings.HasPrefix(m[1], "data:") {
+			continue
+		}
+		if _, err := os.Stat(filepath.Join("front", m[1])); err != nil {
+			t.Errorf("index.html references %s, which does not exist", m[1])
+		}
 	}
 }
 

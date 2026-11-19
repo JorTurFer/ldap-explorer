@@ -15,7 +15,9 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io/fs"
 	"log"
+	"mime"
 	"net"
 	"net/http"
 	"os"
@@ -32,8 +34,23 @@ import (
 	"github.com/zalando/go-keyring"
 )
 
-//go:embed ui.html
-var uiFS embed.FS
+// The web UI (plain HTML, CSS and ES modules; no build step). Tests under
+// front/test are not embedded.
+//
+//go:embed front/index.html front/css front/js
+var frontFS embed.FS
+
+func init() {
+	// Do not depend on the OS registry (on Windows .js can be mapped to text/plain,
+	// which browsers refuse for module scripts).
+	_ = mime.AddExtensionType(".js", "text/javascript; charset=utf-8")
+	_ = mime.AddExtensionType(".css", "text/css; charset=utf-8")
+	_ = mime.AddExtensionType(".html", "text/html; charset=utf-8")
+}
+
+// contentSecurityPolicy is strict: only this origin, no inline script or style,
+// no external resources.
+const contentSecurityPolicy = "default-src 'self'; img-src data:; script-src 'self'; style-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
 
 // ---------- saved profiles (no password) ----------
 
@@ -562,12 +579,20 @@ func newHandler(token string, lastPing *atomic.Int64) http.Handler {
 		}
 		api.ServeHTTP(w, r)
 	}))
-	root.HandleFunc("GET /{$}", func(w http.ResponseWriter, r *http.Request) {
-		b, _ := uiFS.ReadFile("ui.html")
-		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		w.Header().Set("Content-Security-Policy", "default-src 'self'; img-src data:; style-src 'unsafe-inline'; script-src 'unsafe-inline'")
+	front, err := fs.Sub(frontFS, "front")
+	if err != nil {
+		panic(err)
+	}
+	static := http.FileServerFS(front)
+	root.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet && r.Method != http.MethodHead {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		w.Header().Set("Content-Security-Policy", contentSecurityPolicy)
 		w.Header().Set("Referrer-Policy", "no-referrer")
-		_, _ = w.Write(b)
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		static.ServeHTTP(w, r)
 	})
 	return root
 }
