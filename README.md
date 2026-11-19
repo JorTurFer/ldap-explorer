@@ -4,8 +4,9 @@ A minimal, read-only LDAP browser for macOS and Windows. A single Go binary that
 
 ![ldapnav browsing a directory](docs/img/browse.png)
 
-- Browsable tree (double-click or ▶ to expand, click to view attributes)
-- Searches with base, filter, scope, attributes and limit (paged)
+- Browsable tree (double-click or ▶ to expand, click to view attributes), with a quick filter, "go to DN", links on DN-valued attributes and a breadcrumb
+- **Assisted searches, no LDAP knowledge needed**: a visual query builder (attribute suggestions from the server's schema, operators and inputs that fit each attribute, live filter preview with a plain-language explanation), ready-made recipes adapted to the server ("find a person", "members of a group", "locked accounts"...), and an explorer that shows what a branch contains
+- Searches with base, filter (builder or text), scope, attributes and limit (paged); results as a list or a sortable table with CSV export; saved queries per profile
 - Optional operational attributes; binary values are shown as a hex summary
 - Profiles saved in `~/Library/Application Support/ldapnav/profiles.json` on macOS (no password); the equivalent user config directory on other systems
 - Optional password in the system keychain (Keychain on macOS, Credential Manager on Windows, Secret Service on Linux) via `go-keyring`; service `ldapnav`, account `bindDN@url`

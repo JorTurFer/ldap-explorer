@@ -9,10 +9,10 @@ Design rule: logic lives in Go (tested against a real OpenLDAP in CI); pure Java
 | 0 | Test foundation: real-OpenLDAP harness (`internal/slapdtest`), browser tests (`e2e/`), CI on Linux, macOS and Windows | Done |
 | 1 | Server discovery: RootDSE and server flavor, schema (attribute syntaxes and matching rules, object classes), attribute usage sampling (API: `/api/server`, `/api/schema`, `/api/sample`) | API done; the UI starts using it in phase 3 |
 | 2 | Results table: choose columns, sort, export CSV | Done |
-| 3 | Query builder: rows of attribute · operator · value with AND/OR, live filter preview with correct escaping, plain-language explanation, attribute autocomplete from the schema, value inputs that fit the attribute syntax (date picker, TRUE/FALSE, DN picker) | Planned |
-| 4 | Recipes (only those the server supports, detected from the schema): find people, group membership (`member`, `uniqueMember`, `memberUid`, `memberOf` where present), account status (`nsAccountLock`, `pwdAccountLockedTime`, `shadowExpire`, timestamps), explore an unknown branch (object-class histogram and attribute usage, click to build a query) | Planned |
-| 5 | Saved queries per profile (a file next to `profiles.json`, never with passwords) | Planned |
-| 6 | Navigation: quick filter in the tree, jump to the entry from DN values (`member`, `manager`, `owner`), breadcrumb | Planned |
+| 3 | Query builder (done): rows of attribute · operator · value with AND/OR, live filter preview with correct escaping, plain-language explanation, attribute autocomplete from the schema, value inputs that fit the attribute syntax (date picker, TRUE/FALSE, DN picker) | Done |
+| 4 | Recipes (done; only those the server supports, detected from the schema): find people, group membership (`member`, `uniqueMember`, `memberUid`, `memberOf` where present), account status (`nsAccountLock`, `pwdAccountLockedTime`, `shadowExpire`, timestamps), explore an unknown branch (object-class histogram and attribute usage, click to build a query) | Done |
+| 5 | Saved queries per profile (a file next to `profiles.json`, never with passwords) | Done |
+| 6 | Navigation: quick filter in the tree, go to a DN, jump to the entry from DN values (`member`, `manager`, `owner`), breadcrumb | Done |
 
 Not planned: write operations, ACL inspection, SASL. Client-certificate TLS (mTLS) only if it turns out to be needed.
 

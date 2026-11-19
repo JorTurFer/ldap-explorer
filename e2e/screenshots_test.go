@@ -82,7 +82,17 @@ func TestScreenshots(t *testing.T) {
 		chromedp.Click(`#sOut table.rtable thead th:nth-child(2)`))
 	shot("search-table")
 
-	// 6. Dark theme (follows the system setting).
+	// 5b. Recipes and the explorer.
+	run(t, ctx, chromedp.Click(`button[data-tab="recipes"]`), chromedp.WaitVisible("#recipe-find-person"),
+		set(`#recipe-find-person [data-param="text"]`, "alice"))
+	shot("recipes")
+	run(t, ctx, chromedp.Click(`button[data-tab="explore"]`), chromedp.WaitVisible("#xBase"),
+		set("#xBase", "ou=people,"+slapdtest.BaseDN), set("#xScope", "one"), chromedp.Click("#btnExplore"))
+	waitText(t, ctx, "#xSummary", "Looked at")
+	shot("explore")
+
+	// 6. Dark theme (follows the system setting), on the table again.
+	run(t, ctx, chromedp.Click(`button[data-tab="search"]`))
 	run(t, ctx, emulation.SetEmulatedMedia().WithFeatures([]*emulation.MediaFeature{
 		{Name: "prefers-color-scheme", Value: "dark"}}))
 	shot("search-table-dark")

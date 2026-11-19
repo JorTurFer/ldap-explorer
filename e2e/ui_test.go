@@ -437,6 +437,14 @@ func TestUIQueryBuilder(t *testing.T) {
 	setVal(t, ctx, 1, "b")
 	waitText(t, ctx, "#bFilter", "(&(mail=*example*)(uid=b*))")
 	waitText(t, ctx, "#bExplain", "All of these must be true:")
+
+	// Layout: every control of every row stays inside the builder box (no clipping).
+	var inside bool
+	js(t, ctx, `(() => { const g = document.querySelector('#builder .bgroup').getBoundingClientRect();
+		return [...document.querySelectorAll('#builder .bcond > *')].every(e => e.getBoundingClientRect().right <= g.right + 1); })()`, &inside)
+	if !inside {
+		t.Error("a condition row overflows the builder box: its operator, value or remove button is clipped")
+	}
 	run(t, ctx, chromedp.Click("#btnSearch"))
 	waitText(t, ctx, "#sOut", "1 result(s)")
 	waitText(t, ctx, "#sOut", "uid=bob,")

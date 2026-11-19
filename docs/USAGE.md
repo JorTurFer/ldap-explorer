@@ -45,23 +45,69 @@ There is one connection at a time. Connecting again replaces the previous one.
 - Tick **operational attributes** to also show the server's operational attributes, such as `entryUUID` or `createTimestamp` on OpenLDAP.
 - Binary values (for example `jpegPhoto`, `objectGUID`, `objectSid`) are shown as `(binary, N bytes)` followed by the first 16 bytes in hex. They cannot be downloaded, previewed or decoded.
 
+### Moving around faster
+
+- **Filter the tree**: type in the box above the tree. Only the nodes you have already opened are searched (use Search for the whole directory); the ancestors of a match stay visible. Escape clears it.
+- **Go to a DN**: paste a DN in that same box and press Enter. It works in any letter case, and the tree opens the branches that lead to the entry.
+- **Follow links**: attributes whose value is a DN (such as `member`, `manager` or `owner`; ldapnav knows them from the server's schema) are links to that entry.
+- **Breadcrumb**: in the entry view, every ancestor in the DN is a link, so one click goes up a level.
+
 ## 4. Searching
 
-![A search shown as a list of entries](img/search-list.png)
+Open the **Search** tab. You never need to write LDAP filter syntax: there are three ways to search, from most to least assisted.
 
-Open the **Search** tab:
+| | |
+|---|---|
+| **Recipes** | Ready-made questions ("Find a person", "Members of a group"...). See section 4.3. |
+| **Builder** | Build the condition with rows of *attribute · operator · value*. The default. See section 4.1. |
+| **Advanced (text)** | Type an RFC 4515 filter yourself. |
+
+The rest of the form is common:
 
 | Field | Meaning |
 |---|---|
 | **Base** | Where to start. Pre-filled with the first base DN after connecting. |
-| **Filter** | An RFC 4515 filter, e.g. `(&(objectClass=person)(mail=*@example.org))`. Empty means `(objectClass=*)`. An invalid filter is rejected before it is sent. |
+| **Filter** | The builder, or the text filter in Advanced mode. |
 | **Attributes** | Comma- or space-separated names to return, e.g. `cn, mail, memberOf`. Empty returns all user attributes. Use `*` for all user attributes and `+` for all operational attributes, e.g. `* +`. |
 | **Scope** | `subtree`, `one level` or `base only`. |
 | **Limit** | Maximum number of entries (default 500). A value that is zero, empty or above 10000 falls back to 500. |
 
 Press **Search** or Enter in any field. Results are collapsible; click **view** to open an entry in the Entry tab. A single result opens automatically.
 
-### Results: list, table and CSV
+### 4.1 The query builder
+
+![The query builder with its live filter preview](img/builder.png)
+
+- Each row is a condition: pick an **attribute** (the box suggests the attributes your server really has, user attributes first), an **operator** and a **value**.
+- **The operators depend on the attribute.** Text offers *is*, *is not*, *contains*, *starts with*, *ends with*, *matches pattern (use \*)*, *exists* and *does not exist*. Dates offer *is after*, *is before* and *is in the last (days)* with a date picker (times are converted to UTC). Numbers offer *is at least* / *is at most*. Yes/no attributes offer a true/false choice. Binary attributes only offer *exists*. If the server has no rule to compare an attribute in some way (for example OpenLDAP's `shadowExpire` cannot be ordered), that operator is not offered, instead of returning misleading results.
+- For `objectClass` the value box suggests the object classes of the server.
+- **Match all of / any of / none of** decides how the rows combine. **+ Group** adds a nested group, for example *all of: mail contains example, and any of: (uid is alice, uid is bob)*.
+- Below the rows you always see the **LDAP filter** that will be sent and a **plain-language explanation** of it, updated as you type. Special characters in values (`( ) * \`) are escaped for you, so what you type is always taken literally (use the *pattern* operator if you want `*` as a wildcard).
+- Mistakes are explained before you search, for example an attribute that does not exist on the server.
+- **Edit as text** copies the filter to the Advanced mode so you can refine it by hand.
+
+### 4.2 Saved queries
+
+Above the form, **Save** stores the current search under a name for the current connection profile: base, scope, attributes, limit and either the builder conditions or the text filter. Choosing it from the list puts everything back in the form (it does not run it; press Search). **Delete** removes it. They are kept in `queries.json` next to `profiles.json` and never contain credentials. A connection that is not a saved profile keeps its queries under its URL.
+
+### 4.3 Recipes
+
+![The Recipes tab](img/recipes.png)
+
+The **Recipes** tab offers ready-made questions in four groups: *People* (find a person by name, login or email; people without an email; people in a department), *Groups* (members of a group; groups a user belongs to), *Accounts* (locked or disabled; expired; created or changed in the last N days) and *Explore* (entries of an object class; entries that have, or lack, an attribute).
+
+- Fill in the few parameters and press **Use this recipe**: it opens in the builder, so you can see and tweak how it works, and runs immediately.
+- Recipes are **built from your server's schema**: a recipe only uses attributes the server defines (for example *Find a person* matches `uid` on OpenLDAP and `sAMAccountName` on Active Directory). One the server cannot answer is shown greyed out with the reason, such as *Locked or disabled accounts* on a server without `nsAccountLock` or `pwdAccountLockedTime`.
+
+### 4.4 Exploring a branch
+
+![The Explore tab](img/explore.png)
+
+Not sure what is in a branch? **Explore** looks at up to a number of entries below a base (the selected tree node by default) and shows which **kinds of entries** (object classes) and which **attributes** are really in use, with counts. Click any of them to search for those entries.
+
+### 4.5 Results: list, table and CSV
+
+![A search shown as a list of entries](img/search-list.png)
 
 Above the results there are two views, **List** and **Table**, and an **Export CSV** button. The chosen view is remembered for the next search.
 
@@ -114,7 +160,11 @@ The 3-minute default is deliberate: browsers throttle timers in background tabs,
 | Base DN auto-detection from the RootDSE | Supported. |
 | Tree browsing with paging | Supported. |
 | Entry view, operational attributes, binary summary, UTF-8 values | Supported. |
-| Searches: filter, scopes, attribute list, limit, paging, server size limits | Supported. |
+| Searches: visual builder with live filter and explanation, text filter, scopes, attribute list, limit, paging, server size limits | Supported. |
+| Recipes and branch explorer | Supported. Recipes adapt to the server's schema; tested against OpenLDAP. |
+| Saved queries per profile | Supported. |
+| Tree filter, go to DN, DN links, breadcrumb | Supported. |
+| Results as a sortable table with CSV export | Supported. |
 | Saved profiles (no password) | Supported. |
 | Passwords in the system keychain | macOS Keychain and Windows Credential Manager: supported and tested in CI. Linux (Secret Service): the library supports it but ldapnav is not tested against it. |
 | Dark and light theme (follows the system) | Supported. |
@@ -130,7 +180,7 @@ The 3-minute default is deliberate: browsers throttle timers in background tabs,
 
 ### Servers
 
-Tested against OpenLDAP 2.5, 2.6 and 2.7 only. Microsoft Active Directory and other servers should work for browsing and searching (the protocol operations are standard) but have **not** been tested. Known AD difference: no children hints, so every node shows ▶.
+Tested against OpenLDAP 2.5, 2.6 and 2.7 only. The account recipes for 389 Directory Server (`nsAccountLock`, `passwordExpirationTime`) and for the OpenLDAP ppolicy overlay are checked against synthetic schemas, not against those real servers. Microsoft Active Directory and other servers should work for browsing and searching (the protocol operations are standard) but have **not** been tested. Known AD difference: no children hints, so every node shows ▶.
 
 ## 9. What is not supported
 
@@ -139,7 +189,7 @@ Tested against OpenLDAP 2.5, 2.6 and 2.7 only. Microsoft Active Directory and ot
 - **Client certificates** (mutual TLS) and **custom CA bundles**: server certificates are checked against the system trust store, or not at all with *Skip certificate verification*.
 - **Referrals** are not followed.
 - **Several connections or sessions at once**; a second browser tab shares the same connection.
-- **LDIF or JSON export**, importing, saved searches or search history. (CSV export is supported.)
+- **LDIF or JSON export**, importing, and search history. (CSV export and saved queries are supported.)
 - **Schema browsing**, ACL inspection, and decoding of binary attributes (no image preview, no GUID/SID formatting).
 - **Server-side sorting, virtual list view and other LDAP controls.**
 - **Proxy settings**: connections are direct.

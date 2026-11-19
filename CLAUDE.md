@@ -4,9 +4,13 @@ A minimal, read-only LDAP browser. A single Go binary that serves an embedded we
 
 ## Structure
 - `main.go`: HTTP server, JSON API under `/api/*`, LDAP client (github.com/go-ldap/ldap/v3) and keychain access (github.com/zalando/go-keyring).
-- `discovery.go` + `internal/ldapschema`: read-only server discovery for the query assistant (RootDSE and flavor, parsed schema with attribute syntaxes and matching rules, attribute usage sampling). Roadmap: `docs/ROADMAP.md`.
+- Query assistant (all read-only; roadmap and status in `docs/ROADMAP.md`):
+  - `discovery.go` + `internal/ldapschema`: RootDSE and server flavor, parsed schema (attribute syntaxes, matching rules, object classes), attribute usage sampling. The schema is cached per connection in `sess` together with name indexes.
+  - `filterapi.go` + `internal/ldapfilter`: `POST /api/filter` builds, escapes, validates against the schema and explains an LDAP filter from a tree of conditions. It is the ONLY place filters are built from user input: never concatenate user text into a filter anywhere else.
+  - `recipesapi.go` + `internal/recipes`: ready-made queries built from what the server's schema defines; unavailable ones carry the reason.
+  - `queries.go`: saved queries per profile in `queries.json` (atomic write, 0600, never credentials, a corrupt file is reported and never overwritten).
 - `front/`: the web UI, plain HTML + CSS + native ES modules. No build step, no bundler, no framework, no npm dependencies. No authentication in the UI (the URL-fragment token is the only gate).
-  - `index.html`, `css/style.css`, `js/*.js` (one module per concern: `api`, `tree`, `entry`, `search`, `results`, `profiles`, `connection`, `tabs`, `status`; `table.js` is pure logic (columns, sorting, CSV) with no DOM access; `app.js` wires them; modules talk through the tiny bus in `events.js`, not by importing each other in circles).
+  - `index.html`, `css/style.css`, `js/*.js` (one module per concern: `api`, `tree`, `entry`, `search`, `results`, `builder`, `recipes`, `explore`, `savedqueries`, `schema`, `profiles`, `connection`, `tabs`, `status`; pure logic with no DOM access and node tests: `table.js` (columns, sorting, CSV), `builder-model.js` (operators per attribute type, conversion to the API query), `nav.js` (DN splitting honouring escapes, ancestors, tree filter matching); `app.js` wires them; modules talk through the tiny bus in `events.js`, not by importing each other in circles).
   - Strict CSP (`script-src 'self'; style-src 'self'`): no inline `<script>`, `<style>`, `style=` attributes or `on*=` handlers, no `setAttribute("style")`, no `innerHTML`, no `eval`. Use CSS classes. Tests enforce it.
   - Only `front/index.html`, `front/css` and `front/js` are embedded; `front/test` (Node unit tests) is not.
 - `Makefile` + `Info.plist`: packaging as a macOS `.app`.
@@ -36,8 +40,9 @@ A minimal, read-only LDAP browser. A single Go binary that serves an embedded we
 - `hack/ci-test.sh` is what validates a PR; `hack/Dockerfile.test` runs it in a reproducible environment (`make test-docker`); `hack/smoke.sh <binary>` smoke-tests a built binary.
 - CI (`.github/workflows/ci.yml`) has one job per OS (no conditionals) and sets `LDAPNAV_REQUIRE_SLAPD=1`: without slapd the run fails instead of skipping. Linux: test container; macOS: Homebrew openldap; Windows: Ubuntu slapd in WSL1 (macOS runners have no Docker; Windows runners only run Windows containers). Do not add tests that skip silently, and do not make a failing environment skip to turn CI green.
 - Pure JavaScript logic that grows in the UI (value formatting, CSV export, table sorting) goes in its own module with unit tests run by `node --test` (no npm dependencies; Node is dev tooling only, never shipped).
+- A layout bug is a bug: check that controls are not clipped (the builder test asserts it) and regenerate the screenshots after visible UI changes; they already exposed one clipped row.
 - Every behavior change comes with a test. `main()` only wires things up; the HTTP logic lives in `newHandler` so it can be tested with `httptest`.
-- Not verified yet against real AD or production OpenLDAP servers; say explicitly what could not be tested from this environment (macOS keychain, `.app`, Windows Credential Manager).
+- Real servers differ: the account recipes (`nsAccountLock`, `passwordExpirationTime`, ppolicy) are only checked against synthetic schemas, and OpenLDAP's `shadowExpire` has no ordering rule (the builder refuses `<`/`>` on it). Not verified yet against real AD or production OpenLDAP servers; say explicitly what could not be tested from this environment (macOS keychain, `.app`, Windows Credential Manager).
 
 ## Docs
 - Screenshots in `docs/img` are generated from the real UI by `e2e/screenshots_test.go` (`make screenshots`, needs Docker). Regenerate them in the same commit as any visible UI change; never edit them by hand.
