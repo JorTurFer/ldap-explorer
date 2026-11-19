@@ -57,14 +57,20 @@ good/bad/anonymous bind, TLS and StartTLS, tree, entry view, searches, paging an
 unless `LDAPNAV_REQUIRE_SLAPD=1` (CI sets it, so a missing server fails the run). To install it:
 `apt install slapd ldap-utils` (Debian/Ubuntu) or `brew install openldap` (macOS; the OpenLDAP bundled with macOS has no mdb backend and is not used).
 
+The browser tests (`e2e/`, a separate Go module so the app's `go.mod` stays free of the browser-automation dependency)
+build the real binary, start it next to the same ephemeral OpenLDAP and drive its web UI in a headless Chrome
+([chromedp](https://github.com/chromedp/chromedp)): connect, browse the tree, view entries, search, error messages and profiles.
+Any JavaScript exception or console error fails the test. They need Chrome or Chromium installed; without it they are skipped,
+unless `LDAPNAV_REQUIRE_CHROME=1`.
+
 The real-keychain tests (Keychain / Credential Manager) only run with
 `LDAPNAV_TEST_REAL_KEYRING=1 go test -run TestRealKeyring ./...`; they use temporary accounts under the `ldapnav` service and delete them afterwards.
 
 ### CI
 
 `.github/workflows/ci.yml` (on every PR and push to `main`):
-Three independent jobs; every one runs the whole suite (LDAP integration tests included) against a real OpenLDAP, with no skips:
-- **linux**: `hack/Dockerfile.test` → gofmt, `go mod tidy` with no changes, `go vet`, tests and a binary smoke test.
+Three independent jobs; every one runs the whole suite (LDAP integration tests and browser tests included) against a real OpenLDAP, with no skips:
+- **linux**: `hack/Dockerfile.test` (Go, OpenLDAP and Chromium) → gofmt, `go mod tidy` with no changes (both modules), `go vet`, tests, browser tests and a binary smoke test.
 - **macos**: Homebrew OpenLDAP; real Keychain tests (including an end-to-end one: password in the Keychain, connect without typing it), build + smoke test, and `make app` + `codesign --verify` + `.app` smoke test.
 - **windows**: Ubuntu's `slapd` in WSL1; real Credential Manager tests (same end-to-end one), build + smoke test of `ldapnav.exe`.
 

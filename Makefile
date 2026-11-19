@@ -18,11 +18,13 @@ app: build
 clean:
 	rm -rf ldapnav $(APP)
 
-# Native tests. Integration tests use slapd (OpenLDAP) if installed and are
-# skipped otherwise; with LDAPNAV_REQUIRE_SLAPD=1 they fail instead of skipping.
+# Native tests. Integration tests use slapd (OpenLDAP) and the browser tests use
+# Chrome; both are skipped if missing, unless LDAPNAV_REQUIRE_SLAPD=1 /
+# LDAPNAV_REQUIRE_CHROME=1 (then they fail instead of skipping).
 test:
 	CGO_ENABLED=0 go vet ./...
 	CGO_ENABLED=0 go test -count=1 ./...
+	cd e2e && CGO_ENABLED=0 go vet ./... && go test -count=1 ./...
 
 # Reproducible environment (Go + OpenLDAP in a container): same as what CI runs.
 test-docker:

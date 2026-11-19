@@ -6,20 +6,25 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 echo "== gofmt"
-unformatted="$(gofmt -l .)"
+unformatted="$(gofmt -l . e2e)"
 [ -z "$unformatted" ] || { echo "Not formatted:"; echo "$unformatted"; exit 1; }
 
 echo "== go mod tidy (go.mod/go.sum up to date)"
-cp go.mod /tmp/go.mod.bak; cp go.sum /tmp/go.sum.bak
-go mod tidy
-cmp go.mod /tmp/go.mod.bak && cmp go.sum /tmp/go.sum.bak \
-  || { echo "go.mod/go.sum were not up to date: run go mod tidy"; exit 1; }
+for m in . e2e; do
+  cp "$m/go.mod" /tmp/go.mod.bak; cp "$m/go.sum" /tmp/go.sum.bak
+  (cd "$m" && go mod tidy)
+  cmp "$m/go.mod" /tmp/go.mod.bak && cmp "$m/go.sum" /tmp/go.sum.bak \
+    || { echo "$m/go.mod or go.sum were not up to date: run go mod tidy in $m"; exit 1; }
+done
 
 echo "== go vet"
 CGO_ENABLED=0 go vet ./...
 
 echo "== go test (real OpenLDAP; no CGO)"
 CGO_ENABLED=0 LDAPNAV_REQUIRE_SLAPD=1 go test -count=1 -v ./...
+
+echo "== browser tests (real Chrome + real ldapnav + real OpenLDAP)"
+(cd e2e && CGO_ENABLED=0 go vet ./... && LDAPNAV_REQUIRE_CHROME=1 LDAPNAV_REQUIRE_SLAPD=1 go test -count=1 -v ./...)
 
 echo "== binary smoke test"
 bin="$(mktemp -d)/ldapnav"

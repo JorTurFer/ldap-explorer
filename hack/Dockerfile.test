@@ -4,14 +4,16 @@ FROM golang:1.27.4-bookworm
 
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update \
- && apt-get install -y --no-install-recommends slapd ldap-utils curl \
+ && apt-get install -y --no-install-recommends slapd ldap-utils curl chromium \
  && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
+COPY e2e/go.mod e2e/go.sum ./e2e/
+RUN cd e2e && go mod download
 COPY . .
 
-# In CI a missing slapd must fail the run, not silently skip the integration tests.
-ENV LDAPNAV_REQUIRE_SLAPD=1
+# In CI a missing slapd or Chrome must fail the run, not silently skip tests.
+ENV LDAPNAV_REQUIRE_SLAPD=1 LDAPNAV_REQUIRE_CHROME=1
 CMD ["bash", "hack/ci-test.sh"]
