@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -71,6 +72,9 @@ func attrValue(t *testing.T, ctx context.Context, name string) (text string, fou
 	return r.Text, r.Found
 }
 
+// rawMode switches the Search tab to the "Advanced (text)" filter input.
+func rawMode() chromedp.Action { return chromedp.Click("#modeRaw") }
+
 func connect(t *testing.T, ctx context.Context, url, bindDN, password string) {
 	t.Helper()
 	run(t, ctx,
@@ -130,7 +134,7 @@ func TestUIConnectBrowseAndSearch(t *testing.T) {
 	waitJS(t, ctx, "entryUUID", `[...document.querySelectorAll('#pane-entry table.attrs td.k')].some(td=>td.textContent==='entryUUID')`)
 
 	// Search: filter and attribute list.
-	run(t, ctx, chromedp.Click(`button[data-tab="search"]`), chromedp.WaitVisible("#sBase"))
+	run(t, ctx, chromedp.Click(`button[data-tab="search"]`), chromedp.WaitVisible("#sBase"), rawMode())
 	var base string
 	js(t, ctx, `document.getElementById('sBase').value`, &base)
 	if base != slapdtest.BaseDN {
@@ -279,7 +283,7 @@ func TestUISearchTableAndCSV(t *testing.T) {
 	connect(t, ctx, l.URL, slapdtest.AliceDN, slapdtest.AlicePW)
 	waitText(t, ctx, "#status", "Connected to")
 
-	run(t, ctx, chromedp.Click(`button[data-tab="search"]`), chromedp.WaitVisible("#sBase"),
+	run(t, ctx, chromedp.Click(`button[data-tab="search"]`), chromedp.WaitVisible("#sBase"), rawMode(),
 		set("#sBase", "ou=people,"+slapdtest.BaseDN), set("#sScope", "one"),
 		set("#sFilter", "(objectClass=inetOrgPerson)"), set("#sAttrs", "uid, mail, description, telephoneNumber"),
 		chromedp.Click("#btnSearch"))
@@ -368,4 +372,127 @@ func TestUISearchTableAndCSV(t *testing.T) {
 	if want := `"uid=bob,ou=people,` + slapdtest.BaseDN + `",bob,bob@example.org,'=1+1,+34 600 000 001; +34 600 000 002`; lines[2] != want {
 		t.Errorf("bob's CSV row:\n got %q\nwant %q", lines[2], want)
 	}
+}
+
+// ---------- query builder ----------
+
+// cond sets part of the n-th condition row of the builder (0-based).
+func setAttr(t *testing.T, ctx context.Context, n int, v string) {
+	t.Helper()
+	js(t, ctx, fmt.Sprintf(`(() => { const i = document.querySelectorAll('.bcond .battr')[%d]; i.value = %s;
+		i.dispatchEvent(new Event('input')); i.dispatchEvent(new Event('change')); return true; })()`, n, q(v)), nil)
+}
+
+func setOp(t *testing.T, ctx context.Context, n int, v string) {
+	t.Helper()
+	js(t, ctx, fmt.Sprintf(`(() => { const s = document.querySelectorAll('.bcond .bop')[%d]; s.value = %s;
+		s.dispatchEvent(new Event('change')); return true; })()`, n, q(v)), nil)
+}
+
+func setVal(t *testing.T, ctx context.Context, n int, v string) {
+	t.Helper()
+	js(t, ctx, fmt.Sprintf(`(() => { const i = document.querySelectorAll('.bcond .bval')[%d]; i.value = %s;
+		i.dispatchEvent(new Event('input')); return true; })()`, n, q(v)), nil)
+}
+
+func opsOf(t *testing.T, ctx context.Context, n int) []string {
+	t.Helper()
+	var ops []string
+	js(t, ctx, fmt.Sprintf(`[...document.querySelectorAll('.bcond .bop')[%d].options].map(o => o.value)`, n), &ops)
+	return ops
+}
+
+func TestUIQueryBuilder(t *testing.T) {
+	l := slapdtest.Start(t)
+	appURL := startApp(t)
+	ctx := browser(t)
+	run(t, ctx, chromedp.Navigate(appURL), chromedp.WaitVisible("#btnConn"))
+	connect(t, ctx, l.URL, slapdtest.AliceDN, slapdtest.AlicePW)
+	waitText(t, ctx, "#status", "Connected to")
+	run(t, ctx, chromedp.Click(`button[data-tab="search"]`), chromedp.WaitVisible("#builder"),
+		set("#sBase", "ou=people,"+slapdtest.BaseDN), set("#sScope", "one"))
+
+	// The builder is the default; the schema fills the attribute suggestions.
+	waitText(t, ctx, "#bExplain", "Choose an attribute to start.")
+	waitJS(t, ctx, "attribute suggestions", `document.querySelectorAll('#attrList option').length > 50`)
+	var order [2]int
+	js(t, ctx, `(() => { const n = [...document.querySelectorAll('#attrList option')].map(o => o.value);
+		return [n.indexOf('mail'), n.indexOf('createTimestamp')]; })()`, &order)
+	if order[0] < 0 || order[1] < 0 || order[0] > order[1] {
+		t.Errorf("user attributes should be suggested before operational ones: mail=%d createTimestamp=%d", order[0], order[1])
+	}
+
+	// One condition: preview, explanation and results.
+	setAttr(t, ctx, 0, "mail")
+	setVal(t, ctx, 0, "example")
+	waitText(t, ctx, "#bFilter", "(mail=*example*)")
+	waitText(t, ctx, "#bExplain", `mail contains "example"`)
+	run(t, ctx, chromedp.Click("#btnSearch"))
+	waitText(t, ctx, "#sOut", "2 result(s)")
+
+	// A second condition, combined with "all of".
+	run(t, ctx, chromedp.Click("#builder .bfoot .badd:first-child"))
+	setAttr(t, ctx, 1, "uid")
+	setOp(t, ctx, 1, "startsWith")
+	setVal(t, ctx, 1, "b")
+	waitText(t, ctx, "#bFilter", "(&(mail=*example*)(uid=b*))")
+	waitText(t, ctx, "#bExplain", "All of these must be true:")
+	run(t, ctx, chromedp.Click("#btnSearch"))
+	waitText(t, ctx, "#sOut", "1 result(s)")
+	waitText(t, ctx, "#sOut", "uid=bob,")
+
+	// "any of" and "none of".
+	run(t, ctx, set(".bgroup .bmode", "any"), chromedp.Evaluate(`document.querySelector('.bgroup .bmode').dispatchEvent(new Event('change'))`, nil))
+	waitText(t, ctx, "#bFilter", "(|(mail=*example*)(uid=b*))")
+	waitText(t, ctx, "#bExplain", "At least one of these must be true:")
+	run(t, ctx, set(".bgroup .bmode", "none"), chromedp.Evaluate(`document.querySelector('.bgroup .bmode').dispatchEvent(new Event('change'))`, nil))
+	waitText(t, ctx, "#bFilter", "(!(|(mail=*example*)(uid=b*)))")
+	run(t, ctx, chromedp.Click("#btnSearch"))
+	waitText(t, ctx, "#sOut", "uid=zoe,")
+
+	// Special characters are escaped by the server, never interpreted.
+	setAttr(t, ctx, 0, "cn")
+	setVal(t, ctx, 0, "(Name) *")
+	waitText(t, ctx, "#bFilter", `(cn=*\28Name\29 \2a*)`)
+
+	// Operators follow the attribute type; dates get a date input and "last N days".
+	setAttr(t, ctx, 1, "createTimestamp")
+	if got, want := strings.Join(opsOf(t, ctx, 1), ","), "equals,notEquals,after,before,withinDays,present,notPresent"; got != want {
+		t.Errorf("operators for a time attribute: %s, want %s", got, want)
+	}
+	setOp(t, ctx, 1, "after")
+	var inputType string
+	js(t, ctx, `document.querySelectorAll('.bcond .bval')[1].type`, &inputType)
+	if inputType != "datetime-local" {
+		t.Errorf("value input for a time attribute: %q", inputType)
+	}
+	setOp(t, ctx, 1, "withinDays")
+	setVal(t, ctx, 1, "7")
+	waitJS(t, ctx, "time filter", `/\(createTimestamp>=\d{14}Z\)/.test(document.getElementById('bFilter').textContent)`)
+	setAttr(t, ctx, 1, "jpegPhoto")
+	if got, want := strings.Join(opsOf(t, ctx, 1), ","), "present,notPresent"; got != want {
+		t.Errorf("operators for a binary attribute: %s, want %s", got, want)
+	}
+	setAttr(t, ctx, 1, "gidNumber")
+	if got := opsOf(t, ctx, 1); !slices.Contains(got, "gte") || slices.Contains(got, "contains") {
+		t.Errorf("operators for an integer attribute: %v", got)
+	}
+	setAttr(t, ctx, 1, "objectClass")
+	if got := opsOf(t, ctx, 1); slices.Contains(got, "contains") {
+		t.Errorf("objectClass has no substring matching on the server: %v", got)
+	}
+
+	// An unknown attribute is explained, not silently searched.
+	setAttr(t, ctx, 1, "colour")
+	setOp(t, ctx, 1, "equals")
+	setVal(t, ctx, 1, "red")
+	waitText(t, ctx, "#bErr", "not an attribute of this server")
+	run(t, ctx, chromedp.Click("#btnSearch"))
+	waitText(t, ctx, "#sOut .err", "not an attribute of this server")
+
+	// Remove the bad row, and move the filter to the text mode.
+	run(t, ctx, chromedp.Click("#builder .bcond:nth-of-type(2) .bremove"))
+	waitJS(t, ctx, "error gone", `document.getElementById('bErr').textContent === '' && document.getElementById('bFilter').textContent !== ''`)
+	run(t, ctx, chromedp.Click("#bToRaw"))
+	waitJS(t, ctx, "text mode with the filter", `!document.getElementById('rawBox').classList.contains('hidden') && document.getElementById('sFilter').value.startsWith('(')`)
 }

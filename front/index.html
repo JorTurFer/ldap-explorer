@@ -28,7 +28,24 @@
     <div id="pane-search" class="pane">
       <div class="sform">
         <label>Base</label><input type="text" id="sBase" placeholder="dc=example,dc=com">
-        <label>Filter</label><input type="text" id="sFilter" placeholder="(objectClass=*)">
+        <label>Filter</label>
+        <div class="fcol">
+          <div class="seg">
+            <button type="button" id="modeBuilder" class="on">Builder</button>
+            <button type="button" id="modeRaw">Advanced (text)</button>
+          </div>
+          <div id="builderBox">
+            <div id="builder"></div>
+            <div class="bpreview">
+              <div class="muted small">LDAP filter</div>
+              <pre id="bFilter"></pre>
+              <div id="bExplain" class="bexplain"></div>
+              <div id="bErr" class="err"></div>
+              <button type="button" id="bToRaw" class="small-btn">Edit as text</button>
+            </div>
+          </div>
+          <div id="rawBox" class="hidden"><input type="text" id="sFilter" placeholder="(objectClass=*)"></div>
+        </div>
         <label>Attributes</label><input type="text" id="sAttrs" placeholder="empty = all  (e.g. cn, mail, memberOf)">
         <label>Scope</label>
         <div class="row">
@@ -41,6 +58,9 @@
     </div>
   </section>
 </main>
+
+<datalist id="attrList"></datalist>
+<datalist id="classList"></datalist>
 
 <dialog id="dlg">
   <form method="dialog" id="cform">

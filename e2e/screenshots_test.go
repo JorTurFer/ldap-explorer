@@ -57,21 +57,32 @@ func TestScreenshots(t *testing.T) {
 	waitText(t, ctx, "#pane-entry .dn", "uid=alice,")
 	shot("browse")
 
-	// 3. Search, list view.
+	// 3. The query builder: no LDAP knowledge needed.
 	run(t, ctx, chromedp.Click(`button[data-tab="search"]`), chromedp.WaitVisible("#sBase"),
-		set("#sBase", "ou=people,"+slapdtest.BaseDN), set("#sScope", "one"),
-		set("#sFilter", "(&(objectClass=inetOrgPerson)(mail=*@example.org))"),
-		set("#sAttrs", "uid, cn, mail, telephoneNumber"), chromedp.Click("#btnSearch"))
+		set("#sBase", "ou=people,"+slapdtest.BaseDN), set("#sScope", "one"), set("#sAttrs", "uid, cn, mail, telephoneNumber"))
+	waitJS(t, ctx, "attribute suggestions", `document.querySelectorAll('#attrList option').length > 50`)
+	setAttr(t, ctx, 0, "mail")
+	setOp(t, ctx, 0, "endsWith")
+	setVal(t, ctx, 0, "@example.org")
+	run(t, ctx, chromedp.Click("#builder .bfoot .badd:first-child"))
+	setAttr(t, ctx, 1, "createTimestamp")
+	setOp(t, ctx, 1, "withinDays")
+	setVal(t, ctx, 1, "30")
+	waitJS(t, ctx, "preview", `/createTimestamp>=\d{14}Z/.test(document.getElementById('bFilter').textContent)`)
+	shot("builder")
+
+	// 4. Its results, as a list.
+	run(t, ctx, chromedp.Click("#btnSearch"))
 	waitText(t, ctx, "#sOut", "result(s)")
 	shot("search-list")
 
-	// 4. The same search as a table, sorted.
+	// 5. The same search as a table, sorted.
 	run(t, ctx, chromedp.Click("#viewTable"), chromedp.WaitVisible("#sOut table.rtable"),
 		chromedp.Click(`#sOut table.rtable thead th:nth-child(2)`),
 		chromedp.Click(`#sOut table.rtable thead th:nth-child(2)`))
 	shot("search-table")
 
-	// 5. Dark theme (follows the system setting).
+	// 6. Dark theme (follows the system setting).
 	run(t, ctx, emulation.SetEmulatedMedia().WithFeatures([]*emulation.MediaFeature{
 		{Name: "prefers-color-scheme", Value: "dark"}}))
 	shot("search-table-dark")

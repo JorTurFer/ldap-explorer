@@ -7,12 +7,14 @@ import { initConnection } from "./connection.js";
 import { initTree } from "./tree.js";
 import { initEntry } from "./entry.js";
 import { initSearch } from "./search.js";
+import { initBuilder } from "./builder.js";
 
 initTabs();
 initProfiles();
 initConnection();
 initTree();
 initEntry();
+initBuilder();
 initSearch();
 
 loadProfiles();

@@ -3,6 +3,8 @@
 //   disconnected   {}
 //   select         { dn }   a tree node was selected
 //   search-from    { dn }   "search from here" on an entry
+//   builder-to-raw { filter }  "Edit as text" in the query builder
+//   run-search     {}       Enter pressed in the query builder
 
 const bus = new EventTarget();
 export const emit = (name, detail = {}) => bus.dispatchEvent(new CustomEvent(name, { detail }));

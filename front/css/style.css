@@ -102,3 +102,23 @@ table.rtable th { position: sticky; top: 0; background: var(--panel); text-align
                   user-select: none; white-space: nowrap; border-bottom: 2px solid var(--line); padding: 5px 8px; }
 table.rtable td { border-bottom: 1px solid var(--line); padding: 3px 8px; vertical-align: top; font-family: var(--mono); }
 table.rtable td.dn-cell { overflow-wrap: anywhere; min-width: 280px; }
+
+/* query builder */
+.hidden { display: none !important; }
+.small { font-size: 11px; }
+.fcol { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.bgroup { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; background: var(--panel); }
+.bgroup .bgroup { margin: 6px 0 6px 14px; background: var(--bg); }
+.bhead { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
+.bhead .bremove { margin-left: auto; }
+.bcond { display: flex; gap: 6px; align-items: center; margin: 4px 0; }
+.battr { width: 190px; flex: none; }
+.bop { flex: none; max-width: 210px; }
+.bval { flex: 1; min-width: 120px; }
+.bremove { padding: 0 8px; line-height: 22px; color: var(--muted); }
+.bfoot { display: flex; gap: 8px; margin-top: 6px; }
+.badd { font-size: 12px; padding: 2px 8px; }
+.bpreview { border: 1px dashed var(--line); border-radius: 8px; padding: 8px 10px; }
+.bpreview pre { margin: 2px 0 6px; font-family: var(--mono); font-size: 12px; white-space: pre-wrap; word-break: break-all; min-height: 1.4em; }
+.bexplain { white-space: pre-wrap; color: var(--muted); }
+.small-btn { font-size: 11px; padding: 1px 8px; margin-top: 6px; }
