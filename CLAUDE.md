@@ -4,6 +4,7 @@ A minimal, read-only LDAP browser. A single Go binary that serves an embedded we
 
 ## Structure
 - `main.go`: HTTP server, JSON API under `/api/*`, LDAP client (github.com/go-ldap/ldap/v3) and keychain access (github.com/zalando/go-keyring).
+- `discovery.go` + `internal/ldapschema`: read-only server discovery for the query assistant (RootDSE and flavor, parsed schema with attribute syntaxes and matching rules, attribute usage sampling). Roadmap: `docs/ROADMAP.md`.
 - `ui.html`: vanilla HTML/CSS/JS UI, no build step, no dependencies.
 - `Makefile` + `Info.plist`: packaging as a macOS `.app`.
 
