@@ -22,19 +22,36 @@ func TestRecipesAgainstRealServer(t *testing.T) {
 	for _, r := range list {
 		byID[r.ID] = r
 	}
-	// What this OpenLDAP schema can and cannot answer.
+	// What this server's schema can and cannot answer. Some recipes depend on attributes
+	// that only some OpenLDAP builds define (Homebrew's 2.7 has the ppolicy attributes built in),
+	// so those are checked against the schema the server really publishes.
+	var sc schemaResponse
+	call(t, srv, "GET", "/api/schema", nil, &sc)
+	has := func(names ...string) bool {
+		for _, a := range sc.Attributes {
+			for _, n := range a.Names {
+				for _, want := range names {
+					if strings.EqualFold(n, want) {
+						return true
+					}
+				}
+			}
+		}
+		return false
+	}
 	for id, want := range map[string]bool{
 		"find-person": true, "people-without-email": true, "people-by-department": true, "group-members": true,
 		"user-groups": true, "recently-created": true, "recently-modified": true, "by-class": true,
 		"with-attribute": true, "missing-attribute": true,
-		"locked-accounts": false, "expired-accounts": false,
+		"locked-accounts":  has("nsAccountLock", "pwdAccountLockedTime"),
+		"expired-accounts": has("passwordExpirationTime", "krbPrincipalExpiration", "krbPasswordExpiration"),
 	} {
 		if byID[id].Available != want {
 			t.Errorf("%s: available=%v, want %v (%s)", id, byID[id].Available, want, byID[id].Reason)
 		}
-	}
-	if r := byID["locked-accounts"].Reason; !strings.Contains(r, "nsAccountLock") {
-		t.Errorf("locked-accounts should say what is missing: %q", r)
+		if !want && byID[id].Reason == "" {
+			t.Errorf("%s: unavailable without a reason", id)
+		}
 	}
 
 	// Apply a recipe, build its filter through the API and run it.
@@ -139,6 +156,16 @@ func TestRecipesErrors(t *testing.T) {
 		t.Errorf("without a session: %d %q", code, e.Error)
 	}
 	connectOK(t, srv, alice(l), slapdtest.AlicePW)
+	// Any recipe this server cannot answer must refuse to run (which ones depends on the build).
+	var list []recipes.Info
+	call(t, srv, "GET", "/api/recipes", nil, &list)
+	for _, r := range list {
+		if !r.Available {
+			if code := call(t, srv, "POST", "/api/recipes/"+r.ID, map[string]any{"params": map[string]string{}}, &e); code != 400 || !strings.Contains(e.Error, "cannot answer it") {
+				t.Errorf("unavailable recipe %s ran: %d %q", r.ID, code, e.Error)
+			}
+		}
+	}
 	for _, tc := range []struct {
 		name, id string
 		params   map[string]string
@@ -148,7 +175,6 @@ func TestRecipesErrors(t *testing.T) {
 		{"unknown", "nope", nil, 404, "unknown recipe"},
 		{"required parameter", "find-person", map[string]string{"text": ""}, 400, "is required"},
 		{"bad days", "recently-created", map[string]string{"days": "soon"}, 400, "between 1 and 36500"},
-		{"not answerable here", "locked-accounts", nil, 400, "cannot answer it"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			if code := call(t, srv, "POST", "/api/recipes/"+tc.id, map[string]any{"params": tc.params}, &e); code != tc.code || !strings.Contains(e.Error, tc.msg) {

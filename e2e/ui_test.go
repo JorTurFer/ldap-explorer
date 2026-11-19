@@ -72,6 +72,18 @@ func attrValue(t *testing.T, ctx context.Context, name string) (text string, fou
 	return r.Text, r.Found
 }
 
+// reload loads the app again from scratch. Navigating to the same URL only changes the
+// #fragment, which the browser treats as "stay on this page": go through about:blank.
+func reload(t *testing.T, ctx context.Context, appURL string) {
+	t.Helper()
+	run(t, ctx, chromedp.Navigate("about:blank"), chromedp.Navigate(appURL), chromedp.WaitVisible("#btnConn"))
+	var status string
+	js(t, ctx, `document.getElementById('status').textContent`, &status)
+	if status != "Not connected" {
+		t.Fatalf("the page was not reloaded (status %q)", status)
+	}
+}
+
 // rawMode switches the Search tab to the "Advanced (text)" filter input.
 func rawMode() chromedp.Action { return chromedp.Click("#modeRaw") }
 
@@ -237,7 +249,7 @@ func TestUIProfiles(t *testing.T) {
 	)
 	waitText(t, ctx, "#status", "Profile saved")
 
-	run(t, ctx, chromedp.Navigate(appURL), chromedp.WaitVisible("#btnConn")) // fresh page, same server
+	reload(t, ctx, appURL) // fresh page, same server
 	run(t, ctx, chromedp.Click("#btnConn"), chromedp.WaitVisible("#cProfile"))
 	waitJS(t, ctx, "profile option", `[...document.querySelectorAll('#cProfile option')].some(o=>o.value==='lab')`)
 	run(t, ctx, set("#cProfile", "lab"))
@@ -675,7 +687,7 @@ func TestUISavedQueries(t *testing.T) {
 	waitJS(t, ctx, "text mode", `!document.getElementById('rawBox').classList.contains('hidden') && document.getElementById('sFilter').value === '(uid=zoe)'`)
 
 	// They are stored on the server: still there after reloading the page and reconnecting.
-	run(t, ctx, chromedp.Navigate(appURL), chromedp.WaitVisible("#btnConn"))
+	reload(t, ctx, appURL)
 	connect(t, ctx, l.URL, slapdtest.AliceDN, slapdtest.AlicePW)
 	waitText(t, ctx, "#status", "Connected to")
 	waitJS(t, ctx, "saved queries after reload", `document.querySelectorAll('#qSaved option').length === 3`)
