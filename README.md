@@ -9,6 +9,8 @@ A minimal, read-only LDAP browser for macOS and Windows. A single Go binary that
 - Optional password in the system keychain (Keychain on macOS, Credential Manager on Windows, Secret Service on Linux) via `go-keyring`; service `ldapnav`, account `bindDN@url`
 - `ldap://`, `ldaps://` and StartTLS; base DN auto-detected from the RootDSE
 
+See the [user manual](docs/USAGE.md) for how to use it and exactly what is and is not supported.
+
 ## Build
 
 Requires Go ≥ 1.24. No CGO needed.

@@ -32,6 +32,9 @@ A minimal, read-only LDAP browser. A single Go binary that serves an embedded we
 - Every behavior change comes with a test. `main()` only wires things up; the HTTP logic lives in `newHandler` so it can be tested with `httptest`.
 - Not verified yet against real AD or production OpenLDAP servers; say explicitly what could not be tested from this environment (macOS keychain, `.app`, Windows Credential Manager).
 
+## Docs
+- `docs/USAGE.md` is the user manual, including the supported / not supported lists. Keep it in sync with behavior changes (same commit).
+
 ## Keychain notes
 - `go-keyring` on macOS still calls `/usr/bin/security` internally and stores values with the `go-keyring-base64:` prefix; it reads old plain-text entries fine. Known limitation: `security -w` prints non-ASCII values hex-encoded, so legacy entries with non-ASCII passwords were already unreadable before the migration; re-saving the profile password fixes them.
 
