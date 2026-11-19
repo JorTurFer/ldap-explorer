@@ -1,34 +1,47 @@
 # ldapnav
 
-Navegador LDAP mínimo y de solo lectura. Es un binario Go único que sirve una UI web embebida (`ui.html`, vía `embed`) en 127.0.0.1 y abre el navegador.
+A minimal, read-only LDAP browser. A single Go binary that serves an embedded web UI (`ui.html`, via `embed`) on 127.0.0.1 and opens the browser.
 
-## Estructura
-- `main.go`: servidor HTTP, API JSON bajo `/api/*`, cliente LDAP (github.com/go-ldap/ldap/v3) y llavero (github.com/zalando/go-keyring).
-- `ui.html`: UI en HTML/CSS/JS vanilla, sin build ni dependencias.
-- `Makefile` + `Info.plist`: empaquetado como `.app` en macOS.
+## Structure
+- `main.go`: HTTP server, JSON API under `/api/*`, LDAP client (github.com/go-ldap/ldap/v3) and keychain access (github.com/zalando/go-keyring).
+- `ui.html`: vanilla HTML/CSS/JS UI, no build step, no dependencies.
+- `Makefile` + `Info.plist`: packaging as a macOS `.app`.
 
-## Invariantes (no romper)
-- Solo lectura: nada de Add/Modify/Delete contra el LDAP salvo que se pida explícitamente.
-- Solo escucha en 127.0.0.1. Toda la API exige la cabecera `X-Token`; el token va en el `#` de la URL.
-- Nunca guardar contraseñas en `profiles.json`: solo en el llavero del sistema (`go-keyring`), servicio `ldapnav`, cuenta `bindDN@url`. No cambiar servicio ni cuenta: rompería las contraseñas ya guardadas.
-- Sin CDNs ni recursos externos en la UI: la CSP lo bloquea a propósito.
-- Debe compilar con `CGO_ENABLED=0` para darwin/arm64, darwin/amd64 y windows/amd64.
+## Invariants (do not break)
+- Read-only: no Add/Modify/Delete against the LDAP server unless explicitly requested.
+- Listens on 127.0.0.1 only. The whole API requires the `X-Token` header; the token goes in the URL `#` fragment.
+- Never store passwords in `profiles.json`: only in the system keychain (`go-keyring`), service `ldapnav`, account `bindDN@url`. Do not change the service or account: it would break already-saved passwords.
+- No CDNs or external resources in the UI: the CSP blocks them on purpose.
+- Must build with `CGO_ENABLED=0` for darwin/arm64, darwin/amd64 and windows/amd64.
+- Self-contained binary: no Java/Node/Electron runtime and nothing downloaded at run time.
+- Few dependencies, only justified ones (go-ldap, go-keyring). Test infrastructure must not add dependencies to the binary: the test LDAP server is the system `slapd`, not a Go library.
 
-## Pendiente / ideas
-- Empaquetado en Windows (.exe con icono, o sin consola con `-ldflags -H=windowsgui`).
-- Llavero: `go-keyring` en macOS sigue llamando a `/usr/bin/security` internamente y guarda con prefijo `go-keyring-base64:`; lee bien las contraseñas antiguas en texto plano. Sin probar en Windows/macOS reales.
-- hasSubordinates no existe en AD, así que todos los nodos muestran ▶.
+## Scope
+- Browse the tree, view entry attributes and run searches. Read-only. Do not grow it into a full editor unless asked.
+- go-ldap is pinned to v3.4.11 for compatibility with Go 1.24; it can be bumped with a newer Go.
+- `-idle-exit` defaults to 3m on purpose: browsers throttle timers in background tabs, and a shorter value would make the app quit while the tab is open.
+- Known and accepted: `hasSubordinates` does not exist in AD, so every node shows ▶.
 
-## Tests (qué validan y reglas)
-- `main_test.go`: API (403/200 con token), UI/CSP, perfiles sin contraseña en disco, formato servicio/cuenta del llavero (mock), invariantes de código (solo lectura, solo 127.0.0.1, sin recursos externos en `ui.html`) y compilación sin CGO para los 3 destinos.
-- `integration_test.go` + `slapd_test.go` + `testdata/seed.ldif`: contra un OpenLDAP real efímero (un único slapd compartido; la app es solo lectura). Incluye TLS/StartTLS, paginación (usuarios con `limits` en slapd.conf que solo ven >100 resultados paginando) y size limit del servidor.
-- `keyring_real_test.go`: llavero real; solo con `LDAPNAV_TEST_REAL_KEYRING=1` y en proceso aparte (`-run TestRealKeyring`), porque los demás tests usan `keyring.MockInit`, irreversible.
-- `hack/ci-test.sh` es lo que valida un PR; `hack/Dockerfile.test` lo ejecuta en un entorno reproducible (`make test-docker`); `hack/smoke.sh <binario>` prueba un binario compilado.
-- La CI (`.github/workflows/ci.yml`) usa `LDAPNAV_REQUIRE_SLAPD=1`: sin slapd falla en vez de saltarse. No añadir tests que se salten en silencio.
-- Todo cambio de comportamiento lleva test. `main()` solo cablea; la lógica HTTP está en `newHandler` para poder testearla con `httptest`.
-- Los tests no deben subir dependencias al binario más allá de las ya justificadas; el servidor LDAP de pruebas es el `slapd` del sistema, no una librería Go.
+## Tests (what they validate, and the rules)
+- `main_test.go`: API (403/200 with token), UI/CSP, profiles without passwords on disk, keychain service/account format (mock), code invariants (read-only, 127.0.0.1 only, no external resources in `ui.html`) and CGO-free builds for the 3 targets.
+- `integration_test.go` + `slapd_test.go` + `testdata/seed.ldif`: against a real ephemeral OpenLDAP (one shared slapd; the app is read-only). Covers TLS/StartTLS, paging (users with `limits` in slapd.conf who only see >100 results when paging) and the server size limit.
+- `keyring_real_test.go`: real keychain; only with `LDAPNAV_TEST_REAL_KEYRING=1` and in a separate process (`-run TestRealKeyring`), because the other tests use `keyring.MockInit`, which cannot be undone.
+- `hack/ci-test.sh` is what validates a PR; `hack/Dockerfile.test` runs it in a reproducible environment (`make test-docker`); `hack/smoke.sh <binary>` smoke-tests a built binary.
+- CI (`.github/workflows/ci.yml`) sets `LDAPNAV_REQUIRE_SLAPD=1`: without slapd the run fails instead of skipping. Do not add tests that skip silently.
+- Every behavior change comes with a test. `main()` only wires things up; the HTTP logic lives in `newHandler` so it can be tested with `httptest`.
+- Not verified yet against real AD or production OpenLDAP servers; say explicitly what could not be tested from this environment (macOS keychain, `.app`, Windows Credential Manager).
 
-## Comandos
-- `go build -o ldapnav .` y `./ldapnav` (o `make build` / `make app` en macOS).
+## Keychain notes
+- `go-keyring` on macOS still calls `/usr/bin/security` internally and stores values with the `go-keyring-base64:` prefix; it reads old plain-text entries fine.
+
+## Open items / ideas
+- Windows packaging (.exe with an icon, or without a console via `-ldflags -H=windowsgui`).
+
+## Commands
+- `go build -o ldapnav .` and `./ldapnav` (or `make build` / `make app` on macOS).
 - Windows: `go build -o ldapnav.exe .`
-- `go vet ./...` y `make test` (o `make test-docker`) antes de dar algo por bueno.
+- `go vet ./...` and `make test` (or `make test-docker`) before calling anything done.
+
+## Conventions
+- Everything in the repo is in English: code comments, UI text, error messages, docs, commit messages.
+- Small, descriptive commits. If a decision changes the architecture or the constraints, update this file in the same commit.

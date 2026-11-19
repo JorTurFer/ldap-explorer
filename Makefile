@@ -6,29 +6,29 @@ build:
 	go mod tidy
 	CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o ldapnav .
 
-# Empaqueta como .app para lanzarlo desde Finder/Spotlight/Dock.
+# Package as an .app to launch it from Finder/Spotlight/Dock.
 app: build
 	rm -rf $(APP)
 	mkdir -p $(APP)/Contents/MacOS
 	cp ldapnav $(APP)/Contents/MacOS/ldapnav
 	cp Info.plist $(APP)/Contents/Info.plist
 	codesign --force --sign - $(APP)
-	@echo "Listo: arrastra $(APP) a /Applications"
+	@echo "Done: drag $(APP) to /Applications"
 
 clean:
 	rm -rf ldapnav $(APP)
 
-# Tests nativos. Los de integración usan slapd (OpenLDAP) si está instalado y,
-# si no, se saltan; con LDAPNAV_REQUIRE_SLAPD=1 fallan en lugar de saltarse.
+# Native tests. Integration tests use slapd (OpenLDAP) if installed and are
+# skipped otherwise; with LDAPNAV_REQUIRE_SLAPD=1 they fail instead of skipping.
 test:
 	CGO_ENABLED=0 go vet ./...
 	CGO_ENABLED=0 go test -count=1 ./...
 
-# Entorno reproducible (Go + OpenLDAP en contenedor): lo mismo que ejecuta la CI.
+# Reproducible environment (Go + OpenLDAP in a container): same as what CI runs.
 test-docker:
 	docker build -f hack/Dockerfile.test -t ldapnav-test .
 	docker run --rm ldapnav-test
 
-# Smoke test del binario compilado (403 sin token, 200 con token).
+# Smoke test of the built binary (403 without a token, 200 with one).
 smoke: build
 	hack/smoke.sh ./ldapnav

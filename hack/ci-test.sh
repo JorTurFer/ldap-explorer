@@ -1,27 +1,28 @@
 #!/usr/bin/env bash
-# Lo que valida un PR (se ejecuta dentro de hack/Dockerfile.test o en local con
-# slapd instalado): formato, go.mod, vet, tests con OpenLDAP real y smoke del binario.
+# What validates a PR (runs inside hack/Dockerfile.test, or locally with slapd
+# installed): formatting, go.mod, vet, tests against a real OpenLDAP and a
+# smoke test of the binary.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
 echo "== gofmt"
 unformatted="$(gofmt -l .)"
-[ -z "$unformatted" ] || { echo "Sin formatear:"; echo "$unformatted"; exit 1; }
+[ -z "$unformatted" ] || { echo "Not formatted:"; echo "$unformatted"; exit 1; }
 
-echo "== go mod tidy (go.mod/go.sum al día)"
+echo "== go mod tidy (go.mod/go.sum up to date)"
 cp go.mod /tmp/go.mod.bak; cp go.sum /tmp/go.sum.bak
 go mod tidy
 cmp go.mod /tmp/go.mod.bak && cmp go.sum /tmp/go.sum.bak \
-  || { echo "go.mod/go.sum no estaban al día: ejecuta go mod tidy"; exit 1; }
+  || { echo "go.mod/go.sum were not up to date: run go mod tidy"; exit 1; }
 
 echo "== go vet"
 CGO_ENABLED=0 go vet ./...
 
-echo "== go test (OpenLDAP real; sin CGO)"
+echo "== go test (real OpenLDAP; no CGO)"
 CGO_ENABLED=0 LDAPNAV_REQUIRE_SLAPD=1 go test -count=1 -v ./...
 
-echo "== smoke del binario"
+echo "== binary smoke test"
 bin="$(mktemp -d)/ldapnav"
 CGO_ENABLED=0 go build -o "$bin" .
 hack/smoke.sh "$bin"
-echo "TODO OK"
+echo "ALL OK"

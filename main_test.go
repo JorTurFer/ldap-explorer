@@ -18,19 +18,19 @@ import (
 	"github.com/zalando/go-keyring"
 )
 
-const testToken = "tok-de-prueba"
+const testToken = "test-token"
 
-// keyringMocked indica que algún test ya sustituyó el llavero por el mock
-// (keyring.MockInit no se puede deshacer en el mismo proceso).
+// keyringMocked indicates that some test has already replaced the keychain with
+// the mock (keyring.MockInit cannot be undone in the same process).
 var keyringMocked bool
 
 // ---------- helpers ----------
 
-// newTestServer arranca el handler real, con perfiles y llavero aislados.
+// newTestServer starts the real handler, with isolated profiles and keychain.
 func newTestServer(t *testing.T) *httptest.Server {
 	t.Helper()
 	cfg := t.TempDir()
-	// os.UserConfigDir mira estas según el SO.
+	// os.UserConfigDir looks at these depending on the OS.
 	t.Setenv("XDG_CONFIG_HOME", cfg)
 	t.Setenv("HOME", cfg)
 	t.Setenv("AppData", cfg)
@@ -50,7 +50,7 @@ func newTestServer(t *testing.T) *httptest.Server {
 	return srv
 }
 
-// call hace una petición con token; devuelve estado y cuerpo decodificado en out (si no es nil).
+// call makes a request with the token; it returns the status and the body decoded into out (if not nil).
 func call(t *testing.T, srv *httptest.Server, method, path string, body, out any) int {
 	t.Helper()
 	var rd io.Reader
@@ -68,7 +68,7 @@ func call(t *testing.T, srv *httptest.Server, method, path string, body, out any
 	raw, _ := io.ReadAll(resp.Body)
 	if out != nil {
 		if err := json.Unmarshal(raw, out); err != nil {
-			t.Fatalf("%s %s: respuesta no JSON (%d): %s", method, path, resp.StatusCode, raw)
+			t.Fatalf("%s %s: non-JSON response (%d): %s", method, path, resp.StatusCode, raw)
 		}
 	}
 	return resp.StatusCode
@@ -104,16 +104,16 @@ func connectOK(t *testing.T, srv *httptest.Server, p Profile, pw string) []strin
 		Roots []string `json:"roots"`
 	}
 	if code := call(t, srv, "POST", "/api/connect", connectReq{p, pw}, &r); code != 200 || !r.OK {
-		t.Fatalf("connect falló: %d %+v", code, r)
+		t.Fatalf("connect failed: %d %+v", code, r)
 	}
 	return r.Roots
 }
 
-// ---------- sin LDAP ----------
+// ---------- without LDAP ----------
 
 func TestAPIRequiresToken(t *testing.T) {
 	srv := newTestServer(t)
-	for _, tc := range []struct{ name, token string }{{"sin token", ""}, {"token incorrecto", "otro"}} {
+	for _, tc := range []struct{ name, token string }{{"no token", ""}, {"wrong token", "other"}} {
 		for _, p := range []string{"/api/profiles", "/api/children?dn=x", "/api/entry?dn=x"} {
 			req, _ := http.NewRequest("GET", srv.URL+p, nil)
 			if tc.token != "" {
@@ -125,18 +125,18 @@ func TestAPIRequiresToken(t *testing.T) {
 			}
 			resp.Body.Close()
 			if resp.StatusCode != 403 {
-				t.Errorf("%s %s: esperaba 403, obtuve %d", tc.name, p, resp.StatusCode)
+				t.Errorf("%s %s: expected 403, got %d", tc.name, p, resp.StatusCode)
 			}
 		}
 		req, _ := http.NewRequest("POST", srv.URL+"/api/connect", strings.NewReader("{}"))
 		resp, _ := http.DefaultClient.Do(req)
 		resp.Body.Close()
 		if resp.StatusCode != 403 {
-			t.Errorf("%s POST connect: esperaba 403, obtuve %d", tc.name, resp.StatusCode)
+			t.Errorf("%s POST connect: expected 403, got %d", tc.name, resp.StatusCode)
 		}
 	}
 	if code := call(t, srv, "GET", "/api/profiles", nil, nil); code != 200 {
-		t.Errorf("con token: esperaba 200, obtuve %d", code)
+		t.Errorf("with token: expected 200, got %d", code)
 	}
 }
 
@@ -149,11 +149,11 @@ func TestUIServedWithCSP(t *testing.T) {
 	defer resp.Body.Close()
 	b, _ := io.ReadAll(resp.Body)
 	if resp.StatusCode != 200 || !bytes.Contains(b, []byte("<html")) {
-		t.Fatalf("UI no servida: %d", resp.StatusCode)
+		t.Fatalf("UI not served: %d", resp.StatusCode)
 	}
 	csp := resp.Header.Get("Content-Security-Policy")
 	if !strings.Contains(csp, "default-src 'self'") || strings.Contains(csp, "http") {
-		t.Errorf("CSP inesperada: %q", csp)
+		t.Errorf("unexpected CSP: %q", csp)
 	}
 }
 
@@ -164,7 +164,7 @@ func TestUIHasNoExternalResources(t *testing.T) {
 	}
 	re := regexp.MustCompile(`(?i)(src|href|action)\s*=\s*["']?\s*(https?:)?//|url\(\s*["']?(https?:)?//|@import\s+["']?(https?:)?//|fetch\(\s*["'` + "`" + `](https?:)?//`)
 	if m := re.Find(b); m != nil {
-		t.Errorf("ui.html referencia un recurso externo: %q", m)
+		t.Errorf("ui.html references an external resource: %q", m)
 	}
 }
 
@@ -173,46 +173,46 @@ func TestProfilesCRUDNoPasswordOnDisk(t *testing.T) {
 	p := Profile{Name: "p1", URL: "ldap://h:389", BindDN: "cn=a,dc=x", BaseDN: "dc=x", UseKeychain: true}
 	var list []Profile
 	if code := call(t, srv, "POST", "/api/profiles", connectReq{p, "s3cr3t-pw"}, &list); code != 200 || len(list) != 1 {
-		t.Fatalf("guardar: %d %+v", code, list)
+		t.Fatalf("save: %d %+v", code, list)
 	}
-	// actualizar mismo nombre no duplica
+	// updating the same name does not duplicate
 	p.BaseDN = "dc=y"
 	call(t, srv, "POST", "/api/profiles", connectReq{p, ""}, &list)
 	if len(list) != 1 || list[0].BaseDN != "dc=y" {
-		t.Fatalf("actualizar: %+v", list)
+		t.Fatalf("update: %+v", list)
 	}
-	// la contraseña va al llavero con servicio y cuenta fijos, no al disco
+	// the password goes to the keychain with a fixed service and account, not to disk
 	got, err := keyring.Get("ldapnav", "cn=a,dc=x@ldap://h:389")
 	if err != nil || got != "s3cr3t-pw" {
-		t.Fatalf("llavero: %q, %v", got, err)
+		t.Fatalf("keychain: %q, %v", got, err)
 	}
 	raw, err := os.ReadFile(profilesPath())
 	if err != nil {
 		t.Fatal(err)
 	}
 	if bytes.Contains(raw, []byte("s3cr3t-pw")) {
-		t.Error("profiles.json contiene la contraseña")
+		t.Error("profiles.json contains the password")
 	}
 	if runtime.GOOS != "windows" {
 		if st, _ := os.Stat(profilesPath()); st.Mode().Perm() != 0o600 {
-			t.Errorf("permisos de profiles.json: %v", st.Mode().Perm())
+			t.Errorf("profiles.json permissions: %v", st.Mode().Perm())
 		}
 	}
 	if code := call(t, srv, "POST", "/api/profiles", connectReq{Profile{}, ""}, &errResp{}); code != 400 {
-		t.Errorf("perfil sin nombre: esperaba 400, obtuve %d", code)
+		t.Errorf("profile without a name: expected 400, got %d", code)
 	}
 	if code := call(t, srv, "DELETE", "/api/profiles?name=p1", nil, &list); code != 200 || len(list) != 0 {
-		t.Errorf("borrar: %d %+v", code, list)
+		t.Errorf("delete: %d %+v", code, list)
 	}
 }
 
 func TestKeychainAccountFormat(t *testing.T) {
-	// Compatibilidad con contraseñas ya guardadas: cuenta = bindDN@url.
+	// Compatibility with already stored passwords: account = bindDN@url.
 	if got := keychainAccount(Profile{BindDN: "cn=a,dc=x", URL: "ldaps://h"}); got != "cn=a,dc=x@ldaps://h" {
-		t.Errorf("cuenta: %q", got)
+		t.Errorf("account: %q", got)
 	}
 	if keychainService != "ldapnav" {
-		t.Errorf("servicio: %q", keychainService)
+		t.Errorf("service: %q", keychainService)
 	}
 }
 
@@ -220,8 +220,8 @@ func TestKeychainMissingPassword(t *testing.T) {
 	srv := newTestServer(t)
 	var e errResp
 	p := Profile{Name: "x", URL: "ldap://127.0.0.1:1", BindDN: "cn=a", UseKeychain: true}
-	if code := call(t, srv, "POST", "/api/connect", connectReq{p, ""}, &e); code != 400 || !strings.Contains(e.Error, "llavero") {
-		t.Errorf("esperaba error de llavero, obtuve %d %q", code, e.Error)
+	if code := call(t, srv, "POST", "/api/connect", connectReq{p, ""}, &e); code != 400 || !strings.Contains(e.Error, "keychain") {
+		t.Errorf("expected a keychain error, got %d %q", code, e.Error)
 	}
 }
 
@@ -229,23 +229,23 @@ func TestConnectValidationAndNotConnected(t *testing.T) {
 	srv := newTestServer(t)
 	var e errResp
 	if code := call(t, srv, "POST", "/api/connect", connectReq{Profile{URL: "http://x"}, ""}, &e); code != 400 || !strings.Contains(e.Error, "ldap://") {
-		t.Errorf("URL inválida: %d %q", code, e.Error)
+		t.Errorf("invalid URL: %d %q", code, e.Error)
 	}
 	if code := call(t, srv, "POST", "/api/connect", connectReq{Profile{URL: "ldap://127.0.0.1:1"}, ""}, &e); code != 400 {
-		t.Errorf("servidor inalcanzable: %d", code)
+		t.Errorf("unreachable server: %d", code)
 	}
 	for _, c := range []struct{ m, p string }{{"GET", "/api/children?dn=x"}, {"GET", "/api/entry?dn=x"}, {"POST", "/api/search"}} {
 		var body any
 		if c.m == "POST" {
 			body = map[string]string{}
 		}
-		if code := call(t, srv, c.m, c.p, body, &e); code != 400 || !strings.Contains(e.Error, "no conectado") {
-			t.Errorf("%s sin sesión: %d %q", c.p, code, e.Error)
+		if code := call(t, srv, c.m, c.p, body, &e); code != 400 || !strings.Contains(e.Error, "not connected") {
+			t.Errorf("%s without a session: %d %q", c.p, code, e.Error)
 		}
 	}
 }
 
-// ---------- invariantes de código ----------
+// ---------- code invariants ----------
 
 func TestReadOnlyInvariant(t *testing.T) {
 	b, err := os.ReadFile("main.go")
@@ -254,15 +254,15 @@ func TestReadOnlyInvariant(t *testing.T) {
 	}
 	re := regexp.MustCompile(`\.(Add|Modify|ModifyWithResult|ModifyDN|Del|PasswordModify|ModifyWithControls)\(`)
 	if m := re.Find(b); m != nil {
-		t.Errorf("main.go usa una operación de escritura LDAP: %q", m)
+		t.Errorf("main.go uses an LDAP write operation: %q", m)
 	}
 	if !bytes.Contains(b, []byte(`"127.0.0.1:%d"`)) {
-		t.Error("el servidor debe escuchar solo en 127.0.0.1")
+		t.Error("the server must listen only on 127.0.0.1")
 	}
 }
 
-// Comprueba que se puede compilar sin CGO para los tres destinos soportados
-// y que ninguna dependencia necesita cgo.
+// Checks that it builds without CGO for the three supported targets
+// and that no dependency needs cgo.
 func TestBuildsWithoutCGO(t *testing.T) {
 	if testing.Short() {
 		t.Skip("-short")
@@ -273,7 +273,7 @@ func TestBuildsWithoutCGO(t *testing.T) {
 			cmd := exec.Command("go", "build", "-o", filepath.Join(t.TempDir(), "out"), ".")
 			cmd.Env = env
 			if out, err := cmd.CombinedOutput(); err != nil {
-				t.Fatalf("falló la compilación: %v\n%s", err, out)
+				t.Fatalf("build failed: %v\n%s", err, out)
 			}
 			cmd = exec.Command("go", "list", "-deps", "-f", "{{if .CgoFiles}}{{.ImportPath}}{{end}}", ".")
 			cmd.Env = env
@@ -282,7 +282,7 @@ func TestBuildsWithoutCGO(t *testing.T) {
 				t.Fatal(err)
 			}
 			if s := strings.TrimSpace(string(out)); s != "" {
-				t.Errorf("paquetes que usan cgo:\n%s", s)
+				t.Errorf("packages that use cgo:\n%s", s)
 			}
 		})
 	}

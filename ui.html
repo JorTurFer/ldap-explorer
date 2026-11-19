@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <title>ldapnav</title>
@@ -42,7 +42,7 @@
   .pane { flex: 1; overflow: auto; padding: 12px; display: none; }
   .pane.on { display: block; }
 
-  /* árbol */
+  /* tree */
   ul.t { list-style: none; margin: 0; padding-left: 14px; }
   #tree > ul.t { padding-left: 4px; }
   .node { display: flex; align-items: center; gap: 2px; padding: 1px 6px; border-radius: 4px;
@@ -53,7 +53,7 @@
   .rdn { font-family: var(--mono); font-size: 12px; }
   .more { color: var(--muted); font-style: italic; padding-left: 22px; }
 
-  /* atributos */
+  /* attributes */
   .dn { font-family: var(--mono); font-size: 12px; word-break: break-all; margin-bottom: 10px;
         display: flex; gap: 8px; align-items: flex-start; }
   table.attrs { border-collapse: collapse; width: 100%; }
@@ -67,7 +67,7 @@
   .err { color: var(--err); }
   .copy { font-size: 11px; padding: 1px 6px; flex: none; }
 
-  /* búsqueda */
+  /* search */
   .sform { display: grid; grid-template-columns: 70px 1fr; gap: 6px 8px; align-items: center; max-width: 900px; }
   .sform input { width: 100%; font-family: var(--mono); font-size: 12px; }
   .sform .row { display: flex; gap: 8px; align-items: center; }
@@ -76,7 +76,7 @@
   .result .body { padding: 0 6px 6px; }
   a.jump { color: var(--accent); cursor: pointer; font-size: 11px; margin-left: 8px; }
 
-  /* diálogo conexión */
+  /* connection dialog */
   dialog { border: 1px solid var(--line); border-radius: 10px; background: var(--panel); color: var(--text);
            padding: 16px; width: 520px; max-width: 95vw; }
   dialog::backdrop { background: rgba(0,0,0,.35); }
@@ -91,30 +91,30 @@
 <body>
 <header>
   <strong>ldapnav</strong>
-  <button id="btnConn" class="primary">Conectar…</button>
-  <button id="btnDisc" disabled>Desconectar</button>
-  <button id="btnRefresh" disabled title="Recargar el árbol">↻</button>
-  <label class="muted"><input type="checkbox" id="chkOp"> atributos operacionales</label>
-  <span id="status" class="status">Sin conexión</span>
+  <button id="btnConn" class="primary">Connect…</button>
+  <button id="btnDisc" disabled>Disconnect</button>
+  <button id="btnRefresh" disabled title="Reload the tree">↻</button>
+  <label class="muted"><input type="checkbox" id="chkOp"> operational attributes</label>
+  <span id="status" class="status">Not connected</span>
 </header>
 <main>
-  <nav id="tree"><div class="empty">Conecta a un servidor para navegar.</div></nav>
+  <nav id="tree"><div class="empty">Connect to a server to browse.</div></nav>
   <section id="right">
     <div class="tabs">
-      <button data-tab="entry" class="on">Entrada</button>
-      <button data-tab="search">Búsqueda</button>
+      <button data-tab="entry" class="on">Entry</button>
+      <button data-tab="search">Search</button>
     </div>
-    <div id="pane-entry" class="pane on"><div class="empty">Selecciona una entrada del árbol.</div></div>
+    <div id="pane-entry" class="pane on"><div class="empty">Select an entry in the tree.</div></div>
     <div id="pane-search" class="pane">
       <div class="sform">
         <label>Base</label><input type="text" id="sBase" placeholder="dc=example,dc=com">
-        <label>Filtro</label><input type="text" id="sFilter" placeholder="(objectClass=*)">
-        <label>Atributos</label><input type="text" id="sAttrs" placeholder="vacío = todos  (p.ej. cn, mail, memberOf)">
-        <label>Ámbito</label>
+        <label>Filter</label><input type="text" id="sFilter" placeholder="(objectClass=*)">
+        <label>Attributes</label><input type="text" id="sAttrs" placeholder="empty = all  (e.g. cn, mail, memberOf)">
+        <label>Scope</label>
         <div class="row">
-          <select id="sScope"><option value="sub">subárbol</option><option value="one">un nivel</option><option value="base">solo base</option></select>
-          <label class="muted">Límite</label><input type="text" id="sLimit" value="500" style="width:80px">
-          <button id="btnSearch" class="primary" disabled>Buscar</button>
+          <select id="sScope"><option value="sub">subtree</option><option value="one">one level</option><option value="base">base only</option></select>
+          <label class="muted">Limit</label><input type="text" id="sLimit" value="500" style="width:80px">
+          <button id="btnSearch" class="primary" disabled>Search</button>
         </div>
       </div>
       <div id="sOut"></div>
@@ -125,27 +125,27 @@
 <dialog id="dlg">
   <form method="dialog" id="cform">
     <div class="cform">
-      <label>Perfil</label>
+      <label>Profile</label>
       <div style="display:flex;gap:6px">
-        <select id="cProfile" style="flex:1"><option value="">— nuevo —</option></select>
-        <button type="button" id="btnDelProfile" title="Borrar perfil">🗑</button>
+        <select id="cProfile" style="flex:1"><option value="">— new —</option></select>
+        <button type="button" id="btnDelProfile" title="Delete profile">🗑</button>
       </div>
-      <label>Nombre</label><input type="text" id="cName" placeholder="p.ej. AD producción">
+      <label>Name</label><input type="text" id="cName" placeholder="e.g. AD production">
       <label>URL</label><input type="text" id="cURL" placeholder="ldaps://ldap.example.com:636" required>
-      <label>Bind DN</label><input type="text" id="cBind" placeholder="vacío = anónimo  (o usuario@dominio en AD)">
-      <label>Contraseña</label><input type="password" id="cPass" autocomplete="off">
-      <label>Base DN</label><input type="text" id="cBase" placeholder="vacío = se detecta del RootDSE">
+      <label>Bind DN</label><input type="text" id="cBind" placeholder="empty = anonymous  (or user@domain on AD)">
+      <label>Password</label><input type="password" id="cPass" autocomplete="off">
+      <label>Base DN</label><input type="text" id="cBase" placeholder="empty = detected from the RootDSE">
       <div class="full">
-        <label><input type="checkbox" id="cStartTLS"> StartTLS (con ldap://)</label>
-        <label><input type="checkbox" id="cSkip"> No verificar certificado</label>
-        <label><input type="checkbox" id="cKeychain"> Guardar contraseña en el llavero</label>
+        <label><input type="checkbox" id="cStartTLS"> StartTLS (with ldap://)</label>
+        <label><input type="checkbox" id="cSkip"> Skip certificate verification</label>
+        <label><input type="checkbox" id="cKeychain"> Save password in the keychain</label>
       </div>
     </div>
     <div id="cErr" class="err" style="margin-top:10px"></div>
     <div class="actions">
-      <button type="button" id="btnSaveProfile" class="left">Guardar perfil</button>
-      <button type="button" id="btnCancel">Cancelar</button>
-      <button type="submit" id="btnDoConn" class="primary">Conectar</button>
+      <button type="button" id="btnSaveProfile" class="left">Save profile</button>
+      <button type="button" id="btnCancel">Cancel</button>
+      <button type="submit" id="btnDoConn" class="primary">Connect</button>
     </div>
   </form>
 </dialog>
@@ -153,7 +153,7 @@
 <script>
 "use strict";
 const TOKEN = location.hash.slice(1);
-history.replaceState(null, "", location.pathname); // quita el token de la barra
+history.replaceState(null, "", location.pathname); // remove the token from the address bar
 const $ = (id) => document.getElementById(id);
 const el = (tag, props = {}, ...kids) => {
   const e = document.createElement(tag);
@@ -179,12 +179,12 @@ function setStatus(msg, isErr = false) {
   const s = $("status"); s.textContent = msg; s.title = msg; s.className = "status" + (isErr ? " err" : "");
 }
 
-// ---------- perfiles ----------
+// ---------- profiles ----------
 let profiles = [];
 async function loadProfiles() {
   try { profiles = await api("/api/profiles"); } catch (e) { profiles = []; }
   const sel = $("cProfile"); const cur = sel.value;
-  sel.replaceChildren(el("option", { value: "", textContent: "— nuevo —" }),
+  sel.replaceChildren(el("option", { value: "", textContent: "— new —" }),
     ...profiles.map(p => el("option", { value: p.name, textContent: p.name })));
   sel.value = profiles.some(p => p.name === cur) ? cur : "";
 }
@@ -199,15 +199,15 @@ function fillForm(p) {
   $("cName").value = p?.name || ""; $("cURL").value = p?.url || ""; $("cBind").value = p?.bindDN || "";
   $("cBase").value = p?.baseDN || ""; $("cStartTLS").checked = !!p?.startTLS; $("cSkip").checked = !!p?.skipVerify;
   $("cKeychain").checked = !!p?.useKeychain; $("cPass").value = "";
-  $("cPass").placeholder = p?.useKeychain ? "vacío = usar la del llavero" : "";
+  $("cPass").placeholder = p?.useKeychain ? "empty = use the one in the keychain" : "";
 }
 $("cProfile").onchange = () => fillForm(profiles.find(p => p.name === $("cProfile").value));
 $("btnSaveProfile").onclick = async () => {
   $("cErr").textContent = "";
   try {
-    const p = formProfile(); if (!p.name) throw new Error("Ponle un nombre al perfil");
+    const p = formProfile(); if (!p.name) throw new Error("Give the profile a name");
     await api("/api/profiles", { body: { profile: p, password: $("cPass").value } });
-    await loadProfiles(); $("cProfile").value = p.name; setStatus("Perfil guardado");
+    await loadProfiles(); $("cProfile").value = p.name; setStatus("Profile saved");
   } catch (e) { $("cErr").textContent = e.message; }
 };
 $("btnDelProfile").onclick = async () => {
@@ -216,7 +216,7 @@ $("btnDelProfile").onclick = async () => {
   await loadProfiles(); fillForm(null);
 };
 
-// ---------- conexión ----------
+// ---------- connection ----------
 $("btnConn").onclick = async () => { $("cErr").textContent = ""; await loadProfiles(); $("dlg").showModal(); };
 $("btnCancel").onclick = () => $("dlg").close();
 $("cform").onsubmit = async (ev) => {
@@ -233,28 +233,28 @@ $("cform").onsubmit = async (ev) => {
 };
 $("btnDisc").onclick = async () => {
   await api("/api/disconnect", { method: "POST" }).catch(() => {});
-  roots = []; $("tree").replaceChildren(el("div", { class: "empty", textContent: "Sin conexión." }));
-  $("pane-entry").replaceChildren(el("div", { class: "empty", textContent: "Selecciona una entrada del árbol." }));
+  roots = []; $("tree").replaceChildren(el("div", { class: "empty", textContent: "Not connected." }));
+  $("pane-entry").replaceChildren(el("div", { class: "empty", textContent: "Select an entry in the tree." }));
   for (const b of ["btnDisc", "btnRefresh", "btnSearch"]) $(b).disabled = true;
-  setStatus("Sin conexión");
+  setStatus("Not connected");
 };
 
 let roots = [];
 function connected(p, rs) {
   roots = rs;
   for (const b of ["btnDisc", "btnRefresh", "btnSearch"]) $(b).disabled = false;
-  setStatus(`Conectado a ${p.url}` + (p.bindDN ? ` como ${p.bindDN}` : " (anónimo)"));
+  setStatus(`Connected to ${p.url}` + (p.bindDN ? ` as ${p.bindDN}` : " (anonymous)"));
   if (!$("sBase").value && rs[0]) $("sBase").value = rs[0];
   buildTree();
 }
 $("btnRefresh").onclick = buildTree;
 
-// ---------- árbol ----------
+// ---------- tree ----------
 let selectedNode = null;
 function buildTree() {
   const ul = el("ul", { class: "t" });
   if (!roots.length) {
-    $("tree").replaceChildren(el("div", { class: "empty", textContent: "No se detectó ninguna base. Indica Base DN en la conexión." }));
+    $("tree").replaceChildren(el("div", { class: "empty", textContent: "No base was detected. Set a Base DN in the connection." }));
     return;
   }
   for (const r of roots) ul.append(makeNode({ dn: r, rdn: r, leaf: false }));
@@ -295,11 +295,11 @@ function makeNode(n) {
   return li;
 }
 
-// ---------- entrada ----------
+// ---------- entry ----------
 function copyBtn(text) {
-  return el("button", { class: "copy", textContent: "copiar", onclick: (ev) => {
+  return el("button", { class: "copy", textContent: "copy", onclick: (ev) => {
     ev.stopPropagation(); navigator.clipboard.writeText(text);
-    ev.target.textContent = "✓"; setTimeout(() => ev.target.textContent = "copiar", 900);
+    ev.target.textContent = "✓"; setTimeout(() => ev.target.textContent = "copy", 900);
   }});
 }
 function attrTable(attrs) {
@@ -314,22 +314,22 @@ function attrTable(attrs) {
 async function showEntry(dn) {
   showTab("entry");
   const pane = $("pane-entry");
-  pane.replaceChildren(el("div", { class: "muted", textContent: "Cargando…" }));
+  pane.replaceChildren(el("div", { class: "muted", textContent: "Loading…" }));
   try {
     const e = await api("/api/entry?dn=" + encodeURIComponent(dn) + ($("chkOp").checked ? "&operational=1" : ""));
     pane.replaceChildren(
       el("div", { class: "dn" }, el("span", { textContent: e.dn }), copyBtn(e.dn),
-        el("a", { class: "jump", textContent: "buscar desde aquí", onclick: () => { $("sBase").value = e.dn; showTab("search"); $("sFilter").focus(); } })),
+        el("a", { class: "jump", textContent: "search from here", onclick: () => { $("sBase").value = e.dn; showTab("search"); $("sFilter").focus(); } })),
       attrTable(e.attrs));
   } catch (err) { pane.replaceChildren(el("div", { class: "err", textContent: err.message })); }
 }
 $("chkOp").onchange = () => { if (selectedNode) showEntry(selectedNode.title); };
 
-// ---------- búsqueda ----------
+// ---------- search ----------
 async function doSearch() {
   if ($("btnSearch").disabled) return;
   const out = $("sOut");
-  out.replaceChildren(el("div", { class: "muted", textContent: "Buscando…" }));
+  out.replaceChildren(el("div", { class: "muted", textContent: "Searching…" }));
   try {
     const t0 = performance.now();
     const res = await api("/api/search", { body: {
@@ -337,10 +337,10 @@ async function doSearch() {
       attrs: $("sAttrs").value, limit: parseInt($("sLimit").value, 10) || 500 } });
     const ms = Math.round(performance.now() - t0);
     const items = res.entries.map(e => el("details", { class: "result" },
-      el("summary", {}, e.dn, el("a", { class: "jump", textContent: "ver", onclick: (ev) => { ev.preventDefault(); showEntry(e.dn); } })),
+      el("summary", {}, e.dn, el("a", { class: "jump", textContent: "view", onclick: (ev) => { ev.preventDefault(); showEntry(e.dn); } })),
       el("div", { class: "body" }, attrTable(e.attrs))));
     out.replaceChildren(
-      el("div", { class: "muted", style: "margin-top:12px", textContent: `${res.entries.length} resultado(s) en ${ms} ms` }),
+      el("div", { class: "muted", style: "margin-top:12px", textContent: `${res.entries.length} result(s) in ${ms} ms` }),
       ...(res.warning ? [el("div", { class: "warn", textContent: "⚠ " + res.warning })] : []),
       ...items);
     if (items.length === 1) items[0].open = true;
@@ -350,7 +350,7 @@ $("btnSearch").onclick = doSearch;
 for (const id of ["sBase", "sFilter", "sAttrs", "sLimit"])
   $(id).addEventListener("keydown", (ev) => { if (ev.key === "Enter") doSearch(); });
 
-// ---------- pestañas ----------
+// ---------- tabs ----------
 function showTab(name) {
   for (const b of document.querySelectorAll(".tabs button")) b.classList.toggle("on", b.dataset.tab === name);
   for (const p of document.querySelectorAll(".pane")) p.classList.toggle("on", p.id === "pane-" + name);
@@ -358,7 +358,7 @@ function showTab(name) {
 for (const b of document.querySelectorAll(".tabs button")) b.onclick = () => showTab(b.dataset.tab);
 
 loadProfiles();
-const ping = () => api("/api/ping", { method: "POST" }).catch(() => setStatus("El proceso ldapnav no responde", true));
+const ping = () => api("/api/ping", { method: "POST" }).catch(() => setStatus("The ldapnav process is not responding", true));
 ping(); setInterval(ping, 10000);
 </script>
 </body>

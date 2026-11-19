@@ -34,7 +34,7 @@ sn: Builder
 mail: bob@example.org
 userPassword: bobpw
 
-# cn con caracteres no ASCII (Zoë Ñandú)
+# cn with non-ASCII characters (Zoë Ñandú)
 dn: uid=zoe,ou=people,dc=example,dc=org
 objectClass: inetOrgPerson
 uid: zoe

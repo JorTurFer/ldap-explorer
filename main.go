@@ -1,8 +1,8 @@
-// ldapnav: navegador LDAP mínimo, solo lectura, que corre en local.
+// ldapnav: a minimal, read-only LDAP browser that runs locally.
 //
-// Sirve una UI web en 127.0.0.1 (puerto aleatorio) y abre el navegador.
-// Todas las peticiones a la API exigen un token aleatorio generado al
-// arrancar, para que ninguna otra web pueda usar el servidor local.
+// It serves a web UI on 127.0.0.1 (random port) and opens the browser.
+// Every API request requires a random token generated at startup, so no
+// other web page can use the local server.
 package main
 
 import (
@@ -35,7 +35,7 @@ import (
 //go:embed ui.html
 var uiFS embed.FS
 
-// ---------- perfiles guardados (sin contraseña) ----------
+// ---------- saved profiles (no password) ----------
 
 type Profile struct {
 	Name       string `json:"name"`
@@ -44,7 +44,7 @@ type Profile struct {
 	SkipVerify bool   `json:"skipVerify"`
 	BindDN     string `json:"bindDN"`
 	BaseDN     string `json:"baseDN"`
-	// Si es true, la contraseña se guarda/lee del llavero de macOS.
+	// If true, the password is stored in / read from the system keychain.
 	UseKeychain bool `json:"useKeychain"`
 }
 
@@ -80,7 +80,7 @@ func saveProfiles(ps []Profile) error {
 	return os.WriteFile(p, b, 0o600)
 }
 
-// ---------- llavero del sistema (go-keyring) ----------
+// ---------- system keychain (go-keyring) ----------
 // macOS: Keychain; Windows: Credential Manager; Linux: Secret Service.
 
 const keychainService = "ldapnav"
@@ -91,9 +91,9 @@ func keychainGet(p Profile) (string, error) {
 	pw, err := keyring.Get(keychainService, keychainAccount(p))
 	if err != nil {
 		if errors.Is(err, keyring.ErrNotFound) {
-			return "", errors.New("no hay contraseña en el llavero para este perfil")
+			return "", errors.New("no password in the keychain for this profile")
 		}
-		return "", fmt.Errorf("llavero: %w", err)
+		return "", fmt.Errorf("keychain: %w", err)
 	}
 	return pw, nil
 }
@@ -102,7 +102,7 @@ func keychainSet(p Profile, pw string) error {
 	return keyring.Set(keychainService, keychainAccount(p), pw)
 }
 
-// ---------- sesión LDAP ----------
+// ---------- LDAP session ----------
 
 type session struct {
 	mu      sync.Mutex
@@ -113,7 +113,7 @@ type session struct {
 var sess session
 
 func dial(p Profile, password string) (*ldap.Conn, error) {
-	tlsCfg := &tls.Config{InsecureSkipVerify: p.SkipVerify} //nolint:gosec // opción explícita del usuario
+	tlsCfg := &tls.Config{InsecureSkipVerify: p.SkipVerify} //nolint:gosec // explicit user option
 	if u := strings.TrimPrefix(strings.TrimPrefix(p.URL, "ldaps://"), "ldap://"); u != "" {
 		host, _, err := net.SplitHostPort(u)
 		if err != nil {
@@ -141,7 +141,7 @@ func dial(p Profile, password string) (*ldap.Conn, error) {
 		}
 	} else if err := c.UnauthenticatedBind(""); err != nil {
 		c.Close()
-		return nil, fmt.Errorf("bind anónimo: %w", err)
+		return nil, fmt.Errorf("anonymous bind: %w", err)
 	}
 	return c, nil
 }
@@ -150,15 +150,15 @@ func (s *session) get() (*ldap.Conn, Profile, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.conn == nil {
-		return nil, Profile{}, errors.New("no conectado")
+		return nil, Profile{}, errors.New("not connected")
 	}
 	if s.conn.IsClosing() {
-		return nil, Profile{}, errors.New("la conexión se ha cerrado; vuelve a conectar")
+		return nil, Profile{}, errors.New("the connection was closed; reconnect")
 	}
 	return s.conn, s.profile, nil
 }
 
-// ---------- tipos de respuesta ----------
+// ---------- response types ----------
 
 type Attr struct {
 	Name   string   `json:"name"`
@@ -188,7 +188,7 @@ func toEntry(e *ldap.Entry, withAttrs bool) Entry {
 		if bin {
 			at.Binary = true
 			for _, v := range a.ByteValues {
-				at.Values = append(at.Values, fmt.Sprintf("(binario, %d bytes) %s", len(v), hexPreview(v)))
+				at.Values = append(at.Values, fmt.Sprintf("(binary, %d bytes) %s", len(v), hexPreview(v)))
 			}
 		} else {
 			at.Values = a.Values
@@ -196,7 +196,7 @@ func toEntry(e *ldap.Entry, withAttrs bool) Entry {
 		out.Attrs = append(out.Attrs, at)
 	}
 	sort.SliceStable(out.Attrs, func(i, j int) bool {
-		// objectClass primero, luego alfabético.
+		// objectClass first, then alphabetical.
 		ai, aj := strings.EqualFold(out.Attrs[i].Name, "objectClass"), strings.EqualFold(out.Attrs[j].Name, "objectClass")
 		if ai != aj {
 			return ai
@@ -248,7 +248,7 @@ func handleProfiles(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		writeJSON(w, ps)
-	case http.MethodPost: // guardar/actualizar
+	case http.MethodPost: // save/update
 		var req struct {
 			Profile  Profile `json:"profile"`
 			Password string  `json:"password"`
@@ -258,7 +258,7 @@ func handleProfiles(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if req.Profile.Name == "" {
-			writeErr(w, errors.New("el perfil necesita nombre"))
+			writeErr(w, errors.New("the profile needs a name"))
 			return
 		}
 		ps, err := loadProfiles()
@@ -282,7 +282,7 @@ func handleProfiles(w http.ResponseWriter, r *http.Request) {
 		}
 		if req.Profile.UseKeychain && req.Password != "" {
 			if err := keychainSet(req.Profile, req.Password); err != nil {
-				writeErr(w, fmt.Errorf("perfil guardado, pero falló el llavero: %w", err))
+				writeErr(w, fmt.Errorf("profile saved, but the keychain failed: %w", err))
 				return
 			}
 		}
@@ -306,7 +306,7 @@ func handleProfiles(w http.ResponseWriter, r *http.Request) {
 		}
 		writeJSON(w, out)
 	default:
-		http.Error(w, "método no permitido", http.StatusMethodNotAllowed)
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 	}
 }
 
@@ -321,7 +321,7 @@ func handleConnect(w http.ResponseWriter, r *http.Request) {
 	}
 	p := req.Profile
 	if !strings.HasPrefix(p.URL, "ldap://") && !strings.HasPrefix(p.URL, "ldaps://") {
-		writeErr(w, errors.New("la URL debe empezar por ldap:// o ldaps://"))
+		writeErr(w, errors.New("the URL must start with ldap:// or ldaps://"))
 		return
 	}
 	pw := req.Password
@@ -338,7 +338,7 @@ func handleConnect(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Si no hay base DN, intenta sacarla del RootDSE.
+	// If there is no base DN, try to get it from the RootDSE.
 	var contexts []string
 	if rs, err := c.Search(ldap.NewSearchRequest("", ldap.ScopeBaseObject, ldap.NeverDerefAliases,
 		0, 10, false, "(objectClass=*)", []string{"namingContexts", "defaultNamingContext"}, nil)); err == nil && len(rs.Entries) > 0 {
@@ -375,7 +375,7 @@ func handleDisconnect(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, map[string]bool{"ok": true})
 }
 
-// Hijos directos de un DN (para el árbol). Paginado para no chocar con sizelimits.
+// Direct children of a DN (for the tree). Paged to avoid hitting server size limits.
 func handleChildren(w http.ResponseWriter, r *http.Request) {
 	c, _, err := sess.get()
 	if err != nil {
@@ -435,7 +435,7 @@ func handleEntry(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if len(res.Entries) == 0 {
-		writeErr(w, errors.New("entrada no encontrada"))
+		writeErr(w, errors.New("entry not found"))
 		return
 	}
 	writeJSON(w, toEntry(res.Entries[0], true))
@@ -462,7 +462,7 @@ func handleSearch(w http.ResponseWriter, r *http.Request) {
 		req.Filter = "(objectClass=*)"
 	}
 	if _, err := ldap.CompileFilter(req.Filter); err != nil {
-		writeErr(w, fmt.Errorf("filtro inválido: %w", err))
+		writeErr(w, fmt.Errorf("invalid filter: %w", err))
 		return
 	}
 	scope := ldap.ScopeWholeSubtree
@@ -488,7 +488,7 @@ func handleSearch(w http.ResponseWriter, r *http.Request) {
 			writeErr(w, err)
 			return
 		}
-		warning = err.Error() // p.ej. size limit exceeded: devolvemos lo que haya
+		warning = err.Error() // e.g. size limit exceeded: return whatever we got
 	}
 	out := make([]Entry, 0, len(res.Entries))
 	for _, e := range res.Entries {
@@ -528,11 +528,11 @@ func without(s []string, v string) []string {
 	return out
 }
 
-// ---------- arranque ----------
+// ---------- startup ----------
 
-// newHandler construye el servidor HTTP: UI embebida en "/" y API bajo
-// /api/*, que exige la cabecera X-Token. lastPing se actualiza con cada
-// latido de la UI.
+// newHandler builds the HTTP server: embedded UI at "/" and the API under
+// /api/*, which requires the X-Token header. lastPing is updated on every
+// UI heartbeat.
 func newHandler(token string, lastPing *atomic.Int64) http.Handler {
 	api := http.NewServeMux()
 	api.HandleFunc("/api/profiles", handleProfiles)
@@ -542,8 +542,8 @@ func newHandler(token string, lastPing *atomic.Int64) http.Handler {
 	api.HandleFunc("GET /api/entry", handleEntry)
 	api.HandleFunc("POST /api/search", handleSearch)
 
-	// Latido: la UI hace ping periódicamente. Si se cierra la pestaña,
-	// el proceso termina solo (útil cuando se lanza como .app).
+	// Heartbeat: the UI pings periodically. If the tab is closed, the process
+	// exits on its own (useful when launched as an .app).
 	api.HandleFunc("POST /api/ping", func(w http.ResponseWriter, _ *http.Request) {
 		lastPing.Store(time.Now().Unix())
 		writeJSON(w, map[string]bool{"ok": true})
@@ -568,9 +568,9 @@ func newHandler(token string, lastPing *atomic.Int64) http.Handler {
 }
 
 func main() {
-	port := flag.Int("port", 0, "puerto local (0 = aleatorio)")
-	noOpen := flag.Bool("no-open", false, "no abrir el navegador automáticamente")
-	idle := flag.Duration("idle-exit", 3*time.Minute, "salir si la UI deja de dar señales este tiempo (0 = nunca)")
+	port := flag.Int("port", 0, "local port (0 = random)")
+	noOpen := flag.Bool("no-open", false, "do not open the browser automatically")
+	idle := flag.Duration("idle-exit", 3*time.Minute, "exit if the UI sends no heartbeat for this long (0 = never)")
 	flag.Parse()
 
 	tokBytes := make([]byte, 16)
@@ -585,7 +585,7 @@ func main() {
 			for range time.Tick(5 * time.Second) {
 				lp := lastPing.Load()
 				if lp != 0 && time.Since(time.Unix(lp, 0)) > *idle {
-					fmt.Println("UI cerrada, saliendo.")
+					fmt.Println("UI closed, exiting.")
 					os.Exit(0)
 				}
 			}
@@ -597,10 +597,10 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	// El token va en el fragmento (#), que el navegador nunca envía al servidor.
+	// The token goes in the fragment (#), which the browser never sends to the server.
 	url := fmt.Sprintf("http://%s/#%s", ln.Addr().String(), token)
-	fmt.Println("ldapnav escuchando en", url)
-	fmt.Println("Ctrl+C para salir.")
+	fmt.Println("ldapnav listening on", url)
+	fmt.Println("Press Ctrl+C to quit.")
 	if !*noOpen {
 		go func() {
 			time.Sleep(300 * time.Millisecond)

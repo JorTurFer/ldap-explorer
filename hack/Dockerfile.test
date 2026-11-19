@@ -1,5 +1,5 @@
-# Entorno reproducible de tests: Go + OpenLDAP (slapd). Ver `make test-docker`.
-# Misma imagen en local y en CI.
+# Reproducible test environment: Go + OpenLDAP (slapd). See `make test-docker`.
+# Same image locally and in CI.
 FROM golang:1.24-bookworm
 
 ENV DEBIAN_FRONTEND=noninteractive
@@ -12,6 +12,6 @@ COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
 
-# En CI un slapd ausente debe fallar, no saltarse los tests de integración.
+# In CI a missing slapd must fail the run, not silently skip the integration tests.
 ENV LDAPNAV_REQUIRE_SLAPD=1
 CMD ["bash", "hack/ci-test.sh"]

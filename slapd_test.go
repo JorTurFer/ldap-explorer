@@ -1,11 +1,11 @@
 package main
 
-// Arranque de un OpenLDAP real (slapd) efímero para los tests de integración.
+// Starts an ephemeral real OpenLDAP (slapd) for the integration tests.
 //
-// Busca slapd/slapadd en LDAPNAV_SLAPD_DIR, en el PATH y en rutas habituales.
-// Si no están, los tests que lo necesitan se saltan (t.Skip), salvo que
-// LDAPNAV_REQUIRE_SLAPD=1 (CI): entonces fallan. Se levanta un único slapd por
-// ejecución de tests y se comparte (la app es de solo lectura). Ver README.
+// It looks for slapd/slapadd in LDAPNAV_SLAPD_DIR, in the PATH and in common
+// locations. If they are missing, the tests that need it are skipped (t.Skip),
+// unless LDAPNAV_REQUIRE_SLAPD=1 (CI): then they fail. A single slapd is
+// started per test run and shared (the app is read-only). See the README.
 
 import (
 	"crypto/ecdsa"
@@ -33,12 +33,12 @@ const (
 	testAdminPW = "adminpw"
 	testAliceDN = "uid=alice,ou=people,dc=example,dc=org"
 	testAlicePW = "alicepw"
-	testBobDN   = "uid=bob,ou=people,dc=example,dc=org" // sin límite de tamaño en el servidor
+	testBobDN   = "uid=bob,ou=people,dc=example,dc=org" // no size limit on the server
 	testBobPW   = "bobpw"
-	// Zoe solo puede ver más de 100 resultados si pagina (como el MaxPageSize de AD).
+	// Zoe can only see more than 100 results if she pages (like AD's MaxPageSize).
 	testZoeDN = "uid=zoe,ou=people,dc=example,dc=org"
 	testZoePW = "zoepw"
-	bulkCount = 600 // más que el tamaño de página (500) para probar paginación
+	bulkCount = 600 // more than the page size (500) to test paging
 )
 
 type testLDAP struct {
@@ -123,31 +123,31 @@ func must(t *testing.T, err error) {
 var (
 	slapdOnce   sync.Once
 	slapdShared *testLDAP
-	slapdSkip   string // motivo por el que no hay slapd (no es un error)
+	slapdSkip   string // reason why there is no slapd (not an error)
 	slapdErr    error
 	slapdStop   = func() {}
 )
 
-// TestMain apaga el slapd compartido al terminar.
+// TestMain shuts down the shared slapd when done.
 func TestMain(m *testing.M) {
 	code := m.Run()
 	slapdStop()
 	os.Exit(code)
 }
 
-// startSlapd devuelve el slapd compartido con testdata/seed.ldif más bulkCount
-// entradas en ou=bulk. Escucha en ldap:// y ldaps:// (cert autofirmado).
+// startSlapd returns the shared slapd loaded with testdata/seed.ldif plus
+// bulkCount entries in ou=bulk. It listens on ldap:// and ldaps:// (self-signed cert).
 func startSlapd(t *testing.T) *testLDAP {
 	t.Helper()
 	slapdOnce.Do(func() { slapdShared, slapdStop, slapdSkip, slapdErr = launchSlapd() })
 	if slapdErr != nil {
-		t.Fatalf("no se pudo arrancar slapd: %v", slapdErr)
+		t.Fatalf("could not start slapd: %v", slapdErr)
 	}
 	if slapdSkip != "" {
 		if os.Getenv("LDAPNAV_REQUIRE_SLAPD") == "1" {
-			t.Fatalf("LDAPNAV_REQUIRE_SLAPD=1 pero: %s", slapdSkip)
+			t.Fatalf("LDAPNAV_REQUIRE_SLAPD=1 but: %s", slapdSkip)
 		}
-		t.Skip(slapdSkip + "; se salta el test de integración")
+		t.Skip(slapdSkip + "; skipping the integration test")
 	}
 	return slapdShared
 }
@@ -156,13 +156,13 @@ func launchSlapd() (l *testLDAP, stop func(), skip string, err error) {
 	stop = func() {}
 	slapd, slapadd := findBin("slapd"), findBin("slapadd")
 	if slapd == "" || slapadd == "" {
-		return nil, stop, "slapd/slapadd no encontrados (instala OpenLDAP o define LDAPNAV_SLAPD_DIR)", nil
+		return nil, stop, "slapd/slapadd not found (install OpenLDAP or set LDAPNAV_SLAPD_DIR)", nil
 	}
 	root := filepath.Dir(filepath.Dir(slapd)) // .../usr/sbin/slapd -> .../usr
 	schemaDir := firstDir(filepath.Join(root, "etc/ldap/schema"), filepath.Join(root, "../etc/ldap/schema"),
 		"/etc/ldap/schema", "/etc/openldap/schema", "/opt/homebrew/etc/openldap/schema", "/usr/local/etc/openldap/schema")
 	if schemaDir == "" {
-		return nil, stop, "no encuentro el directorio de esquemas de OpenLDAP", nil
+		return nil, stop, "OpenLDAP schema directory not found", nil
 	}
 	modDir := firstDir(filepath.Join(root, "lib/ldap"), "/usr/lib/ldap", "/usr/lib/openldap", "/usr/lib64/openldap",
 		"/opt/homebrew/opt/openldap/libexec/openldap", "/usr/local/opt/openldap/libexec/openldap")
@@ -238,7 +238,7 @@ limits dn.exact="%s" size.soft=100 size.hard=100 size.pr=500 size.prtotal=unlimi
 	if err := os.WriteFile(ldifPath, []byte(ldif.String()), 0o600); err != nil {
 		return fail(err)
 	}
-	// -q: modo rápido (sin sincronizar en cada entrada).
+	// -q: quick mode (no sync on every entry).
 	if out, err := exec.Command(slapadd, "-q", "-f", confPath, "-l", ldifPath).CombinedOutput(); err != nil {
 		return fail(fmt.Errorf("slapadd: %v\n%s", err, out))
 	}
@@ -276,5 +276,5 @@ limits dn.exact="%s" size.soft=100 size.hard=100 size.pr=500 size.prtotal=unlimi
 		}
 		time.Sleep(100 * time.Millisecond)
 	}
-	return fail(errors.New("slapd no arrancó a tiempo"))
+	return fail(errors.New("slapd did not start in time"))
 }
