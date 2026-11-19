@@ -567,6 +567,7 @@ func newHandler(token string, lastPing *atomic.Int64) http.Handler {
 	api.HandleFunc("GET /api/schema", handleSchema)
 	api.HandleFunc("GET /api/sample", handleSample)
 	api.HandleFunc("POST /api/filter", handleFilter)
+	api.HandleFunc("/api/queries", handleQueries)
 	api.HandleFunc("GET /api/recipes", handleRecipes)
 	api.HandleFunc("POST /api/recipes/{id}", handleRecipe)
 

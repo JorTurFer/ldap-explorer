@@ -605,3 +605,78 @@ func TestUIExplore(t *testing.T) {
 	run(t, ctx, chromedp.WaitVisible(groups), chromedp.Click(groups))
 	waitJS(t, ctx, "explorer base follows the tree", `document.getElementById('xBase').value === `+q("ou=groups,"+slapdtest.BaseDN))
 }
+
+// ---------- saved queries ----------
+
+func savedOptions(t *testing.T, ctx context.Context) []string {
+	t.Helper()
+	var o []string
+	js(t, ctx, `[...document.querySelectorAll('#qSaved option')].map(o => o.value).filter(Boolean)`, &o)
+	return o
+}
+
+func TestUISavedQueries(t *testing.T) {
+	l := slapdtest.Start(t)
+	appURL := startApp(t)
+	ctx := browser(t)
+	run(t, ctx, chromedp.Navigate(appURL), chromedp.WaitVisible("#btnConn"))
+	connect(t, ctx, l.URL, slapdtest.AliceDN, slapdtest.AlicePW)
+	waitText(t, ctx, "#status", "Connected to")
+	people := "ou=people," + slapdtest.BaseDN
+	run(t, ctx, chromedp.Click(`button[data-tab="search"]`), chromedp.WaitVisible("#qSave"),
+		set("#sBase", people), set("#sScope", "one"), set("#sAttrs", "uid, mail"), set("#sLimit", "50"))
+
+	// Nothing to save yet, and a name is required.
+	run(t, ctx, chromedp.Click("#qSave"))
+	waitText(t, ctx, "#qMsg", "Add at least one condition first.")
+	setAttr(t, ctx, 0, "mail")
+	setVal(t, ctx, 0, "example")
+	run(t, ctx, chromedp.Click("#qSave"))
+	waitText(t, ctx, "#qMsg", "give the query a name")
+
+	// Save a builder query.
+	run(t, ctx, set("#qName", "People with mail"), chromedp.Click("#qSave"))
+	waitText(t, ctx, "#qMsg", "Saved.")
+	if got := savedOptions(t, ctx); strings.Join(got, ",") != "People with mail" {
+		t.Fatalf("saved options: %v", got)
+	}
+
+	// Save a raw one.
+	run(t, ctx, chromedp.Click("#modeRaw"), set("#sFilter", "(uid=zoe)"), set("#qName", "Only zoe"), chromedp.Click("#qSave"))
+	waitText(t, ctx, "#qMsg", "Saved.")
+	if got := savedOptions(t, ctx); strings.Join(got, ",") != "Only zoe,People with mail" {
+		t.Fatalf("saved options (sorted): %v", got)
+	}
+
+	// Change everything, then load the builder query back: it is all restored.
+	run(t, ctx, set("#sBase", "dc=other"), set("#sScope", "base"), set("#sAttrs", "cn"), set("#sLimit", "7"), set("#sFilter", "(x=y)"))
+	run(t, ctx, set("#qSaved", "People with mail"), chromedp.Evaluate(`document.getElementById('qSaved').dispatchEvent(new Event('change'))`, nil))
+	waitText(t, ctx, "#sNote", `Saved query "People with mail" loaded`)
+	waitJS(t, ctx, "builder mode with the condition back", `!document.getElementById('builderBox').classList.contains('hidden') &&
+		document.querySelector('#builder .battr').value === 'mail' && document.getElementById('bFilter').textContent === '(mail=*example*)'`)
+	var form [4]string
+	js(t, ctx, `[document.getElementById('sBase').value, document.getElementById('sScope').value, document.getElementById('sAttrs').value, document.getElementById('sLimit').value]`, &form)
+	if form != [4]string{people, "one", "uid, mail", "50"} {
+		t.Errorf("restored form: %v", form)
+	}
+	run(t, ctx, chromedp.Click("#btnSearch"))
+	waitText(t, ctx, "#sOut", "2 result(s)")
+
+	// The raw one comes back in text mode.
+	run(t, ctx, set("#qSaved", "Only zoe"), chromedp.Evaluate(`document.getElementById('qSaved').dispatchEvent(new Event('change'))`, nil))
+	waitJS(t, ctx, "text mode", `!document.getElementById('rawBox').classList.contains('hidden') && document.getElementById('sFilter').value === '(uid=zoe)'`)
+
+	// They are stored on the server: still there after reloading the page and reconnecting.
+	run(t, ctx, chromedp.Navigate(appURL), chromedp.WaitVisible("#btnConn"))
+	connect(t, ctx, l.URL, slapdtest.AliceDN, slapdtest.AlicePW)
+	waitText(t, ctx, "#status", "Connected to")
+	waitJS(t, ctx, "saved queries after reload", `document.querySelectorAll('#qSaved option').length === 3`)
+
+	// Delete one.
+	run(t, ctx, chromedp.Click(`button[data-tab="search"]`), set("#qSaved", "Only zoe"),
+		chromedp.Evaluate(`document.getElementById('qSaved').dispatchEvent(new Event('change'))`, nil), chromedp.Click("#qDelete"))
+	waitText(t, ctx, "#qMsg", "Deleted.")
+	if got := savedOptions(t, ctx); strings.Join(got, ",") != "People with mail" {
+		t.Errorf("after delete: %v", got)
+	}
+}

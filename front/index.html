@@ -29,6 +29,13 @@
     <div id="pane-entry" class="pane on"><div class="empty">Select an entry in the tree.</div></div>
     <div id="pane-search" class="pane">
       <div id="sNote" class="bnote hidden"></div>
+      <div class="saved">
+        <select id="qSaved" title="Saved queries of this connection"><option value="">— saved queries —</option></select>
+        <input type="text" id="qName" placeholder="name to save as" maxlength="100">
+        <button type="button" id="qSave" disabled>Save</button>
+        <button type="button" id="qDelete" disabled>Delete</button>
+        <span id="qMsg" class="muted small"></span>
+      </div>
       <div class="sform">
         <label>Base</label><input type="text" id="sBase" placeholder="dc=example,dc=com">
         <label>Filter</label>

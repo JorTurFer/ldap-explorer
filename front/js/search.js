@@ -3,7 +3,7 @@ import { api } from "./api.js";
 import { on } from "./events.js";
 import { showTab } from "./tabs.js";
 import { showResults } from "./results.js";
-import { resolveFilter, setQuery } from "./builder.js";
+import { resolveFilter, setQuery, getQuery } from "./builder.js";
 
 let mode = "builder"; // "builder" | "raw"
 
@@ -13,6 +13,24 @@ function setMode(m) {
   $("modeRaw").classList.toggle("on", m === "raw");
   $("builderBox").classList.toggle("hidden", m !== "builder");
   $("rawBox").classList.toggle("hidden", m !== "raw");
+}
+
+// The state of the search form, as saved queries store it.
+export function currentState() {
+  const state = { mode, base: $("sBase").value.trim(), scope: $("sScope").value, attrs: $("sAttrs").value.trim(),
+    limit: parseInt($("sLimit").value, 10) || 500 };
+  if (mode === "builder") state.query = getQuery(); else state.filter = $("sFilter").value.trim();
+  return state;
+}
+
+// Puts a saved query back into the form (it does not run it).
+export async function applyState(q) {
+  $("sBase").value = q.base || "";
+  $("sScope").value = q.scope || "sub";
+  $("sAttrs").value = q.attrs || "";
+  $("sLimit").value = q.limit || 500;
+  if (q.mode === "raw") { $("sFilter").value = q.filter || ""; setMode("raw"); }
+  else { await setQuery(q.query); setMode("builder"); }
 }
 
 const hideNote = () => $("sNote").classList.add("hidden");

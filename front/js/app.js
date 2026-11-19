@@ -10,6 +10,7 @@ import { initSearch } from "./search.js";
 import { initBuilder } from "./builder.js";
 import { initRecipes } from "./recipes.js";
 import { initExplore } from "./explore.js";
+import { initSavedQueries } from "./savedqueries.js";
 
 initTabs();
 initProfiles();
@@ -20,6 +21,7 @@ initBuilder();
 initSearch();
 initRecipes();
 initExplore();
+initSavedQueries();
 
 loadProfiles();
 // Heartbeat: if the tab is closed the server notices and exits.
