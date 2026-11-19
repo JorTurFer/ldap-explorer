@@ -95,6 +95,12 @@ func TestRealKeyringLegacyMacOSEntries(t *testing.T) {
 		if err != nil || got != pw {
 			t.Errorf("legacy entry %q: got %q (%v)", pw, got, err)
 		}
+		// The first read copied it to the new service, which from now on wins: drop the
+		// copy so the next password is tested as a clean migration too.
+		if v, err := keyring.Get(keychainService, keychainAccount(p)); err != nil || v != pw {
+			t.Errorf("legacy entry %q was not copied to the new service: %q (%v)", pw, v, err)
+		}
+		_ = keyring.Delete(keychainService, keychainAccount(p))
 	}
 	// and keychainSet on a legacy entry updates it (does not fail as a duplicate)
 	if err := keychainSet(p, "new"); err != nil {
