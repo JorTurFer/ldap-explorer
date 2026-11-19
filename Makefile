@@ -1,6 +1,6 @@
 APP := LDAPNav.app
 
-.PHONY: build app clean test test-docker smoke
+.PHONY: build app clean test test-docker smoke screenshots
 
 build:
 	go mod tidy
@@ -35,3 +35,10 @@ test-docker:
 # Smoke test of the built binary (403 without a token, 200 with one).
 smoke: build
 	hack/smoke.sh ./ldapnav
+
+# Regenerate the screenshots in docs/img from the real UI. Needs Docker: the
+# images are rendered inside the test image so they look the same everywhere.
+screenshots:
+	docker build -f hack/Dockerfile.test -t ldapnav-test .
+	docker run --rm -v "$(CURDIR)/docs/img:/out" -e LDAPNAV_SCREENSHOTS=/out ldapnav-test \
+	  bash -c 'cd e2e && go test -count=1 -run TestScreenshots ./...'

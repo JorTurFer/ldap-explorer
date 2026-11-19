@@ -2,6 +2,8 @@
 
 A minimal, read-only LDAP browser for macOS and Windows. A single Go binary that serves the UI on `127.0.0.1` and opens your browser.
 
+![ldapnav browsing a directory](docs/img/browse.png)
+
 - Browsable tree (double-click or ▶ to expand, click to view attributes)
 - Searches with base, filter, scope, attributes and limit (paged)
 - Optional operational attributes; binary values are shown as a hex summary

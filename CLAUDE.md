@@ -40,6 +40,7 @@ A minimal, read-only LDAP browser. A single Go binary that serves an embedded we
 - Not verified yet against real AD or production OpenLDAP servers; say explicitly what could not be tested from this environment (macOS keychain, `.app`, Windows Credential Manager).
 
 ## Docs
+- Screenshots in `docs/img` are generated from the real UI by `e2e/screenshots_test.go` (`make screenshots`, needs Docker). Regenerate them in the same commit as any visible UI change; never edit them by hand.
 - `docs/USAGE.md` is the user manual, including the supported / not supported lists. Keep it in sync with behavior changes (same commit).
 
 ## Keychain notes

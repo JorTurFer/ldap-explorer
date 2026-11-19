@@ -4,7 +4,7 @@ FROM golang:1.27.4-bookworm
 
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update \
- && apt-get install -y --no-install-recommends slapd ldap-utils curl chromium nodejs \
+ && apt-get install -y --no-install-recommends slapd ldap-utils curl chromium nodejs fonts-liberation fonts-dejavu-core fonts-noto-color-emoji \
  && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /src

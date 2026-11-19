@@ -16,6 +16,8 @@ ldapnav is a read-only LDAP browser. It runs as a local program, serves its inte
 
 ## 2. Connecting
 
+![The connection dialog](img/connect.png)
+
 | Field | Meaning |
 |---|---|
 | **Profile** | Pick a saved profile to fill the form, or `— new —`. The trash button deletes the selected profile. |
@@ -34,6 +36,8 @@ There is one connection at a time. Connecting again replaces the previous one.
 
 ## 3. Browsing
 
+![Browsing the tree and viewing an entry](img/browse.png)
+
 - The tree starts at the detected (or configured) base DN(s). Click ▶ or double-click a node to expand it; click a node to see its entry.
 - Servers that report whether an entry has children (OpenLDAP does, through `hasSubordinates`) get a ▶ only on nodes that have some. Servers that do not report it (Active Directory never does) make every node show ▶; expanding an empty node simply removes the arrow.
 - Children are read in pages of 500, so servers that cap results per request still list everything the server allows. If the server's size limit cuts a listing, a `⚠` line appears at the end of that node with the server's message; what was received is still shown.
@@ -42,6 +46,8 @@ There is one connection at a time. Connecting again replaces the previous one.
 - Binary values (for example `jpegPhoto`, `objectGUID`, `objectSid`) are shown as `(binary, N bytes)` followed by the first 16 bytes in hex. They cannot be downloaded, previewed or decoded.
 
 ## 4. Searching
+
+![A search shown as a list of entries](img/search-list.png)
 
 Open the **Search** tab:
 
@@ -62,6 +68,12 @@ Above the results there are two views, **List** and **Table**, and an **Export C
 - **List**: one collapsible block per entry with all its attributes.
 - **Table**: one row per entry. The columns are the attributes you asked for, in your order; if you left the field empty (or used `*` / `+`), they are the attributes found in the results, most frequent first. Click a header to sort (natural order, so `u2` comes before `u10`; empty cells always go last) and click again to reverse. **Columns** lets you hide the ones you do not need. Click a DN to open the entry. The table draws at most 1000 rows; the CSV always has all of them.
 - **Export CSV** saves exactly what the table shows now (visible columns, current order) plus a `dn` column. The file is UTF-8 with a byte order mark, so Excel opens accents correctly. Multiple values of one attribute are joined with `; `. Cells that start with `=`, `@`, `+` or `-` are prefixed with an apostrophe so spreadsheets do not run them as formulas (a directory is untrusted input); phone numbers such as `+34 600 000 001` are left as they are.
+
+![The same search as a sortable table, with the Columns chooser and Export CSV](img/search-table.png)
+
+The interface follows the system light or dark setting:
+
+![The table in the dark theme](img/search-table-dark.png)
 
 Results are paged internally (up to 500 per request). If the server (or the limit you set) stops the search early, you get the entries received plus a `⚠` warning, such as `Size Limit Exceeded`, instead of an error.
 

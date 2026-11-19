@@ -101,4 +101,4 @@ table.rtable { border-collapse: collapse; width: 100%; font-size: 12px; }
 table.rtable th { position: sticky; top: 0; background: var(--panel); text-align: left; cursor: pointer;
                   user-select: none; white-space: nowrap; border-bottom: 2px solid var(--line); padding: 5px 8px; }
 table.rtable td { border-bottom: 1px solid var(--line); padding: 3px 8px; vertical-align: top; font-family: var(--mono); }
-table.rtable td.dn-cell { word-break: break-all; }
+table.rtable td.dn-cell { overflow-wrap: anywhere; min-width: 280px; }
