@@ -25,9 +25,10 @@ A minimal, read-only LDAP browser. A single Go binary that serves an embedded we
 ## Tests (what they validate, and the rules)
 - `main_test.go`: API (403/200 with token), UI/CSP, profiles without passwords on disk, keychain service/account format (mock), code invariants (read-only, 127.0.0.1 only, no external resources in `ui.html`) and CGO-free builds for the 3 targets.
 - `integration_test.go` + `slapd_test.go` + `testdata/seed.ldif`: against a real ephemeral OpenLDAP (one shared slapd; the app is read-only). Covers TLS/StartTLS, paging (users with `limits` in slapd.conf who only see >100 results when paging) and the server size limit.
-- `keyring_real_test.go`: real keychain; only with `LDAPNAV_TEST_REAL_KEYRING=1` and in a separate process (`-run TestRealKeyring`), because the other tests use `keyring.MockInit`, which cannot be undone.
+- `keyring_real_test.go`: real keychain (including an end-to-end test with a real slapd); only with `LDAPNAV_TEST_REAL_KEYRING=1` and in a separate process (`-run TestRealKeyring`), because the other tests use `keyring.MockInit`, which cannot be undone.
+- slapd is a validation tool, not the code under test: it can run anywhere reachable on 127.0.0.1 (local binary, or `LDAPNAV_SLAPD_WSL=<distro>` for a Linux slapd inside WSL). What must run on each OS is the app.
 - `hack/ci-test.sh` is what validates a PR; `hack/Dockerfile.test` runs it in a reproducible environment (`make test-docker`); `hack/smoke.sh <binary>` smoke-tests a built binary.
-- CI (`.github/workflows/ci.yml`) sets `LDAPNAV_REQUIRE_SLAPD=1`: without slapd the run fails instead of skipping. Do not add tests that skip silently.
+- CI (`.github/workflows/ci.yml`) has one job per OS (no conditionals) and sets `LDAPNAV_REQUIRE_SLAPD=1`: without slapd the run fails instead of skipping. Linux: test container; macOS: Homebrew openldap; Windows: Ubuntu slapd in WSL1 (macOS runners have no Docker; Windows runners only run Windows containers). Do not add tests that skip silently, and do not make a failing environment skip to turn CI green.
 - Every behavior change comes with a test. `main()` only wires things up; the HTTP logic lives in `newHandler` so it can be tested with `httptest`.
 - Not verified yet against real AD or production OpenLDAP servers; say explicitly what could not be tested from this environment (macOS keychain, `.app`, Windows Credential Manager).
 

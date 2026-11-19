@@ -49,9 +49,11 @@ make smoke         # build and check the binary (403 without a token, 200 with o
 The integration tests start an ephemeral `slapd` (OpenLDAP) loaded with `testdata/seed.ldif`
 plus 600 generated entries, on `ldap://` and `ldaps://` (self-signed certificate), and exercise the real API:
 good/bad/anonymous bind, TLS and StartTLS, tree, entry view, searches, paging and server limits.
-`slapd` is looked up in `LDAPNAV_SLAPD_DIR`, in `PATH` and in common locations (apt, brew…); if it is not found
-the tests are skipped, unless `LDAPNAV_REQUIRE_SLAPD=1` (as CI sets it). To install it: `apt install slapd ldap-utils`
-(Debian/Ubuntu) or `brew install openldap` (macOS).
+`slapd` is only a validation tool; what is under test is the app running on each OS. It is looked up in
+`LDAPNAV_SLAPD_DIR`, in `PATH` and in common locations (apt, Homebrew…), or run inside WSL with
+`LDAPNAV_SLAPD_WSL=<distro>` (Debian/Ubuntu layout). If no `slapd` is available the tests are skipped,
+unless `LDAPNAV_REQUIRE_SLAPD=1` (CI sets it, so a missing server fails the run). To install it:
+`apt install slapd ldap-utils` (Debian/Ubuntu) or `brew install openldap` (macOS; the OpenLDAP bundled with macOS has no mdb backend and is not used).
 
 The real-keychain tests (Keychain / Credential Manager) only run with
 `LDAPNAV_TEST_REAL_KEYRING=1 go test -run TestRealKeyring ./...`; they use temporary accounts under the `ldapnav` service and delete them afterwards.
@@ -59,5 +61,9 @@ The real-keychain tests (Keychain / Credential Manager) only run with
 ### CI
 
 `.github/workflows/ci.yml` (on every PR and push to `main`):
-- **linux**: `hack/Dockerfile.test` → gofmt, `go mod tidy` with no changes, `go vet`, tests against a real OpenLDAP and a binary smoke test.
-- **macos / windows**: real keychain, tests without LDAP, build + binary smoke test and, on macOS, `make app` + `codesign --verify` + `.app` smoke test.
+Three independent jobs; every one runs the whole suite (LDAP integration tests included) against a real OpenLDAP, with no skips:
+- **linux**: `hack/Dockerfile.test` → gofmt, `go mod tidy` with no changes, `go vet`, tests and a binary smoke test.
+- **macos**: Homebrew OpenLDAP; real Keychain tests (including an end-to-end one: password in the Keychain, connect without typing it), build + smoke test, and `make app` + `codesign --verify` + `.app` smoke test.
+- **windows**: Ubuntu's `slapd` in WSL1; real Credential Manager tests (same end-to-end one), build + smoke test of `ldapnav.exe`.
+
+Docker is only an option on Linux: macOS runners have no Docker engine and Windows runners only run Windows containers.
