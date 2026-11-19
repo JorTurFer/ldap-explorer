@@ -5,27 +5,29 @@ import { showTab } from "./tabs.js";
 import { goTo } from "./tree.js";
 import { splitDN } from "./nav.js";
 import { getSchema, isDNAttr } from "./schema.js";
+import { copyBtn } from "./ui/copy.js";
 
 let currentDN = null;
 
-export function copyBtn(text) {
-  return el("button", { class: "copy", textContent: "copy", onclick: (ev) => {
-    ev.stopPropagation(); navigator.clipboard.writeText(text);
-    ev.target.textContent = "✓"; setTimeout(() => ev.target.textContent = "copy", 900);
-  }});
-}
-
+// Every attribute row has three cells: the name, its values and (shown when you point at
+// the row) the copy buttons. The buttons live in their own cell so the name and value
+// cells hold only the data.
 export function attrTable(attrs) {
   const t = el("table", { class: "attrs" });
   for (const a of attrs || []) {
+    const values = a.values || [];
     const v = el("td", { class: "v" });
     const dnAttr = isDNAttr(a.name);
-    for (const x of a.values || []) {
+    for (const x of values) {
       v.append(dnAttr
         ? el("div", {}, el("a", { class: "dnlink", textContent: x, title: "Go to this entry", onclick: () => goTo(x) }))
         : el("div", { class: a.binary ? "bin" : "", textContent: x }));
     }
-    t.append(el("tr", {}, el("td", { class: "k", textContent: a.name }), v));
+    const actions = el("td", { class: "act" },
+      copyBtn(a.name, { label: "name", title: `Copy the attribute name (${a.name})`, what: `Copied ${a.name}` }),
+      copyBtn(values[0] ?? "", { label: values.length > 1 ? "first value" : "value", title: "Copy the value", what: `Copied the value of ${a.name}` }),
+      ...(values.length > 1 ? [copyBtn(values.join("\n"), { label: `all ${values.length}`, title: `Copy all ${values.length} values, one per line`, what: `Copied ${values.length} values of ${a.name}` })] : []));
+    t.append(el("tr", { "data-attr": a.name }, el("td", { class: "k", textContent: a.name }), v, actions));
   }
   return t;
 }
@@ -39,7 +41,7 @@ export async function showEntry(dn) {
     await getSchema(); // so DN-valued attributes can be shown as links
     const e = await api("/api/entry?dn=" + encodeURIComponent(dn) + ($("chkOp").checked ? "&operational=1" : ""));
     pane.replaceChildren(
-      el("div", { class: "dn" }, breadcrumb(e.dn), copyBtn(e.dn),
+      el("div", { class: "dn" }, breadcrumb(e.dn), copyBtn(e.dn, { title: "Copy the DN", what: "Copied the DN" }),
         el("a", { class: "jump", textContent: "search from here", onclick: () => emit("search-from", { dn: e.dn }) })),
       attrTable(e.attrs));
   } catch (err) { pane.replaceChildren(el("div", { class: "err", textContent: err.message })); }

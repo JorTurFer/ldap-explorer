@@ -3,6 +3,7 @@ import { api } from "./api.js";
 import { setStatus } from "./status.js";
 import { emit, on } from "./events.js";
 import { ancestors, normDN, looksLikeDN, matchesFilter } from "./nav.js";
+import { copyBtn } from "./ui/copy.js";
 
 let roots = [];
 let selectedNode = null;
@@ -53,7 +54,8 @@ function buildTree() {
 function makeNode(n) {
   const li = el("li");
   const tw = el("span", { class: "tw", textContent: n.leaf ? "" : "▶" });
-  const row = el("div", { class: "node", title: n.dn }, tw, el("span", { class: "rdn", textContent: n.rdn }));
+  const row = el("div", { class: "node", title: n.dn }, tw, el("span", { class: "rdn", textContent: n.rdn }),
+    copyBtn(n.dn, { title: "Copy this DN", what: "Copied the DN" }));
   let kids = null, open = false;
   const toggle = async () => {
     if (n.leaf) return;

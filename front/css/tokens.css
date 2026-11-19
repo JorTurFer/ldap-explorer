@@ -1,0 +1,37 @@
+/* Design tokens: the only place with raw colours, sizes and radii. Components use these
+   variables, so changing the look is a matter of editing this file. */
+:root {
+  /* colour */
+  --bg: #f6f6f4;        --panel: #ffffff;     --line: #e2e1dc;
+  --text: #1d1d1b;      --muted: #74736d;
+  --accent: #2f6fdb;    --accent-bg: #e8f0fd; --accent-text: #ffffff;
+  --err: #b3261e;       --warn: #8a5a00;      --ok: #1b7a43;
+  --hover: #efefec;
+  /* type */
+  --font: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", sans-serif;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --text-s: 11px; --text-m: 13px; --text-l: 15px;
+  /* space, shape, depth */
+  --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px; --space-5: 24px;
+  --radius-s: 4px; --radius-m: 6px; --radius-l: 10px;
+  --shadow-pop: 0 6px 24px rgba(0, 0, 0, .18);
+  --focus: 0 0 0 2px var(--accent);
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #1b1b1d; --panel: #232326; --line: #36363a; --text: #e9e9e6; --muted: #9a9a95;
+    --accent: #6ea1ff; --accent-bg: #26324a; --accent-text: #0b1220;
+    --err: #ff8a80; --warn: #f0c060; --ok: #6fd69a; --hover: #2c2c30;
+    --shadow-pop: 0 6px 24px rgba(0, 0, 0, .6);
+    color-scheme: dark;
+  }
+}
+/* An explicit choice in the settings wins over the system setting. */
+:root[data-theme="dark"] {
+  --bg: #1b1b1d; --panel: #232326; --line: #36363a; --text: #e9e9e6; --muted: #9a9a95;
+  --accent: #6ea1ff; --accent-bg: #26324a; --accent-text: #0b1220;
+  --err: #ff8a80; --warn: #f0c060; --ok: #6fd69a; --hover: #2c2c30;
+  --shadow-pop: 0 6px 24px rgba(0, 0, 0, .6);
+  color-scheme: dark;
+}

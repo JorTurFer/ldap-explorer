@@ -7,6 +7,7 @@ import { $, el } from "./dom.js";
 import { api } from "./api.js";
 import { emit, on } from "./events.js";
 import { getSchema, attrInfo } from "./schema.js";
+import { copyText } from "./ui/copy.js";
 import { OPS, opsFor, defaultOp, valueKind, newCondition, newGroup, toQuery, fromQuery, friendlyOps, isEmptyQuery } from "./builder-model.js";
 
 let model = newGroup("all");
@@ -23,6 +24,7 @@ export function initBuilder() {
     render(); // operators may change now that the schema is known
   });
   on("disconnected", () => { schemaIdx = null; fillDatalists(); });
+  $("bCopy").onclick = () => { const f = $("bFilter").textContent; if (f) copyText(f, "Copied the LDAP filter"); };
   $("bToRaw").onclick = async () => {
     try { emit("builder-to-raw", { filter: (await resolveFilter()).filter }); } catch (e) { showErrors([e.message]); }
   };

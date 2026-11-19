@@ -12,6 +12,7 @@ import (
 	"time"
 
 	cdpbrowser "github.com/chromedp/cdproto/browser"
+	cdpruntime "github.com/chromedp/cdproto/runtime"
 	"github.com/chromedp/chromedp"
 	"ldap-explorer/internal/slapdtest"
 )
@@ -988,5 +989,153 @@ func TestUIChangePassphraseAndSeveralUsers(t *testing.T) {
 	js(t, ctx, `document.documentElement.scrollWidth > document.documentElement.clientWidth + 1`, &overflow)
 	if overflow {
 		t.Error("the page has a horizontal scrollbar")
+	}
+}
+
+// ---------- copying ----------
+
+// allowClipboard lets the page read and write the clipboard, so a test can check what was copied.
+func allowClipboard(t *testing.T, ctx context.Context, appURL string) {
+	t.Helper()
+	origin := strings.SplitN(appURL, "/#", 2)[0]
+	run(t, ctx, cdpbrowser.GrantPermissions([]cdpbrowser.PermissionType{
+		cdpbrowser.PermissionTypeClipboardReadWrite, cdpbrowser.PermissionTypeClipboardSanitizedWrite}).WithOrigin(origin))
+}
+
+func clipboard(t *testing.T, ctx context.Context) string {
+	t.Helper()
+	var s string
+	run(t, ctx, chromedp.Evaluate(`navigator.clipboard.readText()`, &s, func(p *cdpruntime.EvaluateParams) *cdpruntime.EvaluateParams {
+		return p.WithAwaitPromise(true)
+	}))
+	return s
+}
+
+// clickCopy clicks a copy button and checks the clipboard and the confirmation.
+func clickCopy(t *testing.T, ctx context.Context, button, wantClipboard, wantToast string) {
+	t.Helper()
+	run(t, ctx, chromedp.Click(button))
+	waitJS(t, ctx, "clipboard "+wantClipboard, fmt.Sprintf(`navigator.clipboard.readText().then(t => t === %s)`, q(wantClipboard)))
+	if got := clipboard(t, ctx); got != wantClipboard {
+		t.Errorf("%s: clipboard %q, want %q", button, got, wantClipboard)
+	}
+	if wantToast != "" {
+		waitText(t, ctx, "#toasts", wantToast)
+	}
+}
+
+func TestUICopy(t *testing.T) {
+	l := slapdtest.Start(t)
+	appURL := startApp(t)
+	ctx := browser(t)
+	run(t, ctx, chromedp.Navigate(appURL), chromedp.WaitVisible("#btnConn"))
+	allowClipboard(t, ctx, appURL)
+	connect(t, ctx, l.URL, slapdtest.AliceDN, slapdtest.AlicePW)
+	waitText(t, ctx, "#status", "Connected to")
+
+	root := `.node[title="` + slapdtest.BaseDN + `"]`
+	run(t, ctx, chromedp.WaitVisible(root), chromedp.Click(root+" .tw"))
+	people := "ou=people," + slapdtest.BaseDN
+	run(t, ctx, chromedp.WaitVisible(`.node[title="`+people+`"]`), chromedp.Click(`.node[title="`+people+`"] .tw`))
+	aliceNode := `.node[title="` + slapdtest.AliceDN + `"]`
+	run(t, ctx, chromedp.WaitVisible(aliceNode), chromedp.Click(aliceNode))
+	waitText(t, ctx, "#pane-entry .dn", slapdtest.AliceDN)
+
+	// An attribute: its name and its value.
+	clickCopy(t, ctx, `tr[data-attr="mail"] button[title^="Copy the attribute name"]`, "mail", "Copied mail")
+	clickCopy(t, ctx, `tr[data-attr="mail"] button[title="Copy the value"]`, "alice@example.org", "Copied the value of mail")
+
+	// The DN of the entry, from the header and from the tree.
+	clickCopy(t, ctx, `#pane-entry .dn button[title="Copy the DN"]`, slapdtest.AliceDN, "Copied the DN")
+	clickCopy(t, ctx, `.node[title="`+slapdtest.AliceDN+`"] .copy-btn`, slapdtest.AliceDN, "")
+
+	// Several values: the first, or all of them, one per line.
+	bob := `.node[title="uid=bob,` + people + `"]`
+	run(t, ctx, chromedp.Click(bob))
+	waitText(t, ctx, "#pane-entry .dn", "uid=bob,")
+	clickCopy(t, ctx, `tr[data-attr="telephoneNumber"] button[title="Copy all 2 values, one per line"]`,
+		"+34 600 000 001\n+34 600 000 002", "Copied 2 values of telephoneNumber")
+	clickCopy(t, ctx, `tr[data-attr="telephoneNumber"] button[title="Copy the value"]`, "+34 600 000 001", "")
+	var label string
+	js(t, ctx, `document.querySelector('tr[data-attr="telephoneNumber"] button[title="Copy the value"]').textContent`, &label)
+	if label != "first value" {
+		t.Errorf("with several values the button says so: %q", label)
+	}
+
+	// The confirmation goes away by itself.
+	waitJS(t, ctx, "toast gone", `document.getElementById('toasts').children.length === 0`)
+
+	// A table cell copies when clicked.
+	run(t, ctx, chromedp.Click(`button[data-tab="search"]`), chromedp.WaitVisible("#sBase"), rawMode(),
+		set("#sBase", people), set("#sScope", "one"), set("#sFilter", "(uid=bob)"), set("#sAttrs", "uid, mail"),
+		chromedp.Click("#btnSearch"))
+	waitText(t, ctx, "#sOut", "1 result(s)")
+	run(t, ctx, chromedp.Click("#viewTable"), chromedp.WaitVisible("#sOut table.rtable"))
+	run(t, ctx, chromedp.Click(`#sOut table.rtable tbody td.copy-cell:nth-child(3)`)) // the mail cell
+	waitJS(t, ctx, "cell copied", `navigator.clipboard.readText().then(t => t === 'bob@example.org')`)
+	waitText(t, ctx, "#toasts", `Copied "bob@example.org"`)
+
+	// The LDAP filter of the builder.
+	run(t, ctx, chromedp.Click("#modeBuilder"))
+	setAttr(t, ctx, 0, "uid")
+	setOp(t, ctx, 0, "startsWith")
+	setVal(t, ctx, 0, "al")
+	waitText(t, ctx, "#bFilter", "(uid=al*)")
+	clickCopy(t, ctx, "#bCopy", "(uid=al*)", "Copied the LDAP filter")
+}
+
+// ---------- theme ----------
+
+func bodyColor(t *testing.T, ctx context.Context) string {
+	t.Helper()
+	var c string
+	js(t, ctx, `getComputedStyle(document.body).backgroundColor`, &c)
+	return c
+}
+
+func TestUITheme(t *testing.T) {
+	appURL := startApp(t)
+	ctx := browser(t)
+	run(t, ctx, chromedp.Navigate(appURL), chromedp.WaitVisible("#btnTheme"))
+	waitText(t, ctx, "#btnTheme", "Theme: auto")
+	attr := func() string {
+		var a string
+		js(t, ctx, `document.documentElement.getAttribute('data-theme') || ''`, &a)
+		return a
+	}
+	auto := bodyColor(t, ctx)
+
+	run(t, ctx, chromedp.Click("#btnTheme"))
+	waitText(t, ctx, "#btnTheme", "Theme: light")
+	if attr() != "light" {
+		t.Errorf("data-theme: %q", attr())
+	}
+	light := bodyColor(t, ctx)
+	run(t, ctx, chromedp.Click("#btnTheme"))
+	waitText(t, ctx, "#btnTheme", "Theme: dark")
+	if attr() != "dark" {
+		t.Errorf("data-theme: %q", attr())
+	}
+	dark := bodyColor(t, ctx)
+	if light == dark {
+		t.Errorf("light and dark look the same: %s", light)
+	}
+	if light != "rgb(246, 246, 244)" || dark != "rgb(27, 27, 29)" {
+		t.Errorf("tokens not applied: light=%s dark=%s", light, dark)
+	}
+
+	// It is remembered: reload the page and it is still dark.
+	reload(t, ctx, appURL)
+	waitText(t, ctx, "#btnTheme", "Theme: dark")
+	if got := bodyColor(t, ctx); got != dark {
+		t.Errorf("after reload: %s, want %s", got, dark)
+	}
+	run(t, ctx, chromedp.Click("#btnTheme"))
+	waitText(t, ctx, "#btnTheme", "Theme: auto")
+	if attr() != "" {
+		t.Errorf("auto must not force a theme: %q", attr())
+	}
+	if got := bodyColor(t, ctx); got != auto {
+		t.Errorf("auto goes back to the system look: %s, want %s", got, auto)
 	}
 }

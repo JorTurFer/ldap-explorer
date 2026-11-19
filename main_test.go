@@ -313,6 +313,18 @@ func TestUIReferencesResolve(t *testing.T) {
 			}
 		}
 	})
+	// CSS files import each other: those files must exist too.
+	cssImport := regexp.MustCompile(`@import\s+url\(["']?([^"')]+)["']?\)`)
+	walkFront(t, func(path, content string) {
+		if !strings.HasSuffix(path, ".css") {
+			return
+		}
+		for _, m := range cssImport.FindAllStringSubmatch(content, -1) {
+			if _, err := os.Stat(filepath.Join(filepath.Dir(path), m[1])); err != nil {
+				t.Errorf("%s imports %s, which does not exist", path, m[1])
+			}
+		}
+	})
 	html, _ := os.ReadFile("front/index.html")
 	for _, m := range regexp.MustCompile(`(?:src|href)="([^"#]+)"`).FindAllStringSubmatch(string(html), -1) {
 		if strings.HasPrefix(m[1], "data:") {

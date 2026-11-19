@@ -3,6 +3,7 @@
 
 import { el } from "./dom.js";
 import { attrTable, showEntry } from "./entry.js";
+import { copyBtn, copyText, preview } from "./ui/copy.js";
 import { parseAttrList, collectColumns, buildRows, sortRows, toCSV } from "./table.js";
 
 const MAX_TABLE_ROWS = 1000; // the table is drawn for at most this many rows; the CSV has all of them
@@ -46,7 +47,8 @@ export function showResults(out, res, requestedAttrs, ms) {
 
 function listView(state) {
   const items = state.entries.map((e) => el("details", { class: "result" },
-    el("summary", {}, e.dn, el("a", { class: "jump", textContent: "view", onclick: (ev) => { ev.preventDefault(); showEntry(e.dn); } })),
+    el("summary", {}, e.dn, el("a", { class: "jump", textContent: "view", onclick: (ev) => { ev.preventDefault(); showEntry(e.dn); } }),
+      copyBtn(e.dn, { title: "Copy the DN", what: "Copied the DN" })),
     el("div", { class: "body" }, attrTable(e.attrs))));
   if (items.length === 1) items[0].open = true;
   return el("div", {}, ...items);
@@ -87,11 +89,13 @@ function tableView(state, rerender) {
     el("thead", {}, el("tr", {}, th("DN", -1), ...idx.map((i) => th(state.columns[i], i)))),
     el("tbody", {}, ...shown.map((r) => el("tr", {},
       el("td", { class: "dn-cell" }, el("a", { class: "jump", textContent: r.dn, title: "Open the entry",
-        onclick: () => showEntry(r.dn) })),
-      ...r.cells.map((c) => el("td", { textContent: c }))))));
+        onclick: () => showEntry(r.dn) }), copyBtn(r.dn, { title: "Copy the DN", what: "Copied the DN" })),
+      ...r.cells.map((c) => el("td", { class: "copy-cell", textContent: c, title: c ? "Click to copy" : "",
+        onclick: () => { if (c) copyText(c, `Copied "${preview(c)}"`); } }))))));
 
   return el("div", {}, chooser,
     ...(rows.length > MAX_TABLE_ROWS ? [el("div", { class: "muted", textContent: `Showing the first ${MAX_TABLE_ROWS} of ${rows.length} rows. The CSV export contains all of them.` })] : []),
+    el("div", { class: "muted small", textContent: "Click a cell to copy it." }),
     el("div", { class: "table-wrap" }, table));
 }
 

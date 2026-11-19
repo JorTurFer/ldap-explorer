@@ -13,8 +13,10 @@ import { initExplore } from "./explore.js";
 import { initSavedQueries } from "./savedqueries.js";
 import { initVault } from "./vault.js";
 import { initQuick } from "./quick.js";
+import { initSettings } from "./settings.js";
 
 initTabs();
+initSettings();
 initVault();
 initProfiles();
 initConnection();
