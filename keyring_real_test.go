@@ -64,12 +64,21 @@ func TestRealKeyringRoundTrip(t *testing.T) {
 
 // On macOS, a password stored the way the previous version did it
 // (security add-generic-password -w, plain text) must still be readable.
+//
+// Known limitation, not a regression: `security find-generic-password -w`
+// prints non-ASCII values hex-encoded, and the previous version read entries
+// with that same command, so legacy entries with non-ASCII passwords were
+// already unusable; saving the profile password again rewrites them in the
+// format go-keyring reads back correctly (covered by TestRealKeyringRoundTrip).
 func TestRealKeyringLegacyMacOSEntries(t *testing.T) {
 	p := realKeyringProfile(t)
 	if runtime.GOOS != "darwin" {
 		t.Skip("macOS only")
 	}
-	for _, pw := range realKeyringPasswords[:4] { // no newlines: security -w would treat them separately
+	for _, pw := range realKeyringPasswords {
+		if !isASCIISingleLine(pw) {
+			continue // see the known limitation above
+		}
 		out, err := exec.Command("/usr/bin/security", "add-generic-password", "-U",
 			"-s", keychainService, "-a", keychainAccount(p), "-w", pw).CombinedOutput()
 		if err != nil {
@@ -87,4 +96,13 @@ func TestRealKeyringLegacyMacOSEntries(t *testing.T) {
 	if got, _ := keychainGet(p); got != "new" {
 		t.Errorf("after update: %q", got)
 	}
+}
+
+func isASCIISingleLine(s string) bool {
+	for _, r := range s {
+		if r > 0x7e || r < 0x20 {
+			return false
+		}
+	}
+	return true
 }
