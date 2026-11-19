@@ -13,7 +13,7 @@ See the [user manual](docs/USAGE.md) for how to use it and exactly what is and i
 
 ## Build
 
-Requires Go ≥ 1.24. No CGO needed.
+Requires Go ≥ 1.27. No CGO needed.
 
 ```sh
 make build        # ./ldapnav binary

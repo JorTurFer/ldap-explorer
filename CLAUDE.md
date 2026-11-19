@@ -18,7 +18,7 @@ A minimal, read-only LDAP browser. A single Go binary that serves an embedded we
 
 ## Scope
 - Browse the tree, view entry attributes and run searches. Read-only. Do not grow it into a full editor unless asked.
-- go-ldap is pinned to v3.4.11 for compatibility with Go 1.24; it can be bumped with a newer Go.
+- The toolchain is Go 1.27.4 (`go.mod`, `hack/Dockerfile.test`; CI reads the version from `go.mod`). go-ldap is still pinned to v3.4.11 from the time the project used Go 1.24; the reason is gone, so it can be bumped.
 - `-idle-exit` defaults to 3m on purpose: browsers throttle timers in background tabs, and a shorter value would make the app quit while the tab is open.
 - Known and accepted: `hasSubordinates` does not exist in AD, so every node shows ▶.
 
