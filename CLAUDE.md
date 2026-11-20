@@ -59,7 +59,7 @@ A minimal, read-only LDAP browser. A single Go binary that serves an embedded we
 - Windows packaging (.exe with an icon, or without a console via `-ldflags -H=windowsgui`).
 
 ## Commands
-- Everything is a `make` target and CI runs the same ones (`make help`): `make ci` (lint + all tests + smoke), `make test-docker` (that, reproducibly, in a container), `make test-keychain` (real OS keychain), `make build-all`, `make screenshots`, `make front-dev` (serve `front/` from disk with `-front-dir`: edit and refresh, no rebuild). Add a Makefile target for anything new that is run by hand or by CI; do not put logic only in a workflow.
+- Everything is a `make` target and CI runs the same ones (`make help`): `make ci` (lint + all tests + smoke), `make test-docker` (that, reproducibly, in a container), `make test-keychain` (real OS keychain), `make start` (build and run, no debug), `make build-all`, `make screenshots`, `make front-dev` (serve `front/` from disk with `-front-dir`: edit and refresh, no rebuild). Add a Makefile target for anything new that is run by hand or by CI; do not put logic only in a workflow.
 - Before calling anything done run `make ci` (or `make test-docker` when slapd, Chrome or Node are not installed locally).
 
 ## Conventions

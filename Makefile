@@ -23,7 +23,7 @@ PLATFORMS := darwin/arm64 darwin/amd64 windows/amd64 linux/amd64 linux/arm64
 # -v for verbose test output: make test V=-v
 V ?=
 
-.PHONY: help build build-all app clean \
+.PHONY: help build build-all app start clean \
         fmt fmt-check vet tidy tidy-check lint-js lint \
         test test-go test-js test-e2e test-keychain smoke ci \
         test-docker screenshots front-dev
@@ -42,6 +42,9 @@ build-all: ## Cross-compile for macOS (arm64, amd64), Windows, Linux (amd64, arm
 	  echo "building $$os/$$arch"; \
 	  GOOS=$$os GOARCH=$$arch go build -trimpath -ldflags="-s -w" -o $(DIST)/$(NAME)-$$os-$$arch$$ext .; \
 	done
+
+start: build ## Build and run it: opens the browser (ARGS="-port 8080 -no-open" to pass flags)
+	./$(BIN) $(ARGS)
 
 app: build ## Package LDAPExplorer.app (macOS), ad-hoc signed: drag it to /Applications
 	rm -rf $(APP)

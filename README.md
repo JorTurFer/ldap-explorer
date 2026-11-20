@@ -19,8 +19,8 @@ See the [user manual](docs/USAGE.md) for how to use it and exactly what is and i
 Requires Go ≥ 1.27. No CGO needed.
 
 ```sh
-make build        # ./ldap-explorer binary
-./ldap-explorer         # opens the browser
+make start        # builds it and runs it: opens the browser (flags: make start ARGS="-port 8080")
+# or: make build, then ./ldap-explorer
 
 make app          # LDAPExplorer.app (ad-hoc signed), drag it to /Applications
 ```
