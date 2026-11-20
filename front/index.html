@@ -119,6 +119,15 @@
     </div>
   </section>
 </main>
+<footer id="activity" class="activity idle ok">
+  <span class="spinner" aria-hidden="true"></span>
+  <span id="actText" class="act-text">Ready</span>
+  <progress id="actProgress" max="1" hidden aria-label="Progress of the running request"></progress>
+  <span id="actDetail" class="act-detail muted"></span>
+  <span id="actNote" class="act-note"></span>
+  <button type="button" id="actCancel" class="small-btn" hidden title="Stop waiting for this request">Cancel</button>
+  <span id="actLive" class="sr-only" role="status"></span>
+</footer>
 
 <div id="toasts" aria-live="polite"></div>
 <datalist id="attrList"></datalist>

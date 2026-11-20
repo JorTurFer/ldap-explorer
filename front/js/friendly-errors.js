@@ -2,6 +2,7 @@
 // technical text in brackets so nothing is hidden. Pure: unit-tested with `node --test`.
 
 const RULES = [
+  [/^cancelled$/i, "Cancelled. Nothing was changed; run it again whenever you like."],
   [/invalid credentials|result code 49/i, "The server did not accept that user and password."],
   [/empty password not allowed/i, "A user was given but no password. Type the password, or clear the user to connect anonymously."],
   [/connection refused|no such host|i\/o timeout|network is unreachable|no route to host|dial tcp|context deadline exceeded/i,

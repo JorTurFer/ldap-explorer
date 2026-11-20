@@ -112,7 +112,7 @@ func handleSearchLDIF(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, err)
 		return
 	}
-	res, warning, err := req.run(c)
+	res, warning, err := req.run(r.Context(), c)
 	if err != nil {
 		writeErr(w, err)
 		return

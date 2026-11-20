@@ -6,6 +6,7 @@
 package main
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/subtle"
 	"crypto/tls"
@@ -494,7 +495,7 @@ func handleChildren(w http.ResponseWriter, r *http.Request) {
 	dn := r.URL.Query().Get("dn")
 	sr := ldap.NewSearchRequest(dn, ldap.ScopeSingleLevel, ldap.NeverDerefAliases,
 		0, 60, false, "(objectClass=*)", []string{"1.1", "hasSubordinates", "numSubordinates"}, nil)
-	res, err := c.SearchWithPaging(sr, 500)
+	res, err := pagedSearch(r.Context(), c, sr, 500)
 	if err != nil && (res == nil || len(res.Entries) == 0) {
 		writeErr(w, err)
 		return
@@ -561,7 +562,7 @@ type searchRequest struct {
 
 // run validates the request and performs the search, paged. A server limit that cuts the
 // result short is returned as a warning together with what was received.
-func (req *searchRequest) run(c *ldap.Conn) (res *ldap.SearchResult, warning string, err error) {
+func (req *searchRequest) run(ctx context.Context, c *ldap.Conn) (res *ldap.SearchResult, warning string, err error) {
 	if req.Filter == "" {
 		req.Filter = "(objectClass=*)"
 	}
@@ -584,7 +585,7 @@ func (req *searchRequest) run(c *ldap.Conn) (res *ldap.SearchResult, warning str
 	}
 	sr := ldap.NewSearchRequest(req.Base, scope, ldap.NeverDerefAliases,
 		req.Limit, 120, false, req.Filter, attrs, nil)
-	res, err = c.SearchWithPaging(sr, uint32(min(req.Limit, 500)))
+	res, err = pagedSearch(ctx, c, sr, uint32(min(req.Limit, 500)))
 	if err != nil {
 		if res == nil || len(res.Entries) == 0 {
 			return nil, "", err
@@ -605,7 +606,7 @@ func handleSearch(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, err)
 		return
 	}
-	res, warning, err := req.run(c)
+	res, warning, err := req.run(r.Context(), c)
 	if err != nil {
 		writeErr(w, err)
 		return
@@ -682,6 +683,7 @@ func newHandler(token string, lastPing *atomic.Int64, front fs.FS) http.Handler 
 	api.HandleFunc("POST /api/vault/passphrase", handleVaultPassphrase)
 	api.HandleFunc("GET /api/recipes", handleRecipes)
 	api.HandleFunc("POST /api/recipes/{id}", handleRecipe)
+	api.HandleFunc("GET /api/activity", handleActivity)
 
 	// Heartbeat: the UI pings periodically. If the tab is closed, the process
 	// exits on its own (useful when launched as an .app).
@@ -697,7 +699,7 @@ func newHandler(token string, lastPing *atomic.Int64, front fs.FS) http.Handler 
 			return
 		}
 		w.Header().Set("Cache-Control", "no-store") // nothing from the API (profiles, entries) is cached
-		api.ServeHTTP(w, r)
+		trackOperation(api).ServeHTTP(w, r)
 	}))
 	static := http.FileServerFS(front)
 	root.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {

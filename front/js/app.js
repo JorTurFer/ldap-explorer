@@ -20,6 +20,7 @@ import { initBookmarks } from "./bookmarks.js";
 import { initHistory } from "./history.js";
 import { initCompare } from "./compare.js";
 import { initShortcuts } from "./shortcuts.js";
+import { initActivity } from "./activity.js";
 
 initTabs();
 initSettings();
@@ -40,6 +41,7 @@ initBookmarks();
 initHistory();
 initCompare();
 initShortcuts();
+initActivity();
 
 loadProfiles();
 // Heartbeat: if the tab is closed the server notices and exits.

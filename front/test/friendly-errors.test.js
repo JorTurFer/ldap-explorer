@@ -45,3 +45,7 @@ test("a size limit is not confused with a time limit or other codes", () => {
   assert.doesNotMatch(friendlyError('LDAP Result Code 49 "Invalid Credentials"'), /limit/);
   assert.doesNotMatch(friendlyError('LDAP Result Code 34 "Invalid DN Syntax"'), /own limit/);
 });
+
+test("a cancelled request is explained, not shown as a failure code", () => {
+  assert.match(friendlyError("Cancelled"), /^Cancelled\. Nothing was changed/);
+});

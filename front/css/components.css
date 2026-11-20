@@ -113,7 +113,7 @@ table.rtable td.dn-cell { overflow-wrap: anywhere; min-width: 280px; }
 progress.pbar { width: 100%; height: 8px; }
 
 /* saved queries */
-.saved { display: flex; gap: 8px; align-items: center; margin-bottom: 10px; max-width: 900px; flex-wrap: wrap; }
+.saved { display: flex; gap: 8px; align-items: center; margin-bottom: 10px; flex-wrap: wrap; }
 .saved #qName { width: 220px; }
 
 /* .sform input { width: 100% } is more specific than the builder's own widths */
@@ -261,3 +261,27 @@ tr.cmp-onlyA td.cmp-cell:nth-child(2), tr.cmp-onlyB td.cmp-cell:nth-child(3) { b
 .op-note { margin: 0 0 var(--space-2); }
 .op-off { margin-top: var(--space-3); }
 table.attrs td.v .hint { color: var(--muted); font-family: var(--font); font-size: var(--text-s); word-break: normal; }
+
+/* The status bar: what is running, for how long, and whether it looks stuck. Fixed height, so
+   it never makes the page above it move. */
+.activity { display: flex; align-items: center; gap: var(--space-3); height: 32px; box-sizing: border-box; padding: 0 var(--space-3);
+            border-top: 1px solid var(--line); background: var(--panel); font-size: var(--text-s); color: var(--muted); white-space: nowrap; }
+.activity [hidden] { display: none !important; }
+.activity .act-text { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--text); max-width: 50%; }
+.activity progress { width: 140px; height: 8px; flex: none; accent-color: var(--accent); }
+.activity .act-detail { flex: none; }
+.activity .act-note { flex: 1 1 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.activity .spinner { flex: none; width: 10px; height: 10px; border-radius: 50%; border: 2px solid var(--line); }
+.activity.idle .spinner { background: var(--line); border-color: var(--line); }
+.activity.done .spinner { background: var(--ok); border-color: var(--ok); }
+.activity.done.slow .spinner { background: var(--warn); border-color: var(--warn); }
+.activity.done.stuck .spinner { background: var(--err); border-color: var(--err); }
+.activity.busy .spinner { border-top-color: var(--accent); animation: spin 0.9s linear infinite; }
+.activity.busy.slow .spinner { border-top-color: var(--warn); }
+.activity.busy.stuck .spinner { border-top-color: var(--err); animation-duration: 2.5s; }
+.activity.busy.slow .act-note { color: var(--warn); }
+.activity.busy.stuck .act-note, .activity.busy.stuck .act-text { color: var(--err); }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .activity.busy .spinner { animation: none; } }
+.activity .small-btn { padding: 1px 8px; margin: 0; line-height: 1.3; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }

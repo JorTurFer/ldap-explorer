@@ -23,7 +23,7 @@ make screenshots  # regenerate docs/img after a visible change
 | `front/js/app.js` | The entry point: it calls each module's `init…()` and nothing else. |
 | `front/js/*.js` | One module per concern (`tree`, `entry`, `search`, `builder`, `results`, `recipes`, `explore`, `server`, `vault`...). |
 | `front/js/ui/` | Reusable pieces: `copy.js`, `toast.js`, `download.js`. |
-| `front/js/*-model.js`, `table.js`, `decode.js`, `diff.js`, `nav.js`, `labels.js`, `friendly-errors.js`, `entry-model.js`, `trail.js` | **Pure logic with no DOM access**, unit-tested with Node. |
+| `front/js/*-model.js`, `table.js`, `decode.js`, `diff.js`, `nav.js`, `labels.js`, `friendly-errors.js`, `entry-model.js`, `trail.js`, `activity-model.js` | **Pure logic with no DOM access**, unit-tested with Node. |
 | `front/test/` | The Node unit tests. Not embedded in the binary. |
 | `e2e/` | The browser tests (a separate Go module, so the app's `go.mod` does not carry the browser-automation dependency). |
 
@@ -46,6 +46,7 @@ make screenshots  # regenerate docs/img after a visible change
 - **Build the DOM with `el(tag, props, ...children)`** (`js/dom.js`). `class` sets the class, `on…` adds a listener, `data-…`, `aria-…` and `role` become attributes, everything else is a property. Strings become text, never HTML.
 - **Modules do not import each other in circles.** They talk through the tiny event bus in `js/events.js`; the catalogue of events is the comment at the top of that file. Add yours there.
 - **Anything that shows a value a person might need elsewhere gets a copy button**: `copyBtn(text, { title, what })` or `withCopy(node, text)` from `ui/copy.js`. It confirms with a toast.
+- **Requests**: always call the server through `api()`, `apiText()` or `apiBytes()` (never `fetch` directly): they report to the status bar, tag the request for progress and make it cancellable. A new kind of request that takes time should get a label in `describeRequest()` (`activity-model.js`); anything not listed there stays out of the bar.
 - **Errors**: show `friendlyError(e.message)` (a sentence, with the technical text kept in brackets).
 - **Layout that can move** (a list that refreshes, a label that changes) must not change the size of what is above a button the user is about to press: give it a fixed width.
 - **Logic goes in a pure module** (`something-model.js`) and gets a Node test; the DOM module only wires it. If you cannot write the test without a DOM, the logic is in the wrong place.

@@ -38,7 +38,25 @@ When you are done, close the tab: the program exits by itself a few minutes late
 - **Left**: a box to **filter the tree or jump to a DN**, your **Bookmarks**, and the **tree** of the directory.
 - **Right**, in tabs: **Entry** (what is selected), **Search** (build a search), **Recipes** (ready-made questions), **Explore** (what is in a branch) and **Server** (what this server is and what it can store).
 
+- **Status bar** (bottom): what the program is doing right now. See [The status bar](#the-status-bar-is-it-working-or-is-it-stuck) below.
+
 Almost everything that shows a value has a quiet **copy** button next to it that appears when you point at it. Pressing it copies exactly that thing and a small message confirms it.
+
+### The status bar: is it working, or is it stuck?
+
+Big directories take time. The bar at the bottom of the window tells you what is running, so you never have to wonder whether the program died.
+
+![A search in progress: what it is, how long it has taken, how long it usually takes, and a Cancel button](img/status-bar.png)
+
+- **Nothing running**: it says *Ready*, with a grey dot.
+- **Something is running** (a search, opening a branch of the tree, an export, loading the schema...): it says **what** (*Searching in ou=people for (objectClass=inetOrgPerson)*), **for how long** (*1.6 s*), **how many entries have arrived so far** on a big search (*1,500 entries so far*) and, when it has done the same thing before in this session, **how long it usually takes** (*usually about 2.6 s*). A moving circle shows it is alive; when it knows what to expect, a bar fills up (it never claims to be finished before the answer arrives). Anything quicker than about half a second never shows, so the bar does not flicker.
+- **Taking a while**: after 10 seconds, or when it takes one and a half times longer than usual, the circle turns amber and the bar says *Taking longer than usual. Big directories can be slow; it is still working.*
+- **Looks stuck**: if nothing at all has arrived from the server for 30 seconds, the circle turns red and it says *No answer from the server for 45 s. It may just be slow, not stopped; you can wait or cancel.* On a big search, every page of results counts as a sign of life, so a search that keeps delivering is never reported as stuck.
+- **Cancel** stops waiting for what is running. The program stops asking the directory for more results as soon as it notices, and the result area says *Cancelled*. Nothing is changed anywhere: it is only a search that you no longer want.
+- **When it ends**, the bar tells you for a few seconds how it went: *Done in 1.8 s · 600 entries*, *Cancelled after 3.0 s* or *Failed after 1.0 s*.
+- **Lost contact**: if the program itself stops answering (not the directory: ldap-explorer), the bar turns red and says so. Close the tab and start it again.
+
+The estimate comes only from what this session has already done (the same search again, or the average of similar ones), and it is not saved anywhere. The first time you do something there is nothing to compare with, so only the time is shown.
 
 ## 3. Connecting
 
@@ -331,6 +349,7 @@ Everything you create is kept in your user configuration folder (macOS `~/Librar
 | Saved queries and recent searches, per profile | Supported. |
 | Results as a list or a sortable table; export to CSV, JSON and LDIF | Supported. |
 | Entry actions: groups of an entry, bookmarks, pin and compare, copy or download as LDIF, copy as JSON | Supported. |
+| A status bar with what is running, elapsed time, entries received so far, the usual time and Cancel | Supported. Progress by entries applies to paged searches (tree listings, searches, exports); other requests show their elapsed time. |
 | Server information and a schema browser (attributes, object classes, inheritance, matching rules) | Supported. |
 | Tree filter, go to a DN, bookmarks, keyboard shortcuts | Supported. |
 | Saved profiles (no password) | Supported. |
@@ -382,6 +401,8 @@ Tested against OpenLDAP 2.5, 2.6 and 2.7 only. The account recipes for 389 Direc
 | `No base was detected` | The server does not publish naming contexts to this user. Set **Base DN** in the connection. |
 | `⚠ … Size Limit Exceeded` | The server stopped the listing or search at its own limit. Narrow the filter or base. |
 | `Invalid filter` | The filter is not valid RFC 4515 syntax (check the parentheses). |
+| The bar says *No answer from the server for…* | The directory has not sent anything for 30 seconds: it may be busy with a heavy search or the network is slow. Wait, or press **Cancel** and narrow the search (a more specific base or filter). |
+| The bar says *Lost contact with ldap-explorer* | The program itself stopped. Start it again. |
 | `The ldap-explorer process is not responding` | The program exited (idle timeout or Ctrl+C). Start it again. |
 | `The vault is needed for this and was not unlocked.` | You closed the passphrase dialog. Try again and type the master passphrase. |
 | Nothing happens when I press a shortcut | Shortcuts are off while you type in a box and while a dialog is open. Click on a blank part of the page first. |

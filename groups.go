@@ -94,7 +94,7 @@ func handleGroups(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	req := searchRequest{Base: searchBaseFor(info.NamingContexts, dn), Filter: built.Filter, Scope: "sub", Attrs: "cn", Limit: 500}
-	res, _, err := req.run(c)
+	res, _, err := req.run(r.Context(), c)
 	if err != nil {
 		writeErr(w, err)
 		return

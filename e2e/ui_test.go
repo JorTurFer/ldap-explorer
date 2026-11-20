@@ -2048,3 +2048,70 @@ func jsBool(t *testing.T, ctx context.Context, expr string) bool {
 	js(t, ctx, expr, &b)
 	return b
 }
+
+// ---------- the status bar: what is running, for how long, cancel ----------
+
+// slowSearches makes the search requests of the page take `ms` milliseconds (or never answer,
+// until aborted, when ms is 0), so the bar has something to show. It also records the headers.
+func slowSearches(t *testing.T, ctx context.Context, ms int) {
+	t.Helper()
+	run(t, ctx, eval(fmt.Sprintf(`(() => {
+		const real = (window.__realFetch ||= window.fetch.bind(window)); // always the original, so delays never add up
+		window.__searchHeaders = [];
+		window.fetch = (url, init = {}) => {
+			if (String(url) !== '/api/search') return real(url, init);
+			window.__searchHeaders.push(init.headers || {});
+			return new Promise((resolve, reject) => {
+				const abort = () => reject(new DOMException('aborted', 'AbortError'));
+				if (init.signal) init.signal.addEventListener('abort', abort);
+				if (%d > 0) setTimeout(() => real(url, init).then(resolve, reject), %d);
+			});
+		};
+		return true; })()`, ms, ms)))
+}
+
+func TestUIStatusBar(t *testing.T) {
+	l := slapdtest.Start(t)
+	appURL := startApp(t)
+	ctx := browser(t)
+	run(t, ctx, chromedp.Navigate(appURL), chromedp.WaitVisible("#btnConn"))
+	connect(t, ctx, l.URL, slapdtest.AliceDN, slapdtest.AlicePW)
+	waitText(t, ctx, "#status", "Connected to")
+	waitText(t, ctx, "#actText", "Ready")
+
+	run(t, ctx, chromedp.Click(`button[data-tab="search"]`), chromedp.WaitReady("#sBase"), rawMode(),
+		set("#sBase", "ou=people,"+slapdtest.BaseDN), set("#sScope", "one"), set("#sFilter", "(uid=bob)"))
+
+	// A slow search: the bar says what it is, how long it has taken, and then how it went.
+	slowSearches(t, ctx, 1500)
+	run(t, ctx, chromedp.Click("#btnSearch"))
+	waitJS(t, ctx, "busy bar", `document.getElementById('activity').classList.contains('busy')`)
+	waitText(t, ctx, "#actText", "Searching in ou=people for (uid=bob)")
+	waitJS(t, ctx, "elapsed time", `/\d\.\d s/.test(document.getElementById('actDetail').textContent)`)
+	if !jsBool(t, ctx, `!document.getElementById('actProgress').hidden && !document.getElementById('actCancel').hidden`) {
+		t.Error("the bar should show the progress and the Cancel button while it works")
+	}
+	waitText(t, ctx, "#sOut", "result(s)")
+	waitJS(t, ctx, "done", `document.getElementById('activity').classList.contains('done') && document.getElementById('actText').textContent.startsWith('Done in ')`)
+	if !jsBool(t, ctx, `document.getElementById('actCancel').hidden && document.getElementById('actProgress').hidden`) {
+		t.Error("Cancel and the progress bar should go away when it is over")
+	}
+	// The request carried the tag the server uses to report progress.
+	if !jsBool(t, ctx, `window.__searchHeaders.length === 1 && /^[A-Za-z0-9_-]{1,64}$/.test(window.__searchHeaders[0]['X-Op'])`) {
+		t.Error("the search request should carry an X-Op tag")
+	}
+
+	// A search that never answers: the user can cancel it, and the bar says so.
+	slowSearches(t, ctx, 0)
+	run(t, ctx, chromedp.Click("#btnSearch"))
+	waitJS(t, ctx, "busy again", `document.getElementById('activity').classList.contains('busy')`)
+	run(t, ctx, chromedp.Click("#actCancel"))
+	waitText(t, ctx, "#sOut", "Cancelled. Nothing was changed")
+	waitJS(t, ctx, "cancelled", `document.getElementById('actText').textContent.startsWith('Cancelled after ')`)
+
+	// The app's own housekeeping never lights the bar: only a quick request, nothing to show.
+	run(t, ctx, chromedp.Click(`button[data-tab="server"]`))
+	if !jsBool(t, ctx, `document.getElementById('activity').getBoundingClientRect().height === 32 && document.getElementById('activity').getBoundingClientRect().bottom <= window.innerHeight`) {
+		t.Error("the status bar should be fully visible at the bottom, with a fixed height")
+	}
+}

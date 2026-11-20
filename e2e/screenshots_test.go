@@ -163,6 +163,20 @@ func TestScreenshots(t *testing.T) {
 	shot("passwords")
 	run(t, ctx, chromedp.Click("#mClose"))
 
+	// 5d. The status bar: a search that takes a while, the second time with an estimate.
+	run(t, ctx, chromedp.Click(`button[data-tab="search"]`), chromedp.Click("#modeRaw"),
+		set("#sBase", "ou=people,"+slapdtest.BaseDN), set("#sScope", "one"), set("#sFilter", "(objectClass=inetOrgPerson)"))
+	slowSearches(t, ctx, 2600)
+	run(t, ctx, chromedp.Click("#btnSearch"))
+	waitText(t, ctx, "#sOut", "result(s)")
+	slowSearches(t, ctx, 8000)
+	run(t, ctx, chromedp.Click("#btnSearch"))
+	waitJS(t, ctx, "elapsed and estimate", `document.getElementById('actDetail').textContent.includes('usually about') && parseFloat(document.getElementById('actDetail').textContent) >= 1.5`)
+	shot("status-bar")
+	run(t, ctx, chromedp.Click("#actCancel"))
+	waitText(t, ctx, "#sOut", "Cancelled")
+	run(t, ctx, eval(`window.fetch = window.__realFetch`))
+
 	// 6. Dark theme (follows the system setting), on the table again.
 	run(t, ctx, chromedp.Click(`button[data-tab="search"]`))
 	if _, err := chromedp.Call(ctx, emulation.SetEmulatedMedia, emulation.SetEmulatedMediaParams{
