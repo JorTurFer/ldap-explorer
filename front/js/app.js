@@ -15,6 +15,7 @@ import { initVault } from "./vault.js";
 import { initQuick } from "./quick.js";
 import { initSettings } from "./settings.js";
 import { initQuickFind } from "./quickfind.js";
+import { initServer } from "./server.js";
 
 initTabs();
 initSettings();
@@ -29,6 +30,7 @@ initBuilder();
 initSearch();
 initRecipes();
 initExplore();
+initServer();
 initSavedQueries();
 
 loadProfiles();

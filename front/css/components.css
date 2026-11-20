@@ -195,3 +195,23 @@ header input[type=search] { width: 230px; background: var(--bg); border: 1px sol
 .photo { display: block; max-width: 160px; max-height: 160px; margin-top: var(--space-2); border: 1px solid var(--line); border-radius: var(--radius-m); background: var(--panel); }
 .bin .small-btn { margin-left: var(--space-2); }
 .decoded { color: var(--muted); font-family: var(--font); font-size: var(--text-s); }
+
+/* server tab */
+h3.section { margin: var(--space-4) 0 var(--space-2); font-size: var(--text-l); }
+.kvrow { display: grid; grid-template-columns: 170px 1fr; gap: var(--space-2) var(--space-3); padding: 3px 0; border-bottom: 1px solid var(--line); max-width: 900px; }
+.kvlabel { color: var(--muted); }
+.kvvalue { min-width: 0; word-break: break-word; }
+.nc, .oidline { display: flex; align-items: baseline; gap: var(--space-2); }
+.mono { font-family: var(--mono); }
+.schema-tools { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); margin-bottom: var(--space-2); max-width: 900px; }
+.schema-tools input[type=search] { flex: 1 1 280px; background: var(--bg); border: 1px solid var(--line); border-radius: var(--radius-m); padding: 4px 8px; }
+.schema-cols { display: grid; grid-template-columns: minmax(200px, 300px) 1fr; gap: var(--space-4); max-width: 1100px; }
+.sclist { list-style: none; margin: 0; padding: 0; max-height: 55vh; overflow: auto; border: 1px solid var(--line); border-radius: var(--radius-m); background: var(--panel); }
+.scitem { padding: 3px var(--space-2); border-bottom: 1px solid var(--line); cursor: pointer; }
+.scitem a { color: var(--accent); font-family: var(--mono); font-size: 12px; cursor: pointer; }
+.scitem.sel { background: var(--accent-bg); }
+.scdetail { min-width: 0; border: 1px solid var(--line); border-radius: var(--radius-m); background: var(--panel); padding: var(--space-3); }
+.scdetail h3 { margin: 0 0 var(--space-2); display: flex; gap: var(--space-2); align-items: center; font-family: var(--mono); }
+.scref { color: var(--accent); cursor: pointer; font-family: var(--mono); font-size: 12px; }
+.scref:hover { text-decoration: underline; }
+.usedby { display: inline-flex; gap: var(--space-1); align-items: baseline; margin-right: var(--space-2); }

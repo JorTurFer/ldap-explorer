@@ -98,6 +98,16 @@ func TestDiscoverySchema(t *testing.T) {
 	if photo := attr("jpegPhoto"); photo.Kind != "binary" {
 		t.Errorf("jpegPhoto: %+v", photo)
 	}
+	// what the schema browser shows: where it derives from and which matching rules apply
+	if cn.Sup != "name" || cn.Equality != "caseIgnoreMatch" || cn.Substring != "caseIgnoreSubstringsMatch" {
+		t.Errorf("cn inherits its rules from name: sup=%q equality=%q substring=%q", cn.Sup, cn.Equality, cn.Substring)
+	}
+	if ct := attr("createTimestamp"); ct.Usage != "directoryOperation" || ct.Ordering != "generalizedTimeOrderingMatch" || !ct.SingleValue {
+		t.Errorf("createTimestamp: usage=%q ordering=%q single=%v", ct.Usage, ct.Ordering, ct.SingleValue)
+	}
+	if mail := attr("mail"); mail.Substring != "caseIgnoreIA5SubstringsMatch" || mail.Usage != "" {
+		t.Errorf("mail: %+v", mail)
+	}
 	if mem := attr("member"); mem.Kind != "dn" {
 		t.Errorf("member: %+v", mem)
 	}

@@ -29,7 +29,7 @@ function buildIndex(raw) {
   // user attributes first (alphabetical), then operational ones
   const names = [...usable.filter((a) => !a.operational), ...usable.filter((a) => a.operational)].map((a) => a.name);
   const classes = raw.objectClasses.filter((c) => !c.obsolete).map((c) => c.name);
-  return { attrs, names, classes, errors: raw.errors || [] };
+  return { attrs, names, classes, errors: raw.errors || [], rawAttributes: raw.attributes, rawClasses: raw.objectClasses };
 }
 
 export const attrInfo = (idx, name) => (idx ? idx.attrs.get((name || "").trim().toLowerCase()) || null : null);

@@ -120,6 +120,11 @@ type schemaAttr struct {
 	Operational  bool     `json:"operational"`
 	NoUserMod    bool     `json:"noUserModification"`
 	Obsolete     bool     `json:"obsolete,omitempty"`
+	Sup          string   `json:"sup,omitempty"`      // the attribute type it derives from
+	Equality     string   `json:"equality,omitempty"` // matching rules (inherited ones included)
+	Ordering     string   `json:"ordering,omitempty"`
+	Substring    string   `json:"substring,omitempty"`
+	Usage        string   `json:"usage,omitempty"` // userApplications (default) or an operational kind
 }
 
 type schemaClass struct {
@@ -168,6 +173,7 @@ func loadSchema(c *ldap.Conn) (*schemaResponse, error) {
 			Name: a.Name(), Names: a.Names, OID: a.OID, Desc: a.Desc, Syntax: a.Syntax, SyntaxName: a.SyntaxName(),
 			Kind: a.Kind(), CanEqual: a.CanEqual(), CanOrder: a.CanOrder(), CanSubstring: a.CanSubstring(),
 			SingleValue: a.SingleValue, Operational: a.Operational(), NoUserMod: a.NoUserMod, Obsolete: a.Obsolete,
+			Sup: a.Sup, Equality: a.Equality, Ordering: a.Ordering, Substring: a.Substr, Usage: a.Usage,
 		})
 	}
 	for _, c := range s.Classes {

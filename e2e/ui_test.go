@@ -1410,3 +1410,88 @@ func TestUIBinaryAndTimeValues(t *testing.T) {
 		t.Error("only date attributes get a decoded line")
 	}
 }
+
+// ---------- server information and the schema browser ----------
+
+func TestUIServerAndSchema(t *testing.T) {
+	l := slapdtest.Start(t)
+	appURL := startApp(t)
+	ctx := browser(t)
+	run(t, ctx, chromedp.Navigate(appURL), chromedp.WaitVisible("#btnConn"))
+	allowClipboard(t, ctx, appURL)
+	connect(t, ctx, l.URL, slapdtest.AliceDN, slapdtest.AlicePW)
+	waitText(t, ctx, "#status", "Connected to")
+	run(t, ctx, chromedp.Click(`button[data-tab="server"]`), chromedp.WaitVisible("#srvInfo"))
+
+	// What the server is, in plain words, with names for the technical identifiers.
+	waitText(t, ctx, "#srvInfo", "OpenLDAP")
+	waitText(t, ctx, "#srvInfo", "Paged results")
+	waitText(t, ctx, "#srvInfo", "StartTLS")
+	waitText(t, ctx, "#srvInfo", slapdtest.BaseDN)
+	clickCopy(t, ctx, `#srvInfo .nc .copy-btn`, slapdtest.BaseDN, "Copied the DN")
+	run(t, ctx, chromedp.Click(`#srvInfo .oidline .copy-btn`))
+	waitText(t, ctx, "#toasts", "Copied the OID")
+	if got := clipboard(t, ctx); !regexp.MustCompile(`^\d+(\.\d+)+$`).MatchString(got) {
+		t.Errorf("an OID was expected on the clipboard: %q", got)
+	}
+
+	// The schema list, filtered: the exact name comes first.
+	waitJS(t, ctx, "attributes listed", `document.querySelectorAll('#scList .scitem').length > 50`)
+	waitText(t, ctx, "#scCount", "attributes")
+	run(t, ctx, set("#scFilter", "mail"), chromedp.Evaluate(`document.getElementById('scFilter').dispatchEvent(new Event('input'))`, nil))
+	waitJS(t, ctx, "mail first", `document.querySelector('#scList .scitem').dataset.name === 'mail'`)
+	run(t, ctx, chromedp.Click(`#scList .scitem[data-name="mail"] a`))
+	waitText(t, ctx, "#scDetail", "0.9.2342.19200300.100.1.3")
+	waitText(t, ctx, "#scDetail", "IA5 String")
+	waitText(t, ctx, "#scDetail", "caseIgnoreIA5SubstringsMatch")
+	waitText(t, ctx, "#scDetail", "ordering (before/after): not supported")
+	waitText(t, ctx, "#scDetail", "an ordinary attribute")
+	waitText(t, ctx, "#scDetail", "rfc822Mailbox") // its other name
+
+	// Follow it to a class that uses it, and from there up the inheritance chain.
+	run(t, ctx, chromedp.Click(`#scDetail .scref:nth-of-type(1)`)) // first class listed under "Used by"
+	waitJS(t, ctx, "switched to classes", `document.getElementById('scClasses').classList.contains('on')`)
+	run(t, ctx, set("#scFilter", "inetOrgPerson"), chromedp.Evaluate(`document.getElementById('scFilter').dispatchEvent(new Event('input'))`, nil))
+	run(t, ctx, chromedp.Click(`#scList .scitem[data-name="inetOrgPerson"] a`))
+	waitText(t, ctx, "#scDetail h3", "inetOrgPerson")
+	waitText(t, ctx, "#scDetail", "structural")
+	waitText(t, ctx, "#scDetail", "organizationalPerson → ")
+	waitText(t, ctx, "#scDetail", "person → ")
+	var required []string
+	js(t, ctx, `[...document.querySelectorAll('#scDetail .kvrow')].find(r => r.firstChild.textContent === 'Required attributes').querySelectorAll('.scref').length > 0
+		? [...[...document.querySelectorAll('#scDetail .kvrow')].find(r => r.firstChild.textContent === 'Required attributes').querySelectorAll('.scref')].map(a => a.textContent) : []`, &required)
+	if !slices.Contains(required, "sn") || !slices.Contains(required, "cn") || !slices.Contains(required, "objectClass") {
+		t.Errorf("the required attributes include the inherited ones: %v", required)
+	}
+
+	// An attribute found by its alias (surname is another name for sn).
+	run(t, ctx, set("#scFilter", ""), chromedp.Click("#scAttrs"), set("#scFilter", "surname"), chromedp.Evaluate(`document.getElementById('scFilter').dispatchEvent(new Event('input'))`, nil))
+	run(t, ctx, chromedp.Click(`#scList .scitem[data-name="sn"] a`))
+	waitText(t, ctx, "#scDetail", "surname")
+	clickCopy(t, ctx, `#scDetail h3 .copy-btn`, "sn", "Copied the name")
+
+	// "Find entries that have it" runs a search.
+	run(t, ctx, chromedp.Click(`#scDetail button.find`))
+	waitJS(t, ctx, "search tab", `document.getElementById('pane-search').classList.contains('on')`)
+	waitText(t, ctx, "#sNote", "Entries that have sn")
+	waitText(t, ctx, "#bFilter", "(sn=*)")
+	waitText(t, ctx, "#sOut", "result(s)")
+
+	// A class: find its entries.
+	run(t, ctx, chromedp.Click(`button[data-tab="server"]`), chromedp.Click("#scClasses"),
+		set("#scFilter", "posixGroup"), chromedp.Evaluate(`document.getElementById('scFilter').dispatchEvent(new Event('input'))`, nil))
+	run(t, ctx, chromedp.Click(`#scList .scitem[data-name="posixGroup"] a`), chromedp.Click(`#scDetail button.find`))
+	waitText(t, ctx, "#bFilter", "(objectClass=posixGroup)")
+	waitText(t, ctx, "#sOut", "1 result(s)")
+	waitText(t, ctx, "#sOut", "cn=staff,")
+
+	// Nothing matches: the list says zero rather than staying stale.
+	run(t, ctx, chromedp.Click(`button[data-tab="server"]`), set("#scFilter", "zzzzzzzz"), chromedp.Evaluate(`document.getElementById('scFilter').dispatchEvent(new Event('input'))`, nil))
+	waitText(t, ctx, "#scCount", "0 object classes")
+
+	var overflow bool
+	js(t, ctx, `document.documentElement.scrollWidth > document.documentElement.clientWidth + 1`, &overflow)
+	if overflow {
+		t.Error("the Server tab makes the page scroll sideways")
+	}
+}

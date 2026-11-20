@@ -9,6 +9,7 @@
 //   profiles-stale     {}       something changed a profile elsewhere: reload them
 //   open-connect       { profile, message? }  open the connection dialog for that profile
 //   vault-status       { keychain, vault }   the state of the stores changed
+//   tab-shown          { name }  a tab was brought to the front
 //   load-query     { title, query, attrs, scope, note?, base? }  a recipe or the explorer wants this search run
 
 const bus = new EventTarget();

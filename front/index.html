@@ -33,6 +33,7 @@
       <button data-tab="search">Search</button>
       <button data-tab="recipes">Recipes</button>
       <button data-tab="explore">Explore</button>
+      <button data-tab="server">Server</button>
     </div>
     <div id="pane-entry" class="pane on"><div class="empty">Select an entry in the tree.</div></div>
     <div id="pane-search" class="pane">
@@ -93,6 +94,20 @@
       </div>
       <p class="muted">See what a branch contains: which kinds of entries and which attributes are in use. Click one to search for it.</p>
       <div id="xOut"></div>
+    </div>
+    <div id="pane-server" class="pane">
+      <div id="srvInfo"><div class="empty">Connect to a server to see its details.</div></div>
+      <h3 class="section">Schema <span class="muted small">what the server knows how to store</span></h3>
+      <p class="muted">The schema lists every attribute and object class (kind of entry) this server accepts. Pick one to see what it is for, what it can hold and how to search for it.</p>
+      <div class="schema-tools">
+        <input type="search" id="scFilter" placeholder="Filter by name, alias, OID or description…" autocomplete="off" spellcheck="false" disabled>
+        <span class="seg"><button type="button" id="scAttrs" class="on">Attributes</button><button type="button" id="scClasses">Object classes</button></span>
+        <span id="scCount" class="muted small"></span>
+      </div>
+      <div class="schema-cols">
+        <ul id="scList" class="sclist"></ul>
+        <div id="scDetail" class="scdetail"><div class="empty">Select an item on the left.</div></div>
+      </div>
     </div>
   </section>
 </main>
