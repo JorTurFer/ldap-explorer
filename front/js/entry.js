@@ -3,7 +3,7 @@ import { api, apiText, apiBytes } from "./api.js";
 import { emit, on } from "./events.js";
 import { showTab } from "./tabs.js";
 import { goTo } from "./tree.js";
-import { splitDN } from "./nav.js";
+import { splitDN, normDN } from "./nav.js";
 import { getSchema, isDNAttr, isTimeAttr } from "./schema.js";
 import { describeTime, formatBytes, summaryBytes, isPhotoAttr, bytesToBase64 } from "./decode.js";
 import { copyBtn, copyText, asyncCopyBtn } from "./ui/copy.js";
@@ -11,6 +11,7 @@ import { downloadText, downloadBytes } from "./ui/download.js";
 import { toast } from "./ui/toast.js";
 import { entryToJSON } from "./table.js";
 import { isBookmarked, toggleBookmark } from "./bookmarks.js";
+import { getPinned, pin, unpin, openCompare, shortName } from "./compare.js";
 
 let currentDN = null;
 
@@ -78,13 +79,14 @@ export async function showEntry(dn) {
     pane.replaceChildren(
       el("div", { class: "dn" }, breadcrumb(e.dn), copyBtn(e.dn, { title: "Copy the DN", what: "Copied the DN" }),
         el("a", { class: "jump", textContent: "search from here", onclick: () => emit("search-from", { dn: e.dn }) })),
-      entryActions(e),
+      ...entryActions(e),
       attrTable(e.attrs, e.dn));
   } catch (err) { pane.replaceChildren(el("div", { class: "err", textContent: err.message })); }
 }
 
 export function initEntry() {
   on("bookmarks-changed", () => { const s = $("eStar"); if (s && s.paint) s.paint(); }); // keep the star honest
+  on("pin-changed", () => { const p = $("ePin"); if (p && p.paint) p.paint(); });
   on("select", ({ dn }) => showEntry(dn));
   on("disconnected", () => {
     currentDN = null;
@@ -106,7 +108,8 @@ function breadcrumb(dn) {
   return span;
 }
 
-// What you can do with the whole entry: take it elsewhere as LDIF (exact values) or JSON.
+// What you can do with the whole entry: keep it, take it elsewhere (LDIF, JSON), see which
+// groups it is in, compare it with another. Returns the buttons row and the groups box.
 function entryActions(e) {
   const ldif = async () => apiText("/api/entry/ldif?dn=" + encodeURIComponent(e.dn) + ($("chkOp").checked ? "&operational=1" : ""));
   const guard = (fn) => async () => { try { await fn(); } catch (err) { toast(err.message, "err"); } };
@@ -114,12 +117,46 @@ function entryActions(e) {
   const paintStar = () => { const on = isBookmarked(e.dn); star.textContent = on ? "★ Bookmarked" : "☆ Bookmark"; star.classList.toggle("on", on); };
   paintStar();
   star.paint = paintStar;
-  return el("div", { class: "entry-actions" },
-    star,
+
+  // pin / compare: the buttons follow what is pinned
+  const pinBtn = el("button", { type: "button", id: "ePin", class: "small-btn", onclick: () => (getPinned() && sameDn(getPinned(), e.dn) ? unpin() : pin(e.dn)) });
+  const cmpBtn = el("button", { type: "button", id: "eCompare", class: "small-btn primary" });
+  const paintPin = () => {
+    const p = getPinned();
+    const here = p && sameDn(p, e.dn);
+    pinBtn.textContent = here ? "Unpin" : p ? "Pin this one instead" : "Pin to compare";
+    pinBtn.title = here ? "Stop comparing" : "Pin this entry, then open another one and compare them";
+    cmpBtn.classList.toggle("hidden", !p || here);
+    if (p && !here) { cmpBtn.textContent = `Compare with ${shortName(p)}`; cmpBtn.title = `Compare ${p} with this entry`; }
+  };
+  cmpBtn.onclick = () => openCompare(e.dn);
+  paintPin();
+  pinBtn.paint = paintPin;
+
+  const groupsBox = el("div", { id: "eGroupsBox", class: "groups-box hidden" });
+  const groupsBtn = el("button", { type: "button", id: "eGroups", class: "small-btn", textContent: "Groups", title: "Which groups is this entry a member of?",
+    onclick: guard(async () => {
+      groupsBox.classList.remove("hidden");
+      groupsBox.replaceChildren(el("span", { class: "muted", textContent: "Looking…" }));
+      const g = await api("/api/entry/groups?dn=" + encodeURIComponent(e.dn));
+      groupsBox.replaceChildren(
+        el("span", { class: "muted", textContent: "Member of: " }),
+        ...(!g.available
+          ? [el("span", { class: "muted", textContent: `this server cannot say (${g.reason})` })]
+          : g.groups.length
+            ? g.groups.map((x) => el("a", { class: "dnlink grp", textContent: x.name, title: x.dn, onclick: () => goTo(x.dn) }))
+            : [el("span", { textContent: "no group" })]));
+    }) });
+
+  const row = el("div", { class: "entry-actions" },
+    star, groupsBtn, pinBtn, cmpBtn,
     el("button", { type: "button", id: "eCopyLdif", class: "small-btn", textContent: "Copy as LDIF", title: "The whole entry in LDIF, to paste into a file or another tool",
       onclick: guard(async () => copyText((await ldif()).text, "Copied the entry as LDIF")) }),
     el("button", { type: "button", id: "eDlLdif", class: "small-btn", textContent: "Download LDIF", title: "Save the entry as an .ldif file",
       onclick: guard(async () => { const { text, filename } = await ldif(); downloadText(filename, text); }) }),
     el("button", { type: "button", id: "eCopyJson", class: "small-btn", textContent: "Copy as JSON", title: "The entry as JSON (binary values are summarised)",
       onclick: () => copyText(entryToJSON(e), "Copied the entry as JSON") }));
+  return [row, groupsBox];
 }
+
+const sameDn = (a, b) => normDN(a) === normDN(b);

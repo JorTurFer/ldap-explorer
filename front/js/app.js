@@ -18,6 +18,8 @@ import { initQuickFind } from "./quickfind.js";
 import { initServer } from "./server.js";
 import { initBookmarks } from "./bookmarks.js";
 import { initHistory } from "./history.js";
+import { initCompare } from "./compare.js";
+import { initShortcuts } from "./shortcuts.js";
 
 initTabs();
 initSettings();
@@ -36,6 +38,8 @@ initServer();
 initSavedQueries();
 initBookmarks();
 initHistory();
+initCompare();
+initShortcuts();
 
 loadProfiles();
 // Heartbeat: if the tab is closed the server notices and exits.

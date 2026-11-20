@@ -15,6 +15,7 @@ import (
 	cdpbrowser "github.com/chromedp/cdproto/browser"
 	cdpruntime "github.com/chromedp/cdproto/runtime"
 	"github.com/chromedp/chromedp"
+	kb "github.com/chromedp/chromedp/kb"
 	"ldap-explorer/internal/slapdtest"
 )
 
@@ -1587,5 +1588,167 @@ func TestUIBookmarksAndHistory(t *testing.T) {
 	js(t, ctx, `document.getElementById('hSel').disabled && document.getElementById('hClear').disabled`, &disabled)
 	if !disabled {
 		t.Error("with no history both controls are off")
+	}
+}
+
+// ---------- groups and comparing entries ----------
+
+func TestUIGroupsAndCompare(t *testing.T) {
+	l := slapdtest.Start(t)
+	appURL := startApp(t)
+	ctx := browser(t)
+	run(t, ctx, chromedp.Navigate(appURL), chromedp.WaitVisible("#btnConn"))
+	allowClipboard(t, ctx, appURL)
+	connect(t, ctx, l.URL, slapdtest.AliceDN, slapdtest.AlicePW)
+	waitText(t, ctx, "#status", "Connected to")
+	people := "ou=people," + slapdtest.BaseDN
+	bobDN, zoeDN := "uid=bob,"+people, "uid=zoe,"+people
+	goToDN := func(dn string) {
+		run(t, ctx, set("#treeFilter", dn), chromedp.SendKeys("#treeFilter", "\r"))
+		waitText(t, ctx, "#pane-entry .dn", dn)
+	}
+	groupLinks := func() []string {
+		var g []string
+		js(t, ctx, `[...document.querySelectorAll('#eGroupsBox a.grp')].map(a => a.textContent)`, &g)
+		return g
+	}
+
+	// Groups: by DN (member) and by login (memberUid).
+	goToDN(slapdtest.AliceDN)
+	run(t, ctx, chromedp.Click("#eGroups"))
+	waitText(t, ctx, "#eGroupsBox", "Member of:")
+	waitJS(t, ctx, "groups listed", `document.querySelectorAll('#eGroupsBox a.grp').length === 2`)
+	if got := strings.Join(groupLinks(), ","); got != "admins,staff" {
+		t.Errorf("alice's groups: %s", got)
+	}
+	run(t, ctx, chromedp.Click(`#eGroupsBox a.grp`)) // admins
+	waitText(t, ctx, "#pane-entry .dn", "cn=admins,ou=groups,")
+	goToDN(bobDN)
+	run(t, ctx, chromedp.Click("#eGroups"))
+	waitJS(t, ctx, "bob in one group", `document.querySelectorAll('#eGroupsBox a.grp').length === 1`)
+	goToDN(zoeDN)
+	run(t, ctx, chromedp.Click("#eGroups"))
+	waitText(t, ctx, "#eGroupsBox", "no group")
+
+	// Compare: pin alice, open bob, compare.
+	goToDN(slapdtest.AliceDN)
+	waitText(t, ctx, "#ePin", "Pin to compare")
+	run(t, ctx, chromedp.Click("#ePin"))
+	waitText(t, ctx, "#ePin", "Unpin")
+	var hidden bool
+	js(t, ctx, `document.getElementById('eCompare').classList.contains('hidden')`, &hidden)
+	if !hidden {
+		t.Error("an entry cannot be compared with itself")
+	}
+	goToDN(bobDN)
+	waitText(t, ctx, "#ePin", "Pin this one instead")
+	waitText(t, ctx, "#eCompare", "Compare with alice")
+	run(t, ctx, chromedp.Click("#eCompare"))
+	waitJS(t, ctx, "compare dialog", `document.getElementById('compareDlg').open`)
+	waitText(t, ctx, "#cmpSummary", "differ")
+	waitText(t, ctx, "#cmpSummary", "only in alice")
+	waitText(t, ctx, "#cmpSummary", "only in bob")
+	waitText(t, ctx, "#cmpA", slapdtest.AliceDN)
+	waitText(t, ctx, "#cmpB", bobDN)
+	statusOf := func(attr string) string {
+		var s string
+		js(t, ctx, fmt.Sprintf(`(document.querySelector('#cmpTable tr[data-attr=%q] .cmp-status')||{textContent:''}).textContent`, attr), &s)
+		return s
+	}
+	if statusOf("jpegPhoto") != "only in alice" || statusOf("telephoneNumber") != "only in bob" || statusOf("mail") != "differs" {
+		t.Errorf("statuses: photo=%q phone=%q mail=%q", statusOf("jpegPhoto"), statusOf("telephoneNumber"), statusOf("mail"))
+	}
+	if statusOf("objectClass") != "" {
+		t.Error("what is the same is hidden by default")
+	}
+	run(t, ctx, chromedp.Click("#cmpOnly"))
+	waitJS(t, ctx, "identical rows shown", `!!document.querySelector('#cmpTable tr[data-attr="objectClass"]')`)
+	if statusOf("objectClass") != "same" {
+		t.Errorf("objectClass: %q", statusOf("objectClass"))
+	}
+	clickCopy(t, ctx, "#cmpA .copy-btn", slapdtest.AliceDN, "Copied the DN")
+	run(t, ctx, chromedp.Click("#cmpClose"))
+	waitJS(t, ctx, "closed", `!document.getElementById('compareDlg').open`)
+
+	// Pin this one instead; unpin.
+	run(t, ctx, chromedp.Click("#ePin"))
+	waitText(t, ctx, "#ePin", "Unpin")
+	run(t, ctx, chromedp.Click("#ePin"))
+	waitText(t, ctx, "#ePin", "Pin to compare")
+}
+
+// ---------- keyboard shortcuts ----------
+
+func TestUIKeyboardShortcuts(t *testing.T) {
+	l := slapdtest.Start(t)
+	appURL := startApp(t)
+	ctx := browser(t)
+	run(t, ctx, chromedp.Navigate(appURL), chromedp.WaitVisible("#btnConn"))
+	active := func() string {
+		var id string
+		js(t, ctx, `document.activeElement.id || document.activeElement.tagName`, &id)
+		return id
+	}
+	activeTab := func() string {
+		var tab string
+		js(t, ctx, `document.querySelector('.pane.on').id`, &tab)
+		return tab
+	}
+
+	// ? shows the list (any time), Escape closes it.
+	run(t, ctx, chromedp.KeyEvent("?"))
+	waitJS(t, ctx, "help open", `document.getElementById('helpDlg').open`)
+	waitText(t, ctx, "#helpTable", "Go to Search")
+	waitText(t, ctx, "#helpTable", "Find anyone or anything")
+	var rows int
+	js(t, ctx, `document.querySelectorAll('#helpTable tr').length`, &rows)
+	if rows < 8 {
+		t.Errorf("the help should list every shortcut: %d rows", rows)
+	}
+	run(t, ctx, chromedp.KeyEvent(kb.Escape))
+	waitJS(t, ctx, "help closed", `!document.getElementById('helpDlg').open`)
+	run(t, ctx, chromedp.Click("#btnHelp"))
+	waitJS(t, ctx, "button opens it too", `document.getElementById('helpDlg').open`)
+	run(t, ctx, chromedp.Click("#helpClose"))
+
+	// Not connected: the search box is off, so "/" has nothing to focus.
+	run(t, ctx, chromedp.KeyEvent("/"))
+	if active() == "quickFind" {
+		t.Error("a disabled box cannot take the focus")
+	}
+	connect(t, ctx, l.URL, slapdtest.AliceDN, slapdtest.AlicePW)
+	waitText(t, ctx, "#status", "Connected to")
+	run(t, ctx, chromedp.Evaluate(`document.activeElement.blur()`, nil))
+
+	run(t, ctx, chromedp.KeyEvent("/"))
+	waitJS(t, ctx, "quick find focused", `document.activeElement.id === 'quickFind'`)
+	// typing inside a box is never a shortcut: "gs" stays text and the tab does not change
+	run(t, ctx, chromedp.SendKeys("#quickFind", "gs"))
+	var typed string
+	js(t, ctx, `document.getElementById('quickFind').value`, &typed)
+	if typed != "gs" || activeTab() != "pane-entry" {
+		t.Errorf("typing in the box: value=%q tab=%s", typed, activeTab())
+	}
+	run(t, ctx, chromedp.KeyEvent(kb.Escape)) // clears and leaves the box
+	waitJS(t, ctx, "box cleared", `document.getElementById('quickFind').value === '' && document.activeElement.id !== 'quickFind'`)
+
+	// Two-key sequences: g then a letter.
+	for _, c := range []struct{ keys, pane string }{{"gs", "pane-search"}, {"gr", "pane-recipes"}, {"gx", "pane-explore"}, {"gv", "pane-server"}, {"ge", "pane-entry"}} {
+		run(t, ctx, chromedp.KeyEvent(c.keys))
+		waitJS(t, ctx, c.keys+" -> "+c.pane, `document.querySelector('.pane.on').id === `+q(c.pane))
+	}
+	run(t, ctx, chromedp.KeyEvent("t"))
+	waitJS(t, ctx, "tree filter focused", `document.activeElement.id === 'treeFilter'`)
+	run(t, ctx, chromedp.Evaluate(`document.activeElement.blur()`, nil))
+	run(t, ctx, chromedp.KeyEvent("gb"))
+	waitJS(t, ctx, "bookmarks open", `document.getElementById('bookmarks').open`)
+
+	// An unknown key does nothing, and a dialog takes the keys away from the shortcuts.
+	run(t, ctx, chromedp.KeyEvent("z"))
+	run(t, ctx, chromedp.KeyEvent("gp"))
+	waitJS(t, ctx, "passwords panel", `document.getElementById('manageDlg').open`)
+	run(t, ctx, chromedp.KeyEvent("gs"))
+	if activeTab() == "pane-search" {
+		t.Error("while a dialog is open the shortcuts are off")
 	}
 }
