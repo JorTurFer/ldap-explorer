@@ -199,7 +199,9 @@ func TestUIConnectBrowseAndSearch(t *testing.T) {
 	waitText(t, ctx, "#sOut", "10 result(s)")
 	waitText(t, ctx, "#sOut", "Size Limit Exceeded") // 10 < number of matches: warning, not an error
 
-	// Invalid filter: rejected with a readable message.
+	// Invalid filter: rejected with a readable message. (The history list refreshes after the
+	// previous search; wait for it so nothing moves under the click.)
+	waitJS(t, ctx, "history settled", `document.querySelectorAll('#hSel option').length >= 2`)
 	run(t, ctx, set("#sFilter", "(uid="), chromedp.Click("#btnSearch"))
 	waitText(t, ctx, "#sOut .err", "invalid filter")
 
@@ -1864,4 +1866,30 @@ func TestUIErrorsAreExplained(t *testing.T) {
 	waitText(t, ctx, "#status", "Connected to")
 	run(t, ctx, set("#treeFilter", "uid=nobody,ou=people,"+slapdtest.BaseDN), chromedp.SendKeys("#treeFilter", "\r"))
 	waitText(t, ctx, "#pane-entry .err", "That entry does not exist, or you are not allowed to see it.")
+}
+
+// The Search button must not jump when the lists above it are refreshed (a click would miss).
+func TestUISearchButtonStaysPut(t *testing.T) {
+	l := slapdtest.Start(t)
+	appURL := startApp(t)
+	ctx := browser(t)
+	run(t, ctx, chromedp.Navigate(appURL), chromedp.WaitVisible("#btnConn"))
+	connect(t, ctx, l.URL, slapdtest.AliceDN, slapdtest.AlicePW)
+	waitText(t, ctx, "#status", "Connected to")
+	run(t, ctx, chromedp.Click(`button[data-tab="search"]`), chromedp.WaitReady("#sBase"), rawMode(),
+		set("#sBase", "ou=people,"+slapdtest.BaseDN), set("#sScope", "one"))
+	top := func() float64 {
+		var y float64
+		js(t, ctx, `document.getElementById('btnSearch').getBoundingClientRect().top`, &y)
+		return y
+	}
+	before := top()
+	for _, f := range []string{"(uid=bob)", "(uid=alice)", "(objectClass=inetOrgPerson)", "(uid=a-much-longer-filter-to-make-the-history-text-long-" + strings.Repeat("x", 80) + ")"} {
+		run(t, ctx, set("#sFilter", f), chromedp.Click("#btnSearch"))
+		waitText(t, ctx, "#sOut", "result(s)")
+		waitJS(t, ctx, "history refreshed", `document.querySelectorAll('#hSel option').length >= 2`)
+		if got := top(); got != before {
+			t.Fatalf("the Search button moved from %v to %v after searching %q", before, got, f)
+		}
+	}
 }
