@@ -2012,18 +2012,18 @@ func TestUILinksAndBack(t *testing.T) {
 	run(t, ctx, set("#treeFilter", admins), chromedp.SendKeys("#treeFilter", "\r"))
 	waitText(t, ctx, "#pane-entry .dn", admins)
 	// (Opening the connection selected the root first, so Back leads there.)
-	if !jsBool(t, ctx, `!document.getElementById('eBack').disabled && document.getElementById('eForward').disabled`) {
+	if !jsBool(t, ctx, `!document.getElementById('navBack').disabled && document.getElementById('navForward').disabled`) {
 		t.Error("expected Back enabled (the root was shown first) and Forward disabled")
 	}
 
 	// Follow the member link: Back returns, Forward goes again.
 	run(t, ctx, chromedp.Click(`#pane-entry tr[data-attr="member"] a.dnlink`))
 	waitText(t, ctx, "#pane-entry .dn", slapdtest.AliceDN)
-	waitJS(t, ctx, "Back enabled", `!document.getElementById('eBack').disabled && document.getElementById('eBack').title.includes('cn=admins')`)
-	run(t, ctx, chromedp.Click("#eBack"))
+	waitJS(t, ctx, "Back enabled", `!document.getElementById('navBack').disabled && document.getElementById('navBack').title.includes('cn=admins')`)
+	run(t, ctx, chromedp.Click("#navBack"))
 	waitText(t, ctx, "#pane-entry .dn", admins)
-	waitJS(t, ctx, "Forward enabled", `!document.getElementById('eForward').disabled && document.getElementById('eBack').title.includes('dc=example,dc=org')`)
-	run(t, ctx, chromedp.Click("#eForward"))
+	waitJS(t, ctx, "Forward enabled", `!document.getElementById('navForward').disabled && document.getElementById('navBack').title.includes('dc=example,dc=org')`)
+	run(t, ctx, chromedp.Click("#navForward"))
 	waitText(t, ctx, "#pane-entry .dn", slapdtest.AliceDN)
 
 	// The same with the keyboard: [ and ].
@@ -2033,11 +2033,11 @@ func TestUILinksAndBack(t *testing.T) {
 	waitText(t, ctx, "#pane-entry .dn", slapdtest.AliceDN)
 
 	// Going back and then somewhere new drops what was forward.
-	run(t, ctx, chromedp.Click("#eBack"))
+	run(t, ctx, chromedp.Click("#navBack"))
 	waitText(t, ctx, "#pane-entry .dn", admins)
 	run(t, ctx, set("#treeFilter", slapdtest.BobDN), chromedp.SendKeys("#treeFilter", "\r"))
 	waitText(t, ctx, "#pane-entry .dn", slapdtest.BobDN)
-	if jsBool(t, ctx, `!document.getElementById('eForward').disabled`) {
+	if jsBool(t, ctx, `!document.getElementById('navForward').disabled`) {
 		t.Error("Forward should be disabled after opening something new")
 	}
 }
@@ -2229,4 +2229,58 @@ func TestUIBuilderFieldsAlignedAndGuessedOptions(t *testing.T) {
 	if jsBool(t, ctx, `!!document.querySelector('#builder .bcond:nth-child(1) .guess')`) {
 		t.Error("a field with published rules should not carry the marker")
 	}
+}
+
+// ---------- issue #4: Back and Forward for the whole program ----------
+
+func TestUINavigationAcrossTabs(t *testing.T) {
+	l := slapdtest.Start(t)
+	appURL := startApp(t)
+	ctx := browser(t)
+	run(t, ctx, chromedp.Navigate(appURL), chromedp.WaitVisible("#btnConn"))
+	if !jsBool(t, ctx, `document.getElementById('navBack').disabled && document.getElementById('navForward').disabled`) {
+		t.Error("Back and Forward start disabled")
+	}
+	connect(t, ctx, l.URL, slapdtest.AliceDN, slapdtest.AlicePW)
+	waitText(t, ctx, "#status", "Connected to")
+	waitTab := func(name string) {
+		t.Helper()
+		waitJS(t, ctx, "the "+name+" tab", `document.querySelector('.tabs button.on').dataset.tab === `+q(name))
+	}
+
+	// An entry, then other tabs, then another entry.
+	run(t, ctx, set("#treeFilter", slapdtest.AliceDN), chromedp.SendKeys("#treeFilter", "\r"))
+	waitText(t, ctx, "#pane-entry .dn", slapdtest.AliceDN)
+	run(t, ctx, chromedp.Click(`button[data-tab="search"]`))
+	run(t, ctx, chromedp.Click(`button[data-tab="server"]`))
+	waitTab("server")
+	run(t, ctx, chromedp.Click(`button[data-tab="entry"]`))
+	run(t, ctx, set("#treeFilter", slapdtest.BobDN), chromedp.SendKeys("#treeFilter", "\r"))
+	waitText(t, ctx, "#pane-entry .dn", slapdtest.BobDN)
+
+	// Back goes through them in reverse: the Entry tab (alice), Server, Search, alice.
+	for _, want := range []string{"entry", "server", "search", "entry"} {
+		run(t, ctx, chromedp.Click("#navBack"))
+		waitTab(want)
+	}
+	waitText(t, ctx, "#pane-entry .dn", slapdtest.AliceDN) // and the first place is alice again
+	if !jsBool(t, ctx, `document.getElementById('navBack').title.includes('dc=example,dc=org')`) {
+		t.Error("Back should now lead to the root entry that was shown first")
+	}
+
+	// Forward again; the keyboard (Alt+Right / Alt+Left) and a mouse's back button do the same.
+	run(t, ctx, chromedp.Click("#navForward"))
+	waitTab("search")
+	run(t, ctx, eval(`document.activeElement.blur()`), chromedp.KeyEvent(kb.ArrowRight, chromedp.KeyModifiers(chromedp.ModifierAlt)))
+	waitTab("server")
+	run(t, ctx, chromedp.KeyEvent(kb.ArrowLeft, chromedp.KeyModifiers(chromedp.ModifierAlt)))
+	waitTab("search")
+	run(t, ctx, eval(`document.dispatchEvent(new MouseEvent('mouseup', { button: 3, bubbles: true, cancelable: true }))`))
+	waitJS(t, ctx, "back with the mouse", `document.querySelector('.tabs button.on').dataset.tab === 'entry'`)
+	run(t, ctx, eval(`document.dispatchEvent(new MouseEvent('mouseup', { button: 4, bubbles: true, cancelable: true }))`))
+	waitTab("search")
+
+	// Disconnecting forgets the trail.
+	run(t, ctx, chromedp.Click("#btnDisc"))
+	waitJS(t, ctx, "trail cleared", `document.getElementById('navBack').disabled && document.getElementById('navForward').disabled`)
 }

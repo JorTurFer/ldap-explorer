@@ -21,6 +21,7 @@ import { initHistory } from "./history.js";
 import { initCompare } from "./compare.js";
 import { initShortcuts } from "./shortcuts.js";
 import { initActivity } from "./activity.js";
+import { initNavigation } from "./navigation.js";
 
 initTabs();
 initSettings();
@@ -42,6 +43,7 @@ initHistory();
 initCompare();
 initShortcuts();
 initActivity();
+initNavigation();
 
 loadProfiles();
 // Heartbeat: if the tab is closed the server notices and exits.

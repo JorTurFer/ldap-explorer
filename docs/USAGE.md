@@ -34,7 +34,7 @@ When you are done, close the tab: the program exits by itself a few minutes late
 
 ## 2. The screen at a glance
 
-- **Top bar**: **Connect…** / **Disconnect**; the **search box** (press `/` to jump to it); **Connect as…** (switch between your saved users and servers in one click); **operational attributes** (also show the attributes the server keeps for itself, in their own section); **?** (keyboard shortcuts); **Theme** (light, dark or follow the system); **Passwords**; and the connection status on the right.
+- **Top bar**: **←** / **→** (Back and Forward through the places you have been); **Connect…** / **Disconnect**; the **search box** (press `/` to jump to it); **Connect as…** (switch between your saved users and servers in one click); **operational attributes** (also show the attributes the server keeps for itself, in their own section); **?** (keyboard shortcuts); **Theme** (light, dark or follow the system); **Passwords**; and the connection status on the right.
 - **Left**: a box to **filter the tree or jump to a DN**, your **Bookmarks**, and the **tree** of the directory.
 - **Right**, in tabs: **Entry** (what is selected), **Search** (build a search), **Recipes** (ready-made questions), **Explore** (what is in a branch) and **Server** (what this server is and what it can store).
 
@@ -200,7 +200,9 @@ Besides the data of an entry (name, email, groups...) a server keeps some attrib
 
 Many attributes point at other entries: `member` and `uniqueMember` in a group, `manager`, `owner`, `seeAlso`, `memberOf`, `secretary`... Their values are **links**: click one to open that entry, and the tree opens the branch that leads to it. The server's schema decides which attributes hold entries; when it is not available, the well-known ones are used and only values that really look like a DN become links (a description that happens to contain `a=b` never does).
 
-Next to the DN there are **←** and **→** buttons that work like the ones of a browser: **←** goes back to the entry you came from, **→** forward again. Hover a button to see which entry it leads to. Opening something new after going back forgets what was "forward". The keyboard shortcuts are `[` (back) and `]` (forward). The trail is cleared when you disconnect.
+**Back and Forward** work for the whole program, like in a browser. The **←** and **→** buttons are at the left of the top bar, always visible. The program remembers every **entry** you open and every **tab** you go to, so ← takes you back through them in reverse (an entry, the Search tab, another entry...), and → goes forward again. Hover a button to see where it leads. Opening something new after going back forgets what was "forward". The trail is cleared when you disconnect.
+
+Other ways to do the same: the keys **`[`** and **`]`**, **Alt+←** and **Alt+→**, and the **back and forward buttons of your mouse**.
 
 ![Following a member link and coming back](img/entry-links.png)
 
@@ -227,7 +229,7 @@ Next to the DN there are **←** and **→** buttons that work like the ones of 
 | `g` then `e` / `s` / `r` / `x` / `v` | Go to Entry / Search / Recipes / Explore / Server |
 | `g` then `b` | Open the bookmarks |
 | `g` then `p` | Open the Passwords panel |
-| `[` / `]` | Back / forward through the entries you opened |
+| `[` / `]`, `Alt+←` / `Alt+→`, mouse back / forward buttons | Back / forward through the entries and tabs you visited |
 | `?` | Show the list of shortcuts |
 
 ![The keyboard shortcuts](img/shortcuts.png)
@@ -346,7 +348,8 @@ Everything you create is kept in your user configuration folder (macOS `~/Librar
 | Simple bind with DN + password; anonymous access | Supported. |
 | Base DN auto-detection from the RootDSE | Supported. |
 | Tree browsing with paging | Supported. |
-| Entry view: attributes, UTF-8 values, links between entries with Back and Forward, breadcrumb | Supported. |
+| Entry view: attributes, UTF-8 values, links between entries, breadcrumb | Supported. |
+| Back and Forward across entries and tabs (buttons, keys, mouse buttons) | Supported. |
 | Operational attributes in their own section, each explained in plain words | Supported. |
 | Photos drawn in place; download and base64 copy of binary values; dates in plain words | Supported. |
 | Copying names, values, DNs, filters and table cells with one click | Supported. |

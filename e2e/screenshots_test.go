@@ -79,9 +79,9 @@ func TestScreenshots(t *testing.T) {
 	waitText(t, ctx, "#pane-entry .dn", admins)
 	run(t, ctx, chromedp.Click(`#pane-entry tr[data-attr="member"] a.dnlink`))
 	waitText(t, ctx, "#pane-entry .dn", slapdtest.AliceDN)
-	run(t, ctx, chromedp.Click("#eBack"))
+	run(t, ctx, chromedp.Click("#navBack"))
 	waitText(t, ctx, "#pane-entry .dn", admins)
-	waitJS(t, ctx, "Forward enabled", `!document.getElementById('eForward').disabled`)
+	waitJS(t, ctx, "Forward enabled", `!document.getElementById('navForward').disabled`)
 	shot("entry-links")
 
 	// 3. The query builder: no LDAP knowledge needed.
