@@ -67,7 +67,22 @@ func TestScreenshots(t *testing.T) {
 	run(t, ctx, chromedp.Click("#eStar"))
 	waitText(t, ctx, "#bmCount", "1")
 	shot("browse")
+
+	// 2b. The operational attributes, in their own section with a line of explanation each.
+	run(t, ctx, eval(`document.getElementById('opTitle').scrollIntoView({block: 'start'})`))
+	shot("operational")
 	run(t, ctx, chromedp.Click("#chkOp")) // back to the ordinary view for what follows
+
+	// 2c. Following a link from entry to entry, and Back / Forward.
+	admins := "cn=admins,ou=groups," + slapdtest.BaseDN
+	run(t, ctx, set("#treeFilter", admins), chromedp.SendKeys("#treeFilter", "\r"))
+	waitText(t, ctx, "#pane-entry .dn", admins)
+	run(t, ctx, chromedp.Click(`#pane-entry tr[data-attr="member"] a.dnlink`))
+	waitText(t, ctx, "#pane-entry .dn", slapdtest.AliceDN)
+	run(t, ctx, chromedp.Click("#eBack"))
+	waitText(t, ctx, "#pane-entry .dn", admins)
+	waitJS(t, ctx, "Forward enabled", `!document.getElementById('eForward').disabled`)
+	shot("entry-links")
 
 	// 3. The query builder: no LDAP knowledge needed.
 	run(t, ctx, chromedp.Click(`button[data-tab="search"]`), chromedp.WaitReady("#sBase"),

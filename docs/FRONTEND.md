@@ -23,7 +23,7 @@ make screenshots  # regenerate docs/img after a visible change
 | `front/js/app.js` | The entry point: it calls each module's `init…()` and nothing else. |
 | `front/js/*.js` | One module per concern (`tree`, `entry`, `search`, `builder`, `results`, `recipes`, `explore`, `server`, `vault`...). |
 | `front/js/ui/` | Reusable pieces: `copy.js`, `toast.js`, `download.js`. |
-| `front/js/*-model.js`, `table.js`, `decode.js`, `diff.js`, `nav.js`, `labels.js`, `friendly-errors.js` | **Pure logic with no DOM access**, unit-tested with Node. |
+| `front/js/*-model.js`, `table.js`, `decode.js`, `diff.js`, `nav.js`, `labels.js`, `friendly-errors.js`, `entry-model.js`, `trail.js` | **Pure logic with no DOM access**, unit-tested with Node. |
 | `front/test/` | The Node unit tests. Not embedded in the binary. |
 | `e2e/` | The browser tests (a separate Go module, so the app's `go.mod` does not carry the browser-automation dependency). |
 

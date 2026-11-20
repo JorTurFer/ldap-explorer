@@ -646,6 +646,10 @@ func TestDocsAreConsistent(t *testing.T) {
 	for _, h := range heading.FindAllStringSubmatch(string(usage), -1) {
 		anchors[slug(h[1], h[2])] = true
 	}
+	// unnumbered sub-headings (### Title) are anchors too, as GitHub makes them
+	for _, h := range regexp.MustCompile(`(?m)^#{3,4} ([^\d\s].*)$`).FindAllStringSubmatch(string(usage), -1) {
+		anchors[slug("", h[1])[1:]] = true // slug() leaves a leading "-" where a number would be
+	}
 	for _, m := range regexp.MustCompile(`\]\(#([^)]+)\)`).FindAllStringSubmatch(string(usage), -1) {
 		if !anchors[m[1]] {
 			t.Errorf("docs/USAGE.md links to #%s, which is not a section", m[1])

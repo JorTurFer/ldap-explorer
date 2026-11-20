@@ -11,6 +11,8 @@ const actions = {
   treefilter: () => { if (!$("treeFilter").disabled) $("treeFilter").focus(); },
   bookmarks: () => { $("bookmarks").open = true; $("bookmarks").scrollIntoView({ block: "nearest" }); },
   passwords: () => $("btnVault").click(),
+  back: () => { const b = $("eBack"); if (b && !b.disabled) b.click(); },
+  forward: () => { const b = $("eForward"); if (b && !b.disabled) b.click(); },
   help: () => openHelp(),
 };
 

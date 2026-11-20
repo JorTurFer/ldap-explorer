@@ -11,6 +11,8 @@ export const SHORTCUTS = [
   { keys: ["g", "v"], action: "tab:server", help: "Go to Server and schema" },
   { keys: ["g", "b"], action: "bookmarks", help: "Open the bookmarks" },
   { keys: ["g", "p"], action: "passwords", help: "Open the Passwords panel" },
+  { keys: ["["], action: "back", help: "Back to the previous entry" },
+  { keys: ["]"], action: "forward", help: "Forward to the next entry" },
   { keys: ["?"], action: "help", help: "Show this list" },
 ];
 

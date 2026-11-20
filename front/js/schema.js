@@ -38,5 +38,11 @@ export const attrInfo = (idx, name) => (idx ? idx.attrs.get((name || "").trim().
 // so far; false while it is not available.
 export const isDNAttr = (name) => attrInfo(current, name)?.kind === "dn";
 
+// What the schema says about an attribute's kind ("dn", "time"...), or undefined when it is not known.
+export const attrKind = (name) => attrInfo(current, name)?.kind;
+
+// Does the schema say this attribute is operational? undefined when it does not know the attribute.
+export const isOperationalAttr = (name) => { const a = attrInfo(current, name); return a ? !!a.operational : undefined; };
+
 // Is this attribute a date and time (createTimestamp, pwdChangedTime...)?
 export const isTimeAttr = (name) => attrInfo(current, name)?.kind === "time";

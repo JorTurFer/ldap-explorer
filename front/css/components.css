@@ -250,3 +250,14 @@ tr.cmp-onlyA td.cmp-cell:nth-child(2), tr.cmp-onlyB td.cmp-cell:nth-child(3) { b
    sits below it and would jump under the mouse. */
 .saved select { width: 210px; max-width: 100%; text-overflow: ellipsis; }
 .saved #qMsg { flex: 1 0 100%; min-height: 1.4em; } /* its own line, always reserved: its text never changes how the row wraps */
+
+/* Back / Forward between the entries you opened, next to the DN */
+.trail { display: inline-flex; gap: var(--space-1); margin-right: var(--space-2); vertical-align: middle; }
+.trail .small-btn { min-width: 28px; }
+.trail .small-btn:disabled { opacity: 0.4; cursor: default; }
+
+/* the operational attributes: their own section, with a line in plain words under each */
+.op-title { margin: var(--space-4) 0 var(--space-1); font-size: var(--text-m, 14px); }
+.op-note { margin: 0 0 var(--space-2); }
+.op-off { margin-top: var(--space-3); }
+table.attrs td.v .hint { color: var(--muted); font-family: var(--font); font-size: var(--text-s); word-break: normal; }

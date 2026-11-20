@@ -1968,3 +1968,83 @@ func TestUICopyEverywhereElse(t *testing.T) {
 	clickCopy(t, ctx, `#mList tr[data-profile="lab"] td:nth-child(2) .copy-btn`, slapdtest.AliceDN, "Copied the user DN")
 	clickCopy(t, ctx, `#mList tr[data-profile="lab"] td:nth-child(3) .copy-btn`, l.URL, "Copied the server address")
 }
+
+// ---------- operational attributes in their own section; links, Back and Forward ----------
+
+func TestUIOperationalSection(t *testing.T) {
+	l := slapdtest.Start(t)
+	appURL := startApp(t)
+	ctx := browser(t)
+	run(t, ctx, chromedp.Navigate(appURL), chromedp.WaitVisible("#btnConn"))
+	connect(t, ctx, l.URL, slapdtest.AliceDN, slapdtest.AlicePW)
+	waitText(t, ctx, "#status", "Connected to")
+	run(t, ctx, set("#treeFilter", slapdtest.AliceDN), chromedp.SendKeys("#treeFilter", "\r"))
+	waitText(t, ctx, "#pane-entry .dn", slapdtest.AliceDN)
+
+	// Hidden: the entry says so and offers them in one click.
+	waitText(t, ctx, "#pane-entry", "Operational attributes (created, changed, unique id")
+	run(t, ctx, chromedp.Click("#showOp"))
+	waitJS(t, ctx, "the section", `!!document.getElementById('opTitle')`)
+	if !jsBool(t, ctx, `document.getElementById('chkOp').checked`) {
+		t.Error("the top-bar checkbox did not follow")
+	}
+	// They are in their own table, after the ordinary ones, each explained in words.
+	if !jsBool(t, ctx, `(() => { const [user, op] = document.querySelectorAll('#pane-entry table.attrs');
+		const names = (t) => [...t.querySelectorAll('td.k')].map(td => td.textContent);
+		return !!op && names(user).includes('mail') && !names(user).includes('entryUUID') && names(op).includes('entryUUID') && !names(op).includes('mail'); })()`) {
+		t.Error("ordinary and operational attributes are not in separate tables")
+	}
+	waitText(t, ctx, `#pane-entry tr[data-attr="modifyTimestamp"]`, "last changed")
+	// Operational values still have their copy buttons.
+	allowClipboard(t, ctx, appURL)
+	run(t, ctx, chromedp.Click(`#pane-entry tr[data-attr="entryUUID"] .copy-btn`))
+	waitText(t, ctx, "#toasts", "Copied")
+}
+
+func TestUILinksAndBack(t *testing.T) {
+	l := slapdtest.Start(t)
+	appURL := startApp(t)
+	ctx := browser(t)
+	run(t, ctx, chromedp.Navigate(appURL), chromedp.WaitVisible("#btnConn"))
+	connect(t, ctx, l.URL, slapdtest.AliceDN, slapdtest.AlicePW)
+	waitText(t, ctx, "#status", "Connected to")
+	admins := "cn=admins,ou=groups," + slapdtest.BaseDN
+	run(t, ctx, set("#treeFilter", admins), chromedp.SendKeys("#treeFilter", "\r"))
+	waitText(t, ctx, "#pane-entry .dn", admins)
+	// (Opening the connection selected the root first, so Back leads there.)
+	if !jsBool(t, ctx, `!document.getElementById('eBack').disabled && document.getElementById('eForward').disabled`) {
+		t.Error("expected Back enabled (the root was shown first) and Forward disabled")
+	}
+
+	// Follow the member link: Back returns, Forward goes again.
+	run(t, ctx, chromedp.Click(`#pane-entry tr[data-attr="member"] a.dnlink`))
+	waitText(t, ctx, "#pane-entry .dn", slapdtest.AliceDN)
+	waitJS(t, ctx, "Back enabled", `!document.getElementById('eBack').disabled && document.getElementById('eBack').title.includes('cn=admins')`)
+	run(t, ctx, chromedp.Click("#eBack"))
+	waitText(t, ctx, "#pane-entry .dn", admins)
+	waitJS(t, ctx, "Forward enabled", `!document.getElementById('eForward').disabled && document.getElementById('eBack').title.includes('dc=example,dc=org')`)
+	run(t, ctx, chromedp.Click("#eForward"))
+	waitText(t, ctx, "#pane-entry .dn", slapdtest.AliceDN)
+
+	// The same with the keyboard: [ and ].
+	run(t, ctx, eval(`document.activeElement.blur()`), chromedp.KeyEvent("["))
+	waitText(t, ctx, "#pane-entry .dn", admins)
+	run(t, ctx, chromedp.KeyEvent("]"))
+	waitText(t, ctx, "#pane-entry .dn", slapdtest.AliceDN)
+
+	// Going back and then somewhere new drops what was forward.
+	run(t, ctx, chromedp.Click("#eBack"))
+	waitText(t, ctx, "#pane-entry .dn", admins)
+	run(t, ctx, set("#treeFilter", slapdtest.BobDN), chromedp.SendKeys("#treeFilter", "\r"))
+	waitText(t, ctx, "#pane-entry .dn", slapdtest.BobDN)
+	if jsBool(t, ctx, `!document.getElementById('eForward').disabled`) {
+		t.Error("Forward should be disabled after opening something new")
+	}
+}
+
+func jsBool(t *testing.T, ctx context.Context, expr string) bool {
+	t.Helper()
+	var b bool
+	js(t, ctx, expr, &b)
+	return b
+}

@@ -34,7 +34,7 @@ When you are done, close the tab: the program exits by itself a few minutes late
 
 ## 2. The screen at a glance
 
-- **Top bar**: **Connect…** / **Disconnect**; the **search box** (press `/` to jump to it); **Connect as…** (switch between your saved users and servers in one click); **operational attributes** (also show the attributes the server keeps for itself); **?** (keyboard shortcuts); **Theme** (light, dark or follow the system); **Passwords**; and the connection status on the right.
+- **Top bar**: **Connect…** / **Disconnect**; the **search box** (press `/` to jump to it); **Connect as…** (switch between your saved users and servers in one click); **operational attributes** (also show the attributes the server keeps for itself, in their own section); **?** (keyboard shortcuts); **Theme** (light, dark or follow the system); **Passwords**; and the connection status on the right.
 - **Left**: a box to **filter the tree or jump to a DN**, your **Bookmarks**, and the **tree** of the directory.
 - **Right**, in tabs: **Entry** (what is selected), **Search** (build a search), **Recipes** (ready-made questions), **Explore** (what is in a branch) and **Server** (what this server is and what it can store).
 
@@ -150,10 +150,10 @@ Click an entry in the tree or in any result.
 
 - **The DN** (the entry's full address) is a **breadcrumb**: click any part to go to that ancestor. **copy** copies it; **search from here** jumps to Search with it as the base.
 - **Each attribute row** shows the name, its values and, when you point at the row, copy buttons: **name** copies the attribute name, **value** (or **first value**) copies the value, and **all N** copies every value, one per line.
-- **Links**: attributes whose value is another entry (such as `member`, `manager`, `owner`) are links that open that entry.
+- **Links**: attributes whose value is another entry (such as `member`, `manager`, `owner`, `seeAlso`) are links that open that entry; see [Following links](#following-links-back-and-forward) below.
 - **Dates** (`createTimestamp` and the like) are shown as the server stores them, with a line in plain words below: *2026-11-19 12:00:00 UTC · 3 days ago*.
 - **Binary values**: photos are drawn right there. Every binary value has a **download** button (with its size) and a **base64** copy button in the row.
-- **operational attributes** (checkbox in the top bar) also shows what the server keeps for itself (`entryUUID`, `createTimestamp`, `modifyTimestamp`...).
+- **Operational attributes** are what the server keeps for itself about the entry; see [Operational attributes](#operational-attributes) below.
 
 Under the DN there are buttons:
 
@@ -164,6 +164,26 @@ Under the DN there are buttons:
 | **Pin to compare** | Pins this entry. Open another entry and a **Compare with…** button appears. |
 | **Copy as LDIF** / **Download LDIF** | The whole entry in LDIF, exact values, to paste into a file or another tool. |
 | **Copy as JSON** | The whole entry as JSON. |
+
+### Operational attributes
+
+Besides the data of an entry (name, email, groups...) a server keeps some attributes for itself: when the entry was created and changed, who did it, its unique id, whether it has children... They are called *operational*, and the server only sends them when asked.
+
+- Normally they are **hidden**. The entry says so at the bottom and offers a **Show them** button; the **operational attributes** checkbox in the top bar does the same, for every entry you open.
+- When shown, they get **their own section** under the ordinary attributes, so they never get mixed up with the entry's data. **Each one has a line in plain words** saying what it is for (*A unique id the server gave this entry. It never changes, even if the entry is renamed.*).
+- Dates are decoded as everywhere else (*2026-11-20 08:00:35 UTC · just now*), values that are entries (`creatorsName`, `modifiersName`, `subschemaSubentry`) are links, and every row has its copy buttons.
+- Which attributes count as operational comes from the server's own schema. If the schema is not available, the well-known ones are recognised by name.
+- Copy as LDIF and Download LDIF include them when the checkbox is ticked.
+
+![The operational attributes, in their own section](img/operational.png)
+
+### Following links, Back and Forward
+
+Many attributes point at other entries: `member` and `uniqueMember` in a group, `manager`, `owner`, `seeAlso`, `memberOf`, `secretary`... Their values are **links**: click one to open that entry, and the tree opens the branch that leads to it. The server's schema decides which attributes hold entries; when it is not available, the well-known ones are used and only values that really look like a DN become links (a description that happens to contain `a=b` never does).
+
+Next to the DN there are **←** and **→** buttons that work like the ones of a browser: **←** goes back to the entry you came from, **→** forward again. Hover a button to see which entry it leads to. Opening something new after going back forgets what was "forward". The keyboard shortcuts are `[` (back) and `]` (forward). The trail is cleared when you disconnect.
+
+![Following a member link and coming back](img/entry-links.png)
 
 ![Comparing two entries](img/compare.png)
 
@@ -183,6 +203,7 @@ Under the DN there are buttons:
 | `g` then `e` / `s` / `r` / `x` / `v` | Go to Entry / Search / Recipes / Explore / Server |
 | `g` then `b` | Open the bookmarks |
 | `g` then `p` | Open the Passwords panel |
+| `[` / `]` | Back / forward through the entries you opened |
 | `?` | Show the list of shortcuts |
 
 ![The keyboard shortcuts](img/shortcuts.png)
@@ -301,7 +322,8 @@ Everything you create is kept in your user configuration folder (macOS `~/Librar
 | Simple bind with DN + password; anonymous access | Supported. |
 | Base DN auto-detection from the RootDSE | Supported. |
 | Tree browsing with paging | Supported. |
-| Entry view: attributes, operational attributes, UTF-8 values, links between entries, breadcrumb | Supported. |
+| Entry view: attributes, UTF-8 values, links between entries with Back and Forward, breadcrumb | Supported. |
+| Operational attributes in their own section, each explained in plain words | Supported. |
 | Photos drawn in place; download and base64 copy of binary values; dates in plain words | Supported. |
 | Copying names, values, DNs, filters and table cells with one click | Supported. |
 | Searching: the quick search box, the visual builder (one-click field chips, live filter and explanation), typed filters, scopes, attribute list, limit, paging, server size limits | Supported. |

@@ -5,7 +5,9 @@ import { showTab } from "./tabs.js";
 import { goTo } from "./tree.js";
 import { splitDN, normDN } from "./nav.js";
 import { friendlyError } from "./friendly-errors.js";
-import { getSchema, isDNAttr, isTimeAttr } from "./schema.js";
+import { getSchema, attrKind, isOperationalAttr, isTimeAttr } from "./schema.js";
+import { splitAttrs, operationalHint, isDNValue } from "./entry-model.js";
+import { createTrail, visit, back, forward, canBack, canForward, peekBack, peekForward } from "./trail.js";
 import { describeTime, formatBytes, summaryBytes, isPhotoAttr, bytesToBase64 } from "./decode.js";
 import { copyBtn, copyText, asyncCopyBtn } from "./ui/copy.js";
 import { downloadText, downloadBytes } from "./ui/download.js";
@@ -15,20 +17,22 @@ import { isBookmarked, toggleBookmark } from "./bookmarks.js";
 import { getPinned, pin, unpin, openCompare, shortName } from "./compare.js";
 
 let currentDN = null;
+let trail = createTrail();  // the entries visited, for Back and Forward
+let going = null;           // the entry Back/Forward is taking us to: it must not be recorded as a new visit
 
 // Every attribute row has three cells: the name, its values and (shown when you point at
 // the row) the copy buttons. The buttons live in their own cell so the name and value
 // cells hold only the data.
-export function attrTable(attrs, dn = "") {
+export function attrTable(attrs, dn = "", { hints = false } = {}) {
   const t = el("table", { class: "attrs" });
   for (const a of attrs || []) {
     const values = a.values || [];
     const v = el("td", { class: "v" });
-    const dnAttr = isDNAttr(a.name);
+    const kind = attrKind(a.name);
     const timeAttr = isTimeAttr(a.name);
     values.forEach((x, i) => {
       if (a.binary) v.append(binaryValue(dn, a.name, i, x));
-      else if (dnAttr) v.append(el("div", {}, el("a", { class: "dnlink", textContent: x, title: "Go to this entry", onclick: () => goTo(x) })));
+      else if (isDNValue(a.name, x, kind)) v.append(el("div", {}, el("a", { class: "dnlink", textContent: x, title: "Go to this entry", onclick: () => goTo(x) })));
       else {
         v.append(el("div", {}, x));
         const when = timeAttr ? describeTime(x) : "";
@@ -42,6 +46,8 @@ export function attrTable(attrs, dn = "") {
       copyBtn(a.name, { label: "name", title: `Copy the attribute name (${a.name})`, what: `Copied ${a.name}` }),
       valueButton,
       ...(values.length > 1 && !a.binary ? [copyBtn(values.join("\n"), { label: `all ${values.length}`, title: `Copy all ${values.length} values, one per line`, what: `Copied ${values.length} values of ${a.name}` })] : []));
+    const hint = hints ? operationalHint(a.name) : "";
+    if (hint) v.append(el("div", { class: "hint", textContent: hint }));
     t.append(el("tr", { "data-attr": a.name }, el("td", { class: "k", textContent: a.name }), v, actions));
   }
   return t;
@@ -78,11 +84,44 @@ export async function showEntry(dn) {
     await getSchema(); // so DN-valued attributes can be shown as links
     const e = await api("/api/entry?dn=" + encodeURIComponent(dn) + ($("chkOp").checked ? "&operational=1" : ""));
     pane.replaceChildren(
-      el("div", { class: "dn" }, breadcrumb(e.dn), copyBtn(e.dn, { title: "Copy the DN", what: "Copied the DN" }),
+      el("div", { class: "dn" }, trailButtons(), breadcrumb(e.dn), copyBtn(e.dn, { title: "Copy the DN", what: "Copied the DN" }),
         el("a", { class: "jump", textContent: "search from here", onclick: () => emit("search-from", { dn: e.dn }) })),
       ...entryActions(e),
-      attrTable(e.attrs, e.dn));
+      ...attributeSections(e));
   } catch (err) { pane.replaceChildren(el("div", { class: "err", textContent: friendlyError(err.message) })); }
+}
+
+// The ordinary attributes first; the operational ones (what the server keeps for itself) in
+// their own section, each with a line in plain words. When they are hidden, one click shows them.
+function attributeSections(e) {
+  const { user, operational } = splitAttrs(e.attrs, isOperationalAttr);
+  const out = [attrTable(user, e.dn)];
+  if (operational.length) {
+    out.push(el("h4", { class: "op-title", id: "opTitle", textContent: "Operational attributes" }),
+      el("p", { class: "muted small op-note", textContent: "Kept by the server about this entry, not part of its data: when it was created or changed, its unique id…" }),
+      attrTable(operational, e.dn, { hints: true }));
+  } else if (!$("chkOp").checked) {
+    out.push(el("p", { class: "muted small op-off" },
+      "Operational attributes (created, changed, unique id…) are hidden. ",
+      el("button", { type: "button", id: "showOp", class: "small-btn", textContent: "Show them", onclick: () => { $("chkOp").checked = true; $("chkOp").onchange(); } })));
+  }
+  return out;
+}
+
+// Back and Forward through the entries you have opened by following links.
+function trailButtons() {
+  const go = async (dn, next) => {
+    trail = next;
+    going = dn;
+    try { await goTo(dn); } finally { going = null; }
+  };
+  const prev = peekBack(trail);
+  const next = peekForward(trail);
+  return el("span", { class: "trail" },
+    el("button", { type: "button", id: "eBack", class: "small-btn", textContent: "←", disabled: !canBack(trail),
+      title: prev ? `Back to ${prev}  ( [ )` : "Nothing to go back to", "aria-label": "Back to the previous entry", onclick: () => go(prev, back(trail)) }),
+    el("button", { type: "button", id: "eForward", class: "small-btn", textContent: "→", disabled: !canForward(trail),
+      title: next ? `Forward to ${next}  ( ] )` : "Nothing to go forward to", "aria-label": "Forward to the next entry", onclick: () => go(next, forward(trail)) }));
 }
 
 // What the Entry tab shows before anything is selected: how to start.
@@ -106,10 +145,14 @@ export function initEntry() {
   $("pane-entry").replaceChildren(welcome(false));
   on("bookmarks-changed", () => { const s = $("eStar"); if (s && s.paint) s.paint(); }); // keep the star honest
   on("pin-changed", () => { const p = $("ePin"); if (p && p.paint) p.paint(); });
-  on("select", ({ dn }) => showEntry(dn));
+  on("select", ({ dn }) => {
+    if (going === null || normDN(going) !== normDN(dn)) trail = visit(trail, dn); // Back/Forward already moved the trail
+    showEntry(dn);
+  });
   on("connected", () => { if (!currentDN) $("pane-entry").replaceChildren(welcome(true)); });
   on("disconnected", () => {
     currentDN = null;
+    trail = createTrail();
     $("pane-entry").replaceChildren(welcome(false));
   });
   $("chkOp").onchange = () => { if (currentDN) showEntry(currentDN); };
