@@ -80,6 +80,8 @@ test("plain-language texts", () => {
   assert.deepEqual(controlInfo("1.2.840.113556.1.4.319"), { name: "Paged results", oid: "1.2.840.113556.1.4.319" });
   assert.deepEqual(controlInfo("9.9.9"), { name: "", oid: "9.9.9" });
   assert.equal(extensionInfo("1.3.6.1.4.1.1466.20037").name, "StartTLS");
+  assert.equal(controlInfo("2.16.840.1.113730.3.4.18").name, "Proxied authorization");
+  assert.equal(extensionInfo("1.3.6.1.1.21.3").name, "End transaction");
 });
 
 test("items with no names (or null) do not break the index or the filter", () => {

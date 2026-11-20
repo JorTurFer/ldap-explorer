@@ -601,3 +601,54 @@ func TestFrontDirWithoutIndexIsRefused(t *testing.T) {
 		t.Errorf("expected a clear refusal, got err=%v output=%q", err, out)
 	}
 }
+
+// The manual has screenshots that are generated, never edited: they must all exist, all be
+// used, and the links between the documents must resolve.
+func TestDocsAreConsistent(t *testing.T) {
+	docs := []string{"README.md", "CLAUDE.md", "docs/USAGE.md", "docs/ROADMAP.md"}
+	link := regexp.MustCompile(`\]\(([^)#\s]+)(#[^)]*)?\)`)
+	referenced := map[string]bool{}
+	for _, doc := range docs {
+		b, err := os.ReadFile(doc)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, m := range link.FindAllStringSubmatch(string(b), -1) {
+			target := m[1]
+			if strings.Contains(target, "://") || strings.HasPrefix(target, "mailto:") {
+				continue
+			}
+			path := filepath.Join(filepath.Dir(doc), target)
+			if _, err := os.Stat(path); err != nil {
+				t.Errorf("%s links to %s, which does not exist", doc, target)
+			}
+			referenced[filepath.ToSlash(path)] = true
+		}
+	}
+	imgs, err := filepath.Glob("docs/img/*.png")
+	if err != nil || len(imgs) < 10 {
+		t.Fatalf("screenshots: %v (%d)", err, len(imgs))
+	}
+	for _, img := range imgs {
+		if !referenced[filepath.ToSlash(img)] {
+			t.Errorf("%s is not used by any document (make screenshots writes it; the manual should show it)", img)
+		}
+	}
+	// the table of contents of the manual points at sections that exist
+	usage, _ := os.ReadFile("docs/USAGE.md")
+	heading := regexp.MustCompile(`(?m)^## (\d+)\. (.+)$`)
+	slug := func(n, title string) string {
+		s := strings.ToLower(n + ". " + title)
+		s = regexp.MustCompile(`[^a-z0-9 -]`).ReplaceAllString(s, "")
+		return strings.ReplaceAll(s, " ", "-")
+	}
+	anchors := map[string]bool{}
+	for _, h := range heading.FindAllStringSubmatch(string(usage), -1) {
+		anchors[slug(h[1], h[2])] = true
+	}
+	for _, m := range regexp.MustCompile(`\]\(#([^)]+)\)`).FindAllStringSubmatch(string(usage), -1) {
+		if !anchors[m[1]] {
+			t.Errorf("docs/USAGE.md links to #%s, which is not a section", m[1])
+		}
+	}
+}

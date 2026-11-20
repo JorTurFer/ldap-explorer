@@ -30,6 +30,7 @@ func TestScreenshots(t *testing.T) {
 
 	shot := func(name string) {
 		t.Helper()
+		waitJS(t, ctx, "confirmations gone", `document.getElementById('toasts').children.length === 0`)
 		var png []byte
 		run(t, ctx, chromedp.CaptureScreenshot(&png))
 		if err := os.WriteFile(filepath.Join(out, name+".png"), png, 0o644); err != nil {
@@ -55,7 +56,16 @@ func TestScreenshots(t *testing.T) {
 	alice := `.node[title="` + slapdtest.AliceDN + `"]`
 	run(t, ctx, chromedp.WaitVisible(alice), chromedp.Click(alice))
 	waitText(t, ctx, "#pane-entry .dn", "uid=alice,")
+	run(t, ctx, chromedp.Click("#chkOp"))
+	waitJS(t, ctx, "dates decoded", `!!document.querySelector('tr[data-attr="createTimestamp"] .decoded')`)
+	waitJS(t, ctx, "photo drawn", `(() => { const i = document.querySelector('tr[data-attr="jpegPhoto"] img.photo'); return !!i && i.complete && i.naturalWidth > 0; })()`)
+	run(t, ctx, chromedp.Click("#eGroups"))
+	waitJS(t, ctx, "groups shown", `document.querySelectorAll('#eGroupsBox a.grp').length === 2`)
+	run(t, ctx, chromedp.Click("#bookmarks > summary"))
+	run(t, ctx, chromedp.Click("#eStar"))
+	waitText(t, ctx, "#bmCount", "1")
 	shot("browse")
+	run(t, ctx, chromedp.Click("#chkOp")) // back to the ordinary view for what follows
 
 	// 3. The query builder: no LDAP knowledge needed.
 	run(t, ctx, chromedp.Click(`button[data-tab="search"]`), chromedp.WaitReady("#sBase"),
@@ -90,6 +100,34 @@ func TestScreenshots(t *testing.T) {
 		set("#xBase", "ou=people,"+slapdtest.BaseDN), set("#xScope", "one"), chromedp.Click("#btnExplore"))
 	waitText(t, ctx, "#xSummary", "Looked at")
 	shot("explore")
+
+	// 5b2. Server information and the schema browser.
+	run(t, ctx, chromedp.Click(`button[data-tab="server"]`), chromedp.WaitVisible("#srvInfo"))
+	waitText(t, ctx, "#srvInfo", "Paged results")
+	waitJS(t, ctx, "attributes listed", `document.querySelectorAll('#scList .scitem').length > 50`)
+	run(t, ctx, set("#scFilter", "mail"), chromedp.Evaluate(`document.getElementById('scFilter').dispatchEvent(new Event('input'))`, nil))
+	waitJS(t, ctx, "mail first", `document.querySelector('#scList .scitem').dataset.name === 'mail'`)
+	run(t, ctx, chromedp.Click(`#scList .scitem[data-name="mail"] a`))
+	waitText(t, ctx, "#scDetail", "caseIgnoreIA5SubstringsMatch")
+	shot("server")
+
+	// 5b3. Comparing two entries.
+	run(t, ctx, chromedp.Click(`button[data-tab="entry"]`), set("#treeFilter", slapdtest.AliceDN), chromedp.SendKeys("#treeFilter", "\r"))
+	waitText(t, ctx, "#pane-entry .dn", slapdtest.AliceDN)
+	run(t, ctx, chromedp.Click("#ePin"))
+	run(t, ctx, set("#treeFilter", "uid=bob,ou=people,"+slapdtest.BaseDN), chromedp.SendKeys("#treeFilter", "\r"))
+	waitText(t, ctx, "#eCompare", "Compare with alice")
+	run(t, ctx, chromedp.Click("#eCompare"))
+	waitJS(t, ctx, "compare dialog", `document.getElementById('compareDlg').open`)
+	waitText(t, ctx, "#cmpSummary", "differ")
+	shot("compare")
+	run(t, ctx, chromedp.Click("#cmpClose"), chromedp.Click("#ePin"))
+
+	// 5b4. The keyboard shortcuts.
+	run(t, ctx, chromedp.Click("#btnHelp"))
+	waitJS(t, ctx, "help", `document.getElementById('helpDlg').open`)
+	shot("shortcuts")
+	run(t, ctx, chromedp.Click("#helpClose"))
 
 	// 5c. Passwords: the vault, several users and the Passwords panel.
 	run(t, ctx, chromedp.Click("#btnConn"), chromedp.WaitVisible("#cStore"))

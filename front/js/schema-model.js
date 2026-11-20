@@ -103,6 +103,10 @@ const CONTROLS = {
   "2.16.840.1.113730.3.4.2": "ManageDsaIT",
   "1.3.6.1.4.1.4203.666.5.14": "Subentries",
   "1.2.840.113556.1.4.801": "Security descriptor flags (AD)",
+  "2.16.840.1.113730.3.4.18": "Proxied authorization",
+  "1.3.6.1.4.1.4203.1.10.1": "Subentries",
+  "1.3.6.1.1.22": "Do not use a copy (replica)",
+  "1.2.826.0.1.3344810.2.3": "Matched values",
 };
 const EXTENSIONS = {
   "1.3.6.1.4.1.1466.20037": "StartTLS",
@@ -110,6 +114,8 @@ const EXTENSIONS = {
   "1.3.6.1.4.1.4203.1.11.3": "Who am I?",
   "1.3.6.1.4.1.1466.101.119.1": "Refresh dynamic entries",
   "1.3.6.1.1.8": "Cancel",
+  "1.3.6.1.1.21.1": "Start transaction",
+  "1.3.6.1.1.21.3": "End transaction",
 };
 
 // { name, oid }: the name is "" when the OID is not one we know.

@@ -4,13 +4,13 @@ A minimal, read-only LDAP browser for macOS and Windows. A single Go binary that
 
 ![ldap-explorer browsing a directory](docs/img/browse.png)
 
-- Browsable tree (double-click or ▶ to expand, click to view attributes), with a quick filter, "go to DN", links on DN-valued attributes and a breadcrumb
-- **Assisted searches, no LDAP knowledge needed**: a visual query builder (attribute suggestions from the server's schema, operators and inputs that fit each attribute, live filter preview with a plain-language explanation), ready-made recipes adapted to the server ("find a person", "members of a group", "locked accounts"...), and an explorer that shows what a branch contains
-- Searches with base, filter (builder or text), scope, attributes and limit (paged); results as a list or a sortable table with CSV export; saved queries per profile
-- Optional operational attributes; binary values are shown as a hex summary
-- Profiles saved in `~/Library/Application Support/ldap-explorer/profiles.json` on macOS (no password); the equivalent user config directory on other systems
+- **Search without knowing LDAP**: a search box in the top bar, a visual query builder (one-click field chips, suggestions and friendly names from the server's schema, operators and inputs that fit each field, a live filter preview with a plain-language explanation), ready-made recipes adapted to the server ("find a person", "members of a group", "locked accounts"...), and an explorer that shows what a branch contains
+- **Read entries comfortably**: browsable tree with a quick filter, "go to DN", bookmarks, links between entries, breadcrumb; photos drawn in place, dates in plain words, the groups an entry belongs to; **compare two entries** field by field
+- **Copy anything with one click**: attribute names, values, DNs, filters, table cells; **export** an entry or results as **LDIF**, **JSON** or **CSV**
+- **Understand the server**: its type, features and a browsable **schema** (attributes, object classes, inheritance, matching rules) with "find entries that use this"
+- Results as a list or a sortable table; saved queries and recent searches per profile; keyboard shortcuts; light, dark or system theme
 - Passwords kept where you choose, per profile: nowhere, the system keychain (Keychain on macOS, Credential Manager on Windows, Secret Service on Linux) or an **encrypted vault** with a master passphrase (Argon2id + AES-256-GCM, locks itself when idle) for machines without a keychain. Several saved users and servers, with one-click "Connect as…" switching
-- `ldap://`, `ldaps://` and StartTLS; base DN auto-detected from the RootDSE
+- Read-only by design; `ldap://`, `ldaps://` and StartTLS; base DN auto-detected from the RootDSE; one self-contained binary, no cgo
 
 See the [user manual](docs/USAGE.md) for how to use it and exactly what is and is not supported.
 

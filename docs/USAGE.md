@@ -1,129 +1,208 @@
 # ldap-explorer user manual
 
-ldap-explorer is a read-only LDAP browser. It runs as a local program, serves its interface on `127.0.0.1` and opens it in your web browser. This manual explains how to use it and states plainly what it does and does not support.
+ldap-explorer lets you look things up in an LDAP directory (the company's people, groups, computers...) **without knowing LDAP**. You search by filling in simple boxes, it explains what it is doing in plain words, and it never changes anything: it is read-only.
+
+This manual goes from the simplest to the most advanced. If you only read one section, read section 1.
+
+## Contents
+
+1. [Quick start](#1-quick-start)
+2. [The screen at a glance](#2-the-screen-at-a-glance)
+3. [Connecting](#3-connecting)
+4. [Finding things](#4-finding-things)
+5. [Reading an entry](#5-reading-an-entry)
+6. [Moving around](#6-moving-around)
+7. [The server and its schema](#7-the-server-and-its-schema)
+8. [Passwords, the vault and several users](#8-passwords-the-vault-and-several-users)
+9. [Settings, command line and files](#9-settings-command-line-and-files)
+10. [Security model](#10-security-model)
+11. [What is supported](#11-what-is-supported)
+12. [What is not supported](#12-what-is-not-supported)
+13. [Troubleshooting](#13-troubleshooting)
+14. [Glossary](#14-glossary)
 
 ## 1. Quick start
 
-1. Build and start it (see the [README](../README.md#build)):
-   ```sh
-   make build && ./ldap-explorer        # macOS / Linux
-   go build -o ldap-explorer.exe . && .\ldap-explorer.exe   # Windows
-   ```
-   Your browser opens on a local address such as `http://127.0.0.1:52341/#<token>`. If it does not, copy the URL printed in the terminal (start with `-no-open` to never open it automatically).
-2. Click **Connect…**, fill in the server, and press **Connect**.
-3. Browse the tree on the left; click an entry to see its attributes, or use the **Search** tab.
-4. Close the browser tab when you are done: the program exits by itself a few minutes later (see `-idle-exit`). In a terminal you can also press Ctrl+C.
+1. Start the program (see the [README](../README.md#build)). Your browser opens on a page that only your computer can see. If it does not, copy the address printed in the terminal.
+2. Click **Connect…**, type the server address (for example `ldaps://ldap.example.com`), your user and your password, and press **Connect**.
+3. Type a name, login or email in the box at the top (**Find anyone or anything**) and press Enter. The matching entries appear.
+4. Click an entry to see everything it contains.
 
-## 2. Connecting
+![Browsing the directory and reading an entry](img/browse.png)
+
+When you are done, close the tab: the program exits by itself a few minutes later.
+
+## 2. The screen at a glance
+
+- **Top bar**: **Connect…** / **Disconnect**; the **search box** (press `/` to jump to it); **Connect as…** (switch between your saved users and servers in one click); **operational attributes** (also show the attributes the server keeps for itself); **?** (keyboard shortcuts); **Theme** (light, dark or follow the system); **Passwords**; and the connection status on the right.
+- **Left**: a box to **filter the tree or jump to a DN**, your **Bookmarks**, and the **tree** of the directory.
+- **Right**, in tabs: **Entry** (what is selected), **Search** (build a search), **Recipes** (ready-made questions), **Explore** (what is in a branch) and **Server** (what this server is and what it can store).
+
+Almost everything that shows a value has a quiet **copy** button next to it that appears when you point at it. Pressing it copies exactly that thing and a small message confirms it.
+
+## 3. Connecting
 
 ![The connection dialog](img/connect.png)
 
 | Field | Meaning |
 |---|---|
 | **Profile** | Pick a saved profile to fill the form, or `— new —`. The trash button deletes the selected profile. |
-| **Name** | Name of the profile (required only to save it). |
-| **URL** | `ldap://host[:port]` or `ldaps://host[:port]`. Default ports are 389 and 636. |
-| **Bind DN** | The DN to authenticate as. For Active Directory a `user@domain` form also works. Empty means an anonymous connection. |
-| **Password** | Required whenever a Bind DN is set (an empty password with a Bind DN is rejected by the client). |
-| **Base DN** | Optional. Empty means it is detected from the server's RootDSE (`namingContexts`). If detection finds nothing, set it here. |
+| **Name** | Name of the profile (needed only to save it). |
+| **URL** | `ldap://host[:port]` or `ldaps://host[:port]`. Default ports are 389 and 636. Prefer `ldaps://`. |
+| **Bind DN** | The DN you sign in as. For Active Directory a `user@domain` form also works. Empty means an anonymous connection. |
+| **Password** | Required whenever a Bind DN is set. |
+| **Base DN** | Optional. Empty means it is detected from the server. Set it if the tree comes up empty. |
 | **StartTLS** | Upgrade an `ldap://` connection to TLS. Ignored for `ldaps://`. |
-| **Skip certificate verification** | Accept any server certificate. Insecure; use it only for lab servers with self-signed certificates. |
-| **Password kept** | Where the password is saved: nowhere, the system keychain or the encrypted vault. See section 5. |
+| **Skip certificate verification** | Accept any server certificate. Insecure; only for lab servers with self-signed certificates. |
+| **Password kept** | Where the password is saved: nowhere, your system keychain or the encrypted vault ([section 8](#8-passwords-the-vault-and-several-users)). |
 
-**Save profile** stores the form (without the password) so you can reuse it. **Disconnect** closes the connection; **↻** reloads the tree.
+**Save profile** stores the form so you can reuse it. **Add another user** keeps the server settings and lets you enter a second account on the same server. Once you have several profiles, **Connect as…** in the top bar switches between them in one click. There is one connection at a time.
 
-There is one connection at a time. Connecting again replaces the previous one.
+## 4. Finding things
 
-## 3. Browsing
-
-![Browsing the tree and viewing an entry](img/browse.png)
-
-- The tree starts at the detected (or configured) base DN(s). Click ▶ or double-click a node to expand it; click a node to see its entry.
-- Servers that report whether an entry has children (OpenLDAP does, through `hasSubordinates`) get a ▶ only on nodes that have some. Servers that do not report it (Active Directory never does) make every node show ▶; expanding an empty node simply removes the arrow.
-- Children are read in pages of 500, so servers that cap results per request still list everything the server allows. If the server's size limit cuts a listing, a `⚠` line appears at the end of that node with the server's message; what was received is still shown.
-- The entry view lists attributes alphabetically with `objectClass` first. Multi-valued attributes show one value per line. **copy** copies the DN; **search from here** jumps to the Search tab with that DN as the base.
-- Tick **operational attributes** to also show the server's operational attributes, such as `entryUUID` or `createTimestamp` on OpenLDAP.
-- Binary values (for example `jpegPhoto`, `objectGUID`, `objectSid`) are shown as `(binary, N bytes)` followed by the first 16 bytes in hex. They cannot be downloaded, previewed or decoded.
-
-### Moving around faster
-
-- **Filter the tree**: type in the box above the tree. Only the nodes you have already opened are searched (use Search for the whole directory); the ancestors of a match stay visible. Escape clears it.
-- **Go to a DN**: paste a DN in that same box and press Enter. It works in any letter case, and the tree opens the branches that lead to the entry.
-- **Follow links**: attributes whose value is a DN (such as `member`, `manager` or `owner`; ldap-explorer knows them from the server's schema) are links to that entry.
-- **Breadcrumb**: in the entry view, every ancestor in the DN is a link, so one click goes up a level.
-
-## 4. Searching
-
-Open the **Search** tab. You never need to write LDAP filter syntax: there are three ways to search, from most to least assisted.
+There are several ways to search, from the simplest to the most flexible. All of them end in the same results list.
 
 | | |
 |---|---|
-| **Recipes** | Ready-made questions ("Find a person", "Members of a group"...). See section 4.3. |
-| **Builder** | Build the condition with rows of *attribute · operator · value*. The default. See section 4.1. |
-| **Advanced (text)** | Type an RFC 4515 filter yourself. |
+| **Search box** (top bar) | Type a name, login or email and press Enter. Section 4.1. |
+| **Recipes** | Ready-made questions: "Find a person", "Members of a group", "Accounts created recently"... Section 4.3. |
+| **Builder** | Build the condition with rows of *field · operator · value*. Section 4.2. |
+| **Explore** | See what a branch contains and click to search for it. Section 4.4. |
+| **Advanced (text)** | Type an LDAP filter yourself. Section 4.5. |
 
-The rest of the form is common:
+### 4.1 The search box
 
-| Field | Meaning |
-|---|---|
-| **Base** | Where to start. Pre-filled with the first base DN after connecting. |
-| **Filter** | The builder, or the text filter in Advanced mode. |
-| **Attributes** | Comma- or space-separated names to return, e.g. `cn, mail, memberOf`. Empty returns all user attributes. Use `*` for all user attributes and `+` for all operational attributes, e.g. `* +`. |
-| **Scope** | `subtree`, `one level` or `base only`. |
-| **Limit** | Maximum number of entries (default 500). A value that is zero, empty or above 10000 falls back to 500. |
+The box at the top ("Find anyone or anything", shortcut `/`) looks in the names, logins and emails of every entry (people, groups, units) at once. The query it ran is shown in the builder, so you can refine it. It uses the "Find any entry" recipe.
 
-Press **Search** or Enter in any field. Results are collapsible; click **view** to open an entry in the Entry tab. A single result opens automatically.
-
-### 4.1 The query builder
+### 4.2 The builder
 
 ![The query builder with its live filter preview](img/builder.png)
 
-- Each row is a condition: pick an **attribute** (the box suggests the attributes your server really has, user attributes first), an **operator** and a **value**.
-- **The operators depend on the attribute.** Text offers *is*, *is not*, *contains*, *starts with*, *ends with*, *matches pattern (use \*)*, *exists* and *does not exist*. Dates offer *is after*, *is before* and *is in the last (days)* with a date picker (times are converted to UTC). Numbers offer *is at least* / *is at most*. Yes/no attributes offer a true/false choice. Binary attributes only offer *exists*. If the server has no rule to compare an attribute in some way (for example OpenLDAP's `shadowExpire` cannot be ordered), that operator is not offered, instead of returning misleading results.
-- For `objectClass` the value box suggests the object classes of the server.
-- **Match all of / any of / none of** decides how the rows combine. **+ Group** adds a nested group, for example *all of: mail contains example, and any of: (uid is alice, uid is bob)*.
-- Below the rows you always see the **LDAP filter** that will be sent and a **plain-language explanation** of it, updated as you type. Special characters in values (`( ) * \`) are escaped for you, so what you type is always taken literally (use the *pattern* operator if you want `*` as a wildcard).
-- Mistakes are explained before you search, for example an attribute that does not exist on the server.
-- **Edit as text** copies the filter to the Advanced mode so you can refine it by hand.
+You never need to write filter syntax.
 
-### 4.2 Saved queries
-
-Above the form, **Save** stores the current search under a name for the current connection profile: base, scope, attributes, limit and either the builder conditions or the text filter. Choosing it from the list puts everything back in the form (it does not run it; press Search). **Delete** removes it. They are kept in `queries.json` next to `profiles.json` and never contain credentials. A connection that is not a saved profile keeps its queries under its URL.
+- Under **Add a condition on** there is a button for each common field this server has (Full name, Login, Email, Surname, Phone, Department, Type of entry, Created...). Click one to add a ready-to-fill condition.
+- Each row is *field · operator · value*. The field box suggests the fields your server really has, with friendly names (Email for `mail`). The caption under it says what the field is.
+- **The operators depend on the field.** Text offers *is*, *is not*, *contains*, *starts with*, *ends with*, *matches pattern*, *exists* and *does not exist*. Dates offer *is after*, *is before* and *is in the last (days)* with a date picker (times are UTC). Numbers offer *is at least* / *is at most*. Yes/no fields offer a true/false choice. Binary fields only offer *exists*. If the server has no way to compare a field in some way (for example OpenLDAP's `shadowExpire` cannot be ordered) that operator is not offered, instead of giving misleading results.
+- For *Type of entry* (`objectClass`) the value box suggests the kinds of entry of this server.
+- **Find entries where all of / any of / none of these are true** decides how the rows combine. **+ Group** adds a nested group, for example *all of: Email contains example.org, and any of: (Login is alice, Login is bob)*.
+- Below the rows you always see the **LDAP filter** that will be sent and a **plain-language explanation** of it, updated as you type. Special characters you type (`( ) * \`) are escaped for you, so what you type is taken literally (use *matches pattern* if you want `*` as a wildcard).
+- Mistakes are explained before you search, for example a field that does not exist on this server.
+- **Copy filter** copies the LDAP filter; **Edit as text** moves it to the Advanced mode.
 
 ### 4.3 Recipes
 
 ![The Recipes tab](img/recipes.png)
 
-The **Recipes** tab offers ready-made questions in four groups: *People* (find a person by name, login or email; people without an email; people in a department), *Groups* (members of a group; groups a user belongs to), *Accounts* (locked or disabled; expired; created or changed in the last N days) and *Explore* (entries of an object class; entries that have, or lack, an attribute).
+The **Recipes** tab offers ready-made questions in four groups: *People* (find a person; people without an email; people in a department), *Groups* (members of a group; groups a user belongs to), *Accounts* (locked or disabled; expired; created or changed in the last N days) and *Explore* (find any entry; entries of a kind; entries that have, or lack, a field).
 
-- Fill in the few parameters and press **Use this recipe**: it opens in the builder, so you can see and tweak how it works, and runs immediately.
-- Recipes are **built from your server's schema**: a recipe only uses attributes the server defines (for example *Find a person* matches `uid` on OpenLDAP and `sAMAccountName` on Active Directory). One the server cannot answer is shown greyed out with the reason, such as *Locked or disabled accounts* on a server without `nsAccountLock` or `pwdAccountLockedTime`.
+- Fill in the few parameters and press **Use this recipe**: it opens in the builder, so you can see and tweak how it works, and runs at once.
+- Recipes are **built from your server's schema**: they only use fields the server defines (for example *Find a person* matches `uid` on OpenLDAP and `sAMAccountName` on Active Directory). One the server cannot answer is shown greyed out with the reason.
 
-### 4.4 Exploring a branch
+### 4.4 Explore
 
 ![The Explore tab](img/explore.png)
 
-Not sure what is in a branch? **Explore** looks at up to a number of entries below a base (the selected tree node by default) and shows which **kinds of entries** (object classes) and which **attributes** are really in use, with counts. Click any of them to search for those entries.
+Not sure what is in a branch? **Explore** looks at a number of entries below a base (the selected tree node by default) and shows which **kinds of entries** and which **fields** are really in use, with counts. Click any of them to search for those entries.
 
-### 4.5 Results: list, table and CSV
+### 4.5 Advanced: a typed filter
+
+Choose **Advanced (text)** next to the builder to type an LDAP filter, for example `(&(objectClass=person)(mail=*@example.org))`. An invalid filter is rejected before it is sent. The *Edit as text* button of the builder gets you here with the filter already written.
+
+### 4.6 Where to look and what to show
+
+Folded under the builder there is a line like *"Looking in the whole branch below dc=example,dc=org, showing all attributes, at most 500 results"*. Open it to change it:
+
+| Field | Meaning |
+|---|---|
+| **Base** | Where to start. Pre-filled with the top of the directory. |
+| **Attributes** | Fields to return, e.g. `cn, mail, memberOf`. Empty returns all. Use `*` for all ordinary fields and `+` for the operational ones (`* +`). |
+| **Scope** | `subtree` (the base and everything below), `one level` (only its direct children) or `base only`. |
+| **Limit** | Maximum number of entries (default 500). Zero, empty or above 10000 falls back to 500. |
+
+### 4.7 Saved queries and recent searches
+
+Above the form, **Save** stores the current search under a name for the current profile (base, scope, attributes, limit and the builder conditions or the typed filter). Choosing it from the list puts everything back in the form (press Search to run it); **Delete** removes it. The list next to it, **recent searches**, remembers the last 30 searches you ran on this connection, newest first; a repeated search moves to the top. Both live next to your profiles and never contain credentials.
+
+### 4.8 The results: list, table and exports
 
 ![A search shown as a list of entries](img/search-list.png)
 
-Above the results there are two views, **List** and **Table**, and an **Export CSV** button. The chosen view is remembered for the next search.
+Above the results there are two views, **List** and **Table**. The chosen view is remembered.
 
-- **List**: one collapsible block per entry with all its attributes.
-- **Table**: one row per entry. The columns are the attributes you asked for, in your order; if you left the field empty (or used `*` / `+`), they are the attributes found in the results, most frequent first. Click a header to sort (natural order, so `u2` comes before `u10`; empty cells always go last) and click again to reverse. **Columns** lets you hide the ones you do not need. Click a DN to open the entry. The table draws at most 1000 rows; the CSV always has all of them.
-- **Export CSV** saves exactly what the table shows now (visible columns, current order) plus a `dn` column. The file is UTF-8 with a byte order mark, so Excel opens accents correctly. Multiple values of one attribute are joined with `; `. Cells that start with `=`, `@`, `+` or `-` are prefixed with an apostrophe so spreadsheets do not run them as formulas (a directory is untrusted input); phone numbers such as `+34 600 000 001` are left as they are.
+- **List**: one collapsible block per entry with all its fields.
+- **Table**: one row per entry. The columns are the fields you asked for; if you left the field empty they are the fields found in the results, most frequent first. Click a header to sort (natural order, so `u2` comes before `u10`; empty cells go last) and again to reverse. **Columns** hides the ones you do not need. Click a DN to open the entry; **click any other cell to copy it**. The table draws at most 1000 rows; the exports contain all of them.
 
-![The same search as a sortable table, with the Columns chooser and Export CSV](img/search-table.png)
+![The same search as a sortable table, with the Columns chooser and the export buttons](img/search-table.png)
 
-The interface follows the system light or dark setting:
+- **Export CSV** saves what the table shows now (visible columns, current order) plus a `dn` column, as UTF-8 with a byte order mark so Excel reads accents. Values of one field are joined with `; `. Cells starting with `=`, `@`, `+` or `-` get a leading apostrophe so spreadsheets do not run them as formulas (a directory is untrusted input); phone numbers like `+34 600 000 001` are left as they are.
+- **Export JSON** saves the results as JSON (`dn` and `attributes`). Binary values appear as a summary.
+- **Export LDIF** saves the results in LDIF, the standard format for moving directory data between tools, with the exact values (photos included). If the server cut the result short, you are told.
+
+The interface follows the system light or dark setting, or your choice with the **Theme** button:
 
 ![The table in the dark theme](img/search-table-dark.png)
 
-Results are paged internally (up to 500 per request). If the server (or the limit you set) stops the search early, you get the entries received plus a `⚠` warning, such as `Size Limit Exceeded`, instead of an error.
+Searches are paged internally (up to 500 per request). If the server (or your limit) stops a search early, you get the entries received plus a `⚠` warning such as `Size Limit Exceeded`, not an error.
 
-## 5. Passwords, the vault and several users
+## 5. Reading an entry
+
+Click an entry in the tree or in any result.
+
+- **The DN** (the entry's full address) is a **breadcrumb**: click any part to go to that ancestor. **copy** copies it; **search from here** jumps to Search with it as the base.
+- **Each attribute row** shows the name, its values and, when you point at the row, copy buttons: **name** copies the attribute name, **value** (or **first value**) copies the value, and **all N** copies every value, one per line.
+- **Links**: attributes whose value is another entry (such as `member`, `manager`, `owner`) are links that open that entry.
+- **Dates** (`createTimestamp` and the like) are shown as the server stores them, with a line in plain words below: *2026-11-19 12:00:00 UTC · 3 days ago*.
+- **Binary values**: photos are drawn right there. Every binary value has a **download** button (with its size) and a **base64** copy button in the row.
+- **operational attributes** (checkbox in the top bar) also shows what the server keeps for itself (`entryUUID`, `createTimestamp`, `modifyTimestamp`...).
+
+Under the DN there are buttons:
+
+| Button | What it does |
+|---|---|
+| **☆ Bookmark** | Keeps the entry in your **Bookmarks** (above the tree). Click again to remove it. |
+| **Groups** | Lists the groups this entry is a member of, as links. It uses what the server's schema allows (`member`, `uniqueMember`, `memberUid`) and says so if the server cannot answer. |
+| **Pin to compare** | Pins this entry. Open another entry and a **Compare with…** button appears. |
+| **Copy as LDIF** / **Download LDIF** | The whole entry in LDIF, exact values, to paste into a file or another tool. |
+| **Copy as JSON** | The whole entry as JSON. |
+
+![Comparing two entries](img/compare.png)
+
+**Compare** shows the two entries field by field: values that differ are highlighted, fields found in only one entry are marked, and by default identical fields are hidden (untick *Show only what differs* to see everything).
+
+## 6. Moving around
+
+- **Filter the tree**: type in the box above the tree. Only the nodes you have already opened are searched (use Search for the whole directory); the ancestors of a match stay visible. Escape clears it.
+- **Go to a DN**: paste a DN in that box and press Enter, in any letter case; the tree opens the branches that lead to it.
+- **Bookmarks**: click one to open the entry; **copy** copies its DN; **×** removes it.
+- **Keyboard shortcuts** (they work when you are not typing in a box and no dialog is open; press `?` to see them in the program):
+
+| Keys | What it does |
+|---|---|
+| `/` | Go to the search box |
+| `t` | Filter the tree, or go to a DN |
+| `g` then `e` / `s` / `r` / `x` / `v` | Go to Entry / Search / Recipes / Explore / Server |
+| `g` then `b` | Open the bookmarks |
+| `g` then `p` | Open the Passwords panel |
+| `?` | Show the list of shortcuts |
+
+![The keyboard shortcuts](img/shortcuts.png)
+
+## 7. The server and its schema
+
+![The Server tab](img/server.png)
+
+The **Server** tab has two parts.
+
+**This server** says what kind of server it is (OpenLDAP, 389 Directory Server, Active Directory or unknown), its LDAP version, its **naming contexts** (the tops of its trees: click one to open it), and the *features* and *operations* it supports with readable names and copyable OIDs.
+
+**Schema** is a browser of everything the server can store, in two lists you can filter by name, alias, OID or description:
+
+- **Attributes**: what a field is for, what it holds (text, a number, a date, the DN of another entry, binary data), whether it takes one value or many, how it can be compared (equality, before/after, contains), whether it is an ordinary or operational attribute, which attribute it derives from, and **which object classes use it**.
+- **Object classes** (kinds of entry): their kind (structural, auxiliary or abstract) with what that means, their parents up to `top`, and **the required and optional attributes including the inherited ones**.
+
+Names in these views are links: follow them to move between attributes and classes. **Find entries that have it** and **Find entries of this kind** run a search.
+
+## 8. Passwords, the vault and several users
 
 ![The Passwords panel: what each profile keeps, and the vault](img/passwords.png)
 
@@ -140,6 +219,8 @@ Each profile chooses, in **Password kept**:
 Passwords are **never** written to `profiles.json` and the interface never receives one back: it only says whether one is saved. Leave the password field empty to use the saved one.
 
 ### The vault
+
+![Creating the vault the first time a password is saved in it](img/vault-create.png)
 
 - The first time you save a password in it you are asked to create it (a passphrase of at least 8 characters). **There is no way to recover the passwords if you forget it**: delete the vault and enter them again.
 - It starts **locked** and is unlocked by typing the passphrase when something needs it. It **locks itself after 15 minutes without use**; **Passwords → Lock now** locks it at once. The keys are wiped from memory when it locks.
@@ -180,24 +261,39 @@ Be clear about the limits:
 - A saved password is used as it is to bind: ldap-explorer cannot make an LDAP server more secure than the connection to it, so prefer `ldaps://` or StartTLS and avoid *Skip certificate verification*.
 - Entries saved by earlier versions in the macOS Keychain keep working, with one exception: a password containing non-ASCII characters saved by the old version could not be read back correctly then either. Save the profile password again to fix it.
 
-## 6. Command-line options
+## 9. Settings, command line and files
+
+- **Theme** (top bar) cycles *auto* (follows your system), *light* and *dark*, and is remembered.
+- Command line:
 
 ```
 -port 0            local port (0 = random)
 -no-open           do not open the browser automatically
--idle-exit 3m      exit if the UI sends no heartbeat for this long (0 = never)
+-idle-exit 3m      exit if the tab has been closed for this long (0 = never)
+-front-dir DIR     development: serve the interface from this folder (edit and refresh, no rebuild)
 ```
 
-The 3-minute default is deliberate: browsers throttle timers in background tabs, so a shorter value could make the program quit while the tab is still open.
+The 3-minute default of `-idle-exit` is deliberate: browsers throttle timers in background tabs, so a shorter value could make the program quit while the tab is still open.
 
-## 7. Security model
+Everything you create is kept in your user configuration folder (macOS `~/Library/Application Support/ldap-explorer/`, Windows `%AppData%\ldap-explorer\`, Linux `~/.config/ldap-explorer/`), private to your user:
+
+| File | Holds |
+|---|---|
+| `profiles.json` | Server settings and which store each profile uses. Never a password. |
+| `vault.json` | The encrypted vault. |
+| `queries.json` | Saved queries. |
+| `bookmarks.json` | Bookmarked entries. |
+| `history.json` | Recent searches. |
+| `settings.json` | The theme. |
+
+## 10. Security model
 
 - It listens only on `127.0.0.1`.
 - Every start creates a random token placed in the URL `#` fragment (browsers never send fragments to servers). The API rejects requests without it, so other web pages cannot use the local server.
 - It never modifies the directory: only bind and search operations are issued.
 - Nothing is loaded from the internet by the interface (a strict Content-Security-Policy blocks it), and nothing is downloaded at run time.
 
-## 8. What is supported
+## 11. What is supported
 
 | Area | Status |
 |---|---|
@@ -205,17 +301,21 @@ The 3-minute default is deliberate: browsers throttle timers in background tabs,
 | Simple bind with DN + password; anonymous access | Supported. |
 | Base DN auto-detection from the RootDSE | Supported. |
 | Tree browsing with paging | Supported. |
-| Entry view, operational attributes, binary summary, UTF-8 values | Supported. |
-| Searches: visual builder with live filter and explanation, text filter, scopes, attribute list, limit, paging, server size limits | Supported. |
-| Recipes and branch explorer | Supported. Recipes adapt to the server's schema; tested against OpenLDAP. |
-| Saved queries per profile | Supported. |
-| Tree filter, go to DN, DN links, breadcrumb | Supported. |
-| Results as a sortable table with CSV export | Supported. |
+| Entry view: attributes, operational attributes, UTF-8 values, links between entries, breadcrumb | Supported. |
+| Photos drawn in place; download and base64 copy of binary values; dates in plain words | Supported. |
+| Copying names, values, DNs, filters and table cells with one click | Supported. |
+| Searching: the quick search box, the visual builder (one-click field chips, live filter and explanation), typed filters, scopes, attribute list, limit, paging, server size limits | Supported. |
+| Recipes and the branch explorer | Supported. Recipes adapt to the server's schema; tested against OpenLDAP. |
+| Saved queries and recent searches, per profile | Supported. |
+| Results as a list or a sortable table; export to CSV, JSON and LDIF | Supported. |
+| Entry actions: groups of an entry, bookmarks, pin and compare, copy or download as LDIF, copy as JSON | Supported. |
+| Server information and a schema browser (attributes, object classes, inheritance, matching rules) | Supported. |
+| Tree filter, go to a DN, bookmarks, keyboard shortcuts | Supported. |
 | Saved profiles (no password) | Supported. |
 | Passwords in the system keychain | macOS Keychain and Windows Credential Manager: supported and tested in CI. Linux (Secret Service): the library supports it but ldap-explorer is not tested against it. |
 | Passwords in an encrypted vault with a master passphrase | Supported on every platform, tested. |
 | Several saved users and servers, with one-click switching | Supported. |
-| Dark and light theme (follows the system) | Supported. |
+| Light, dark or system theme | Supported. |
 
 ### Platforms
 
@@ -230,15 +330,14 @@ The 3-minute default is deliberate: browsers throttle timers in background tabs,
 
 Tested against OpenLDAP 2.5, 2.6 and 2.7 only. The account recipes for 389 Directory Server (`nsAccountLock`, `passwordExpirationTime`) and for the OpenLDAP ppolicy overlay are checked against synthetic schemas, not against those real servers. Microsoft Active Directory and other servers should work for browsing and searching (the protocol operations are standard) but have **not** been tested. Known AD difference: no children hints, so every node shows ▶.
 
-## 9. What is not supported
+## 12. What is not supported
 
 - **Any write operation**: add, modify, delete, rename, password change. This is intentional and checked by a test.
 - **SASL, GSSAPI/Kerberos, NTLM and other bind mechanisms** (including single sign-on with your Windows or macOS login). Only simple bind is available.
 - **Client certificates** (mutual TLS) and **custom CA bundles**: server certificates are checked against the system trust store, or not at all with *Skip certificate verification*.
 - **Referrals** are not followed.
 - **Several connections or sessions at once**; a second browser tab shares the same connection.
-- **LDIF or JSON export**, importing, and search history. (CSV export and saved queries are supported.)
-- **Schema browsing**, ACL inspection, and decoding of binary attributes (no image preview, no GUID/SID formatting).
+- **Importing** data, **ACL inspection**, and decoding of binary values other than showing photos (no GUID/SID or certificate formatting; the exact bytes are available through download, base64 and LDIF).
 - **Server-side sorting, virtual list view and other LDAP controls.**
 - **Proxy settings**: connections are direct.
 - **Viewing a stored password**: by design there is no way to read one back; you can replace it (save the profile with a new password), move it or forget it.
@@ -246,7 +345,7 @@ Tested against OpenLDAP 2.5, 2.6 and 2.7 only. The account recipes for 389 Direc
 - **Client certificates, SASL or Kerberos** as saved credentials: only a bind DN and password can be stored.
 - **Windows `.exe` packaging** (icon, no console window) and a signed or notarized macOS build. The macOS `.app` is ad-hoc signed and meant to be built on the machine that runs it.
 
-## 10. Troubleshooting
+## 13. Troubleshooting
 
 | Symptom | Likely cause |
 |---|---|
@@ -262,3 +361,28 @@ Tested against OpenLDAP 2.5, 2.6 and 2.7 only. The account recipes for 389 Direc
 | `⚠ … Size Limit Exceeded` | The server stopped the listing or search at its own limit. Narrow the filter or base. |
 | `Invalid filter` | The filter is not valid RFC 4515 syntax (check the parentheses). |
 | `The ldap-explorer process is not responding` | The program exited (idle timeout or Ctrl+C). Start it again. |
+| `The vault is needed for this and was not unlocked.` | You closed the passphrase dialog. Try again and type the master passphrase. |
+| Nothing happens when I press a shortcut | Shortcuts are off while you type in a box and while a dialog is open. Click on a blank part of the page first. |
+| The photo does not appear | The value is not a picture the browser can draw. Use **download** or **base64** to get the exact bytes. |
+| **Groups** says the server cannot say | The server's schema has no way to list members (`member`, `uniqueMember`, `memberUid`): the message gives the reason. |
+| The schema list is empty | The server does not let your user read its schema. |
+
+## 14. Glossary
+
+| Word | In plain words |
+|---|---|
+| **Directory / LDAP** | A database of people, groups, computers... organised like a tree, and the protocol used to ask it questions. |
+| **Entry** | One item in the directory: a person, a group, a unit. |
+| **Attribute / field** | One piece of information of an entry: its email, its name, its phone. An attribute can have several values. |
+| **DN** (distinguished name) | The full address of an entry, from the entry up to the top, for example `uid=alice,ou=people,dc=example,dc=org`. |
+| **RDN** | The first part of a DN: how the entry is called among its siblings (`uid=alice`). |
+| **Base** | Where a search starts. |
+| **Scope** | How deep a search goes below the base: the whole branch, only direct children, or only the base itself. |
+| **Filter** | The condition a search applies, for example `(mail=*@example.org)`. The builder writes it for you. |
+| **Object class** | The kind of an entry (a person, a group...). It decides which attributes the entry must or may have. |
+| **Schema** | The list of all the attributes and object classes the server knows. |
+| **Operational attribute** | An attribute the server keeps for itself (when the entry was created, a unique id), not shown unless you ask. |
+| **Bind** | Signing in to the directory with a DN and a password. |
+| **Naming context / suffix** | The top of one tree held by the server. |
+| **OID** | A numeric identifier (`2.5.4.3`) that names attributes, classes and server features without ambiguity. |
+| **LDIF** | The standard text format for exporting entries so other tools can read them. |
