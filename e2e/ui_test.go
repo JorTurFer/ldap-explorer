@@ -2259,9 +2259,12 @@ func TestUINavigationAcrossTabs(t *testing.T) {
 	waitText(t, ctx, "#pane-entry .dn", slapdtest.BobDN)
 
 	// Back goes through them in reverse: the Entry tab (alice), Server, Search, alice.
-	for _, want := range []string{"entry", "server", "search", "entry"} {
+	for i, want := range []string{"entry", "server", "search", "entry"} {
 		run(t, ctx, chromedp.Click("#navBack"))
 		waitTab(want)
+		if i == 0 { // the entry is loaded asynchronously: let it finish before moving on
+			waitText(t, ctx, "#pane-entry .dn", slapdtest.AliceDN)
+		}
 	}
 	waitText(t, ctx, "#pane-entry .dn", slapdtest.AliceDN) // and the first place is alice again
 	if !jsBool(t, ctx, `document.getElementById('navBack').title.includes('dc=example,dc=org')`) {
