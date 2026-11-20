@@ -8,6 +8,7 @@ import { api } from "./api.js";
 import { emit, on } from "./events.js";
 import { getSchema, attrInfo } from "./schema.js";
 import { copyText } from "./ui/copy.js";
+import { friendlyLabel, commonChips, chipDefaults } from "./labels.js";
 import { OPS, opsFor, defaultOp, valueKind, newCondition, newGroup, toQuery, fromQuery, friendlyOps, isEmptyQuery } from "./builder-model.js";
 
 let model = newGroup("all");
@@ -49,7 +50,8 @@ export async function resolveFilter() {
 }
 
 function fillDatalists() {
-  $("attrList").replaceChildren(...(schemaIdx ? schemaIdx.names.map((n) => el("option", { value: n })) : []));
+  $("attrList").replaceChildren(...(schemaIdx ? schemaIdx.names.map((n) => (friendlyLabel(n) ? el("option", { value: n, label: friendlyLabel(n) }) : el("option", { value: n }))) : []));
+  renderChips();
   $("classList").replaceChildren(...(schemaIdx ? schemaIdx.classes.map((n) => el("option", { value: n })) : []));
 }
 
@@ -67,7 +69,7 @@ function renderGroup(g, parent, isRoot) {
     el("option", { value: "none", textContent: "none of" }));
   mode.value = g.mode;
 
-  const header = el("div", { class: "bhead" }, el("span", { textContent: "Match " }), mode, el("span", { textContent: " these conditions:" }));
+  const header = el("div", { class: "bhead" }, el("span", { textContent: "Find entries where " }), mode, el("span", { textContent: " these are true:" }));
   if (!isRoot) {
     header.append(el("button", { class: "bremove", type: "button", title: "Remove this group", textContent: "×",
       onclick: () => { parent.items.splice(parent.items.indexOf(g), 1); if (parent.items.length === 0) parent.items.push(newCondition()); render(); } }));
@@ -89,7 +91,8 @@ function renderCondition(it, group) {
 
   const attr = el("input", { type: "text", class: "battr", placeholder: "attribute, e.g. mail", value: it.attr, autocomplete: "off", spellcheck: false });
   attr.setAttribute("list", "attrList");
-  attr.addEventListener("input", () => { it.attr = attr.value; schedulePreview(); });
+  const caption = el("span", { class: "battr-label", textContent: friendlyLabel(it.attr) });
+  attr.addEventListener("input", () => { it.attr = attr.value; caption.textContent = friendlyLabel(attr.value); schedulePreview(); });
   // "change" fires when the field loses focus or a suggestion is picked: the type may have changed
   attr.addEventListener("change", () => { it.attr = attr.value; it.value = ""; render(); });
 
@@ -100,7 +103,7 @@ function renderCondition(it, group) {
   const remove = el("button", { class: "bremove", type: "button", title: "Remove this condition", textContent: "×",
     onclick: () => { group.items.splice(group.items.indexOf(it), 1); if (group.items.length === 0) group.items.push(newCondition()); render(); } });
 
-  return el("div", { class: "bcond" }, attr, op, valueControl(it, vk), remove);
+  return el("div", { class: "bcond" }, el("div", { class: "battr-wrap" }, attr, caption), op, valueControl(it, vk), remove);
 }
 
 function valueControl(it, vk) {
@@ -154,4 +157,26 @@ async function updatePreview() {
 
 function showErrors(messages) {
   $("bErr").replaceChildren(...messages.map((m) => el("div", { textContent: m })));
+}
+
+// ---------- quick-add chips ----------
+
+// One chip per common field the server has: a click adds a condition on it, ready to fill in.
+function renderChips() {
+  const chips = schemaIdx ? commonChips((name) => !!attrInfo(schemaIdx, name)) : [];
+  $("bChips").replaceChildren(...chips.map((c) => el("button", { type: "button", class: "chip", textContent: c.label,
+    title: `Add a condition on ${c.label} (${c.attr})`, onclick: () => addCondition(c.attr) })));
+  $("bChips").parentElement.classList.toggle("hidden", chips.length === 0);
+}
+
+function addCondition(attr) {
+  const info = attrInfo(schemaIdx, attr);
+  const d = chipDefaults(attr, info);
+  // Use the empty first row if there is one; otherwise add a row.
+  let item = model.items.find((it) => it.type === "condition" && !it.attr.trim());
+  if (!item) { item = newCondition(); model.items.push(item); }
+  Object.assign(item, { attr, op: d.op, value: d.value });
+  render();
+  const row = $("builder").querySelector(":scope > .bgroup > .bbody").children[model.items.indexOf(item)];
+  (row.querySelector("input.bval") || row.querySelector(".battr"))?.focus();
 }

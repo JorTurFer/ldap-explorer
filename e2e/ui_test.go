@@ -147,7 +147,7 @@ func TestUIConnectBrowseAndSearch(t *testing.T) {
 	waitJS(t, ctx, "entryUUID", `[...document.querySelectorAll('#pane-entry table.attrs td.k')].some(td=>td.textContent==='entryUUID')`)
 
 	// Search: filter and attribute list.
-	run(t, ctx, chromedp.Click(`button[data-tab="search"]`), chromedp.WaitVisible("#sBase"), rawMode())
+	run(t, ctx, chromedp.Click(`button[data-tab="search"]`), chromedp.WaitReady("#sBase"), rawMode())
 	var base string
 	js(t, ctx, `document.getElementById('sBase').value`, &base)
 	if base != slapdtest.BaseDN {
@@ -296,7 +296,7 @@ func TestUISearchTableAndCSV(t *testing.T) {
 	connect(t, ctx, l.URL, slapdtest.AliceDN, slapdtest.AlicePW)
 	waitText(t, ctx, "#status", "Connected to")
 
-	run(t, ctx, chromedp.Click(`button[data-tab="search"]`), chromedp.WaitVisible("#sBase"), rawMode(),
+	run(t, ctx, chromedp.Click(`button[data-tab="search"]`), chromedp.WaitReady("#sBase"), rawMode(),
 		set("#sBase", "ou=people,"+slapdtest.BaseDN), set("#sScope", "one"),
 		set("#sFilter", "(objectClass=inetOrgPerson)"), set("#sAttrs", "uid, mail, description, telephoneNumber"),
 		chromedp.Click("#btnSearch"))
@@ -1066,7 +1066,7 @@ func TestUICopy(t *testing.T) {
 	waitJS(t, ctx, "toast gone", `document.getElementById('toasts').children.length === 0`)
 
 	// A table cell copies when clicked.
-	run(t, ctx, chromedp.Click(`button[data-tab="search"]`), chromedp.WaitVisible("#sBase"), rawMode(),
+	run(t, ctx, chromedp.Click(`button[data-tab="search"]`), chromedp.WaitReady("#sBase"), rawMode(),
 		set("#sBase", people), set("#sScope", "one"), set("#sFilter", "(uid=bob)"), set("#sAttrs", "uid, mail"),
 		chromedp.Click("#btnSearch"))
 	waitText(t, ctx, "#sOut", "1 result(s)")
@@ -1138,4 +1138,111 @@ func TestUITheme(t *testing.T) {
 	if got := bodyColor(t, ctx); got != auto {
 		t.Errorf("auto goes back to the system look: %s, want %s", got, auto)
 	}
+}
+
+// ---------- a builder anyone can use ----------
+
+func TestUISimpleBuilderAndQuickFind(t *testing.T) {
+	l := slapdtest.Start(t)
+	appURL := startApp(t)
+	ctx := browser(t)
+	run(t, ctx, chromedp.Navigate(appURL), chromedp.WaitVisible("#btnConn"))
+
+	// Nothing to search before connecting.
+	var disabled bool
+	js(t, ctx, `document.getElementById('quickFind').disabled`, &disabled)
+	if !disabled {
+		t.Error("the quick find box needs a connection")
+	}
+	connect(t, ctx, l.URL, slapdtest.AliceDN, slapdtest.AlicePW)
+	waitText(t, ctx, "#status", "Connected to")
+	run(t, ctx, chromedp.Click(`button[data-tab="search"]`), chromedp.WaitVisible("#builder"))
+
+	// The options stay folded, with a sentence that says what they are.
+	var open bool
+	js(t, ctx, `document.getElementById('sOptions').open`, &open)
+	if open {
+		t.Error("the options start folded")
+	}
+	waitText(t, ctx, "#sOptSummary", "Looking in the whole branch below "+slapdtest.BaseDN+", showing all attributes, at most 500 results")
+	run(t, ctx, chromedp.Click("#sOptions > summary"), chromedp.WaitVisible("#sLimit"),
+		set("#sLimit", "50"), chromedp.Evaluate(`document.getElementById('sLimit').dispatchEvent(new Event('input'))`, nil))
+	waitText(t, ctx, "#sOptSummary", "at most 50 results")
+
+	// Friendly names in the suggestions...
+	waitJS(t, ctx, "suggestions", `document.querySelectorAll('#attrList option').length > 50`)
+	var label string
+	js(t, ctx, `document.querySelector('#attrList option[value="mail"]').label`, &label)
+	if label != "Email" {
+		t.Errorf("the suggestion for mail should say Email: %q", label)
+	}
+	// ...and one-click chips for the common fields this server has.
+	var chips []string
+	js(t, ctx, `[...document.querySelectorAll('#bChips .chip')].map(c => c.textContent)`, &chips)
+	if len(chips) < 5 || chips[0] != "Full name" || chips[1] != "Login" || chips[2] != "Email" {
+		t.Fatalf("chips: %v", chips)
+	}
+
+	rows := func() int {
+		var n int
+		js(t, ctx, `document.querySelectorAll('#builder .bcond').length`, &n)
+		return n
+	}
+	chip := func(name string) {
+		i := slices.Index(chips, name)
+		if i < 0 {
+			t.Fatalf("no chip %q in %v", name, chips)
+		}
+		run(t, ctx, chromedp.Click(fmt.Sprintf("#bChips .chip:nth-child(%d)", i+1)))
+	}
+	chip("Email") // reuses the empty first row
+	if rows() != 1 {
+		t.Errorf("the first chip should fill the empty row, rows=%d", rows())
+	}
+	var first struct{ Attr, Op, Caption string }
+	js(t, ctx, `({ attr: document.querySelector('#builder .battr').value, op: document.querySelector('#builder .bop').value,
+		caption: document.querySelector('#builder .battr-label').textContent })`, &first)
+	if first.Attr != "mail" || first.Op != "contains" || first.Caption != "Email" {
+		t.Errorf("a chip fills attribute, operator and caption: %+v", first)
+	}
+	var focused string
+	js(t, ctx, `document.activeElement.className`, &focused)
+	if !strings.Contains(focused, "bval") {
+		t.Errorf("after a chip the value box is ready to type in: %q", focused)
+	}
+	setVal(t, ctx, 0, "example")
+	chip("Login")
+	chip("Created")
+	if rows() != 3 {
+		t.Errorf("each further chip adds a row: %d", rows())
+	}
+	// a row without a value is explained, not silently searched
+	waitText(t, ctx, "#bErr", "needs a value")
+	setVal(t, ctx, 1, "al")
+	waitJS(t, ctx, "three conditions in the filter", `/^\(&\(mail=\*example\*\)\(uid=\*al\*\)\(createTimestamp>=\d{14}Z\)\)$/.test(document.getElementById('bFilter').textContent)`)
+	var op string
+	js(t, ctx, `document.querySelectorAll('#builder .bop')[2].value`, &op)
+	if op != "withinDays" {
+		t.Errorf("a date chip starts as 'in the last N days': %q", op)
+	}
+
+	// Nothing is clipped, even with the chips.
+	var inside bool
+	js(t, ctx, `(() => { const g = document.querySelector('#builder .bgroup').getBoundingClientRect();
+		return [...document.querySelectorAll('#builder .bcond > *, #bChips .chip')].every(e => e.getBoundingClientRect().right <= g.right + 1); })()`, &inside)
+	if !inside {
+		t.Error("something overflows the builder box")
+	}
+
+	// Quick find: one box in the header, Enter, results.
+	run(t, ctx, chromedp.Click(`button[data-tab="explore"]`)) // from another tab
+	run(t, ctx, chromedp.Focus("#quickFind"), chromedp.SendKeys("#quickFind", "bob\r"))
+	waitJS(t, ctx, "search tab", `document.getElementById('pane-search').classList.contains('on')`)
+	waitText(t, ctx, "#sNote", "Find any entry")
+	waitText(t, ctx, "#sOut", "result(s)")
+	waitText(t, ctx, "#sOut", "uid=bob,")
+	waitJS(t, ctx, "the recipe is shown in the builder", `document.querySelectorAll('#builder .bcond').length >= 3`)
+	// an empty search does nothing, and a miss says so clearly
+	run(t, ctx, set("#quickFind", ""), chromedp.Focus("#quickFind"), chromedp.SendKeys("#quickFind", "zzzzzz\r"))
+	waitText(t, ctx, "#sOut", "0 result(s)")
 }

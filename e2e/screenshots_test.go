@@ -58,7 +58,7 @@ func TestScreenshots(t *testing.T) {
 	shot("browse")
 
 	// 3. The query builder: no LDAP knowledge needed.
-	run(t, ctx, chromedp.Click(`button[data-tab="search"]`), chromedp.WaitVisible("#sBase"),
+	run(t, ctx, chromedp.Click(`button[data-tab="search"]`), chromedp.WaitReady("#sBase"),
 		set("#sBase", "ou=people,"+slapdtest.BaseDN), set("#sScope", "one"), set("#sAttrs", "uid, cn, mail, telephoneNumber"))
 	waitJS(t, ctx, "attribute suggestions", `document.querySelectorAll('#attrList option').length > 50`)
 	setAttr(t, ctx, 0, "mail")

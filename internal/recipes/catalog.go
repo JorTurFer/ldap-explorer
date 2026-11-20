@@ -8,6 +8,9 @@ import (
 	"ldap-explorer/internal/ldapfilter"
 )
 
+// entryNameAttrs are the attributes a "find anything by name" looks at, when the server has them.
+var entryNameAttrs = []string{"cn", "name", "displayName", "uid", "sAMAccountName", "userPrincipalName", "mail", "sn", "givenName", "ou", "o"}
+
 const (
 	catPeople   = "People"
 	catGroups   = "Groups"
@@ -16,6 +19,32 @@ const (
 )
 
 var all = []*Recipe{
+	{
+		ID: "find-entry", Category: catExplore, Title: "Find any entry",
+		Description: "Look for people, groups or units by name, login or email: any of those fields can match.",
+		Params:      []Param{{Name: "text", Label: "What to look for", Kind: "text", Placeholder: "e.g. alice or sales", Required: true}},
+		Unavailable: func(e *Env) string {
+			if r := needSchema(e); r != "" {
+				return r
+			}
+			if len(e.present(entryNameAttrs...)) == 0 {
+				return missing("name attribute (cn, name, uid, mail, ou...)")
+			}
+			return ""
+		},
+		Build: func(e *Env, p map[string]string) (*Plan, error) {
+			attrs := e.present(entryNameAttrs...)
+			items := make([]*ldapfilter.Node, len(attrs))
+			for i, a := range attrs {
+				items[i] = cond("contains", a, p["text"])
+			}
+			show := e.present("cn", "name", "uid", "sAMAccountName", "mail", "ou", "o")
+			if len(show) > 5 {
+				show = show[:5]
+			}
+			return &Plan{Query: anyOf(items), Attrs: strings.Join(show, ", ")}, nil
+		},
+	},
 	{
 		ID: "find-person", Category: catPeople, Title: "Find a person",
 		Description: "Look for someone by name, login or email. Any of those fields can match.",

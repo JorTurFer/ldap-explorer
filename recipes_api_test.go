@@ -40,7 +40,7 @@ func TestRecipesAgainstRealServer(t *testing.T) {
 		return false
 	}
 	for id, want := range map[string]bool{
-		"find-person": true, "people-without-email": true, "people-by-department": true, "group-members": true,
+		"find-entry": true, "find-person": true, "people-without-email": true, "people-by-department": true, "group-members": true,
 		"user-groups": true, "recently-created": true, "recently-modified": true, "by-class": true,
 		"with-attribute": true, "missing-attribute": true,
 		"locked-accounts":  has("nsAccountLock", "pwdAccountLockedTime"),
@@ -81,7 +81,19 @@ func TestRecipesAgainstRealServer(t *testing.T) {
 	people := "ou=people," + slapdtest.BaseDN
 	base := slapdtest.BaseDN
 
-	_, dns, _ := run("find-person", map[string]string{"text": "ali"}, base)
+	_, dns, _ := run("find-entry", map[string]string{"text": "ali"}, base)
+	if !slices.Equal(dns, []string{"uid=alice"}) {
+		t.Errorf("find-entry by name: %v", dns)
+	}
+	_, dns, _ = run("find-entry", map[string]string{"text": "PEOPLE"}, base) // matches the unit, any case
+	if !slices.Equal(dns, []string{"ou=people"}) {
+		t.Errorf("find-entry finds units too: %v", dns)
+	}
+	_, dns, _ = run("find-entry", map[string]string{"text": "admins"}, base)
+	if !slices.Equal(dns, []string{"cn=admins"}) {
+		t.Errorf("find-entry finds groups too: %v", dns)
+	}
+	_, dns, _ = run("find-person", map[string]string{"text": "ali"}, base)
 	if !slices.Equal(dns, []string{"uid=alice"}) {
 		t.Errorf("find-person: %v", dns)
 	}

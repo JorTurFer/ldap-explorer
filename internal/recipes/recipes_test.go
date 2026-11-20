@@ -38,7 +38,7 @@ var servers = map[string]*Env{
 
 func TestAvailabilityPerServer(t *testing.T) {
 	want := map[string]map[string]bool{
-		"openldap": {"find-person": true, "people-without-email": true, "people-by-department": true, "group-members": true, "user-groups": true,
+		"openldap": {"find-entry": true, "find-person": true, "people-without-email": true, "people-by-department": true, "group-members": true, "user-groups": true,
 			"locked-accounts": false, "expired-accounts": false, "recently-created": true, "recently-modified": true,
 			"by-class": true, "with-attribute": true, "missing-attribute": true},
 		"389ds": {"find-person": true, "people-without-email": true, "people-by-department": false, "group-members": true, "user-groups": true,
@@ -46,9 +46,9 @@ func TestAvailabilityPerServer(t *testing.T) {
 		"ad": {"find-person": true, "people-without-email": true, "people-by-department": true, "group-members": true, "user-groups": true,
 			"locked-accounts": false, "expired-accounts": false, "recently-created": true, "recently-modified": true},
 		"ppolicy": {"locked-accounts": true, "expired-accounts": true, "group-members": false, "user-groups": false, "recently-created": false},
-		"bare":    {"find-person": false, "people-without-email": false, "group-members": false, "recently-created": false, "by-class": true, "missing-attribute": true},
+		"bare":    {"find-entry": false, "find-person": false, "people-without-email": false, "group-members": false, "recently-created": false, "by-class": true, "missing-attribute": true},
 		// without a schema only the recipes that need no schema knowledge are offered
-		"noschema": {"find-person": false, "group-members": false, "locked-accounts": false, "by-class": true, "with-attribute": true, "missing-attribute": true},
+		"noschema": {"find-entry": false, "find-person": false, "group-members": false, "locked-accounts": false, "by-class": true, "with-attribute": true, "missing-attribute": true},
 	}
 	for server, expect := range want {
 		infos := map[string]Info{}
@@ -130,6 +130,10 @@ func TestPlansAreValidAndAdaptToTheServer(t *testing.T) {
 		filter     string
 		attrs      string
 	}{
+		{"openldap", "find-entry", map[string]string{"text": "ali"},
+			"(|(cn=*ali*)(uid=*ali*)(mail=*ali*)(sn=*ali*)(givenName=*ali*))", "cn, uid, mail"},
+		{"ad", "find-entry", map[string]string{"text": "ali"},
+			"(|(cn=*ali*)(displayName=*ali*)(sAMAccountName=*ali*)(userPrincipalName=*ali*)(mail=*ali*))", "cn, sAMAccountName, mail"},
 		{"openldap", "find-person", map[string]string{"text": "ali"},
 			"(|(cn=*ali*)(givenName=*ali*)(sn=*ali*)(uid=*ali*)(mail=*ali*))", "cn, uid, mail"},
 		{"ad", "find-person", map[string]string{"text": "ali"},

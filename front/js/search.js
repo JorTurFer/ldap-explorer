@@ -4,6 +4,7 @@ import { on } from "./events.js";
 import { showTab } from "./tabs.js";
 import { showResults } from "./results.js";
 import { resolveFilter, setQuery, getQuery } from "./builder.js";
+import { optionsSummary } from "./labels.js";
 
 let mode = "builder"; // "builder" | "raw"
 
@@ -29,8 +30,14 @@ export async function applyState(q) {
   $("sScope").value = q.scope || "sub";
   $("sAttrs").value = q.attrs || "";
   $("sLimit").value = q.limit || 500;
+  refreshOptionsSummary();
   if (q.mode === "raw") { $("sFilter").value = q.filter || ""; setMode("raw"); }
   else { await setQuery(q.query); setMode("builder"); }
+}
+
+// A sentence under "Where to look and what to show" so the options can stay folded.
+export function refreshOptionsSummary() {
+  $("sOptSummary").textContent = "· " + optionsSummary({ base: $("sBase").value, scope: $("sScope").value, limit: parseInt($("sLimit").value, 10), attrs: $("sAttrs").value });
 }
 
 const hideNote = () => $("sNote").classList.add("hidden");
@@ -54,9 +61,13 @@ export function initSearch() {
   on("connected", ({ roots }) => {
     $("btnSearch").disabled = false;
     if (!$("sBase").value && roots[0]) $("sBase").value = roots[0];
+    refreshOptionsSummary();
   });
   on("disconnected", () => { $("btnSearch").disabled = true; });
-  on("search-from", ({ dn }) => { $("sBase").value = dn; showTab("search"); (mode === "raw" ? $("sFilter") : $("sBase")).focus(); });
+  on("search-from", ({ dn }) => { $("sBase").value = dn; refreshOptionsSummary(); showTab("search"); (mode === "raw" ? $("sFilter") : $("sBase")).focus(); });
+  for (const id of ["sBase", "sAttrs", "sScope", "sLimit"]) $(id).addEventListener("input", refreshOptionsSummary);
+  $("sScope").addEventListener("change", refreshOptionsSummary);
+  refreshOptionsSummary();
   $("modeBuilder").onclick = () => setMode("builder");
   $("modeRaw").onclick = () => setMode("raw");
   on("builder-to-raw", ({ filter }) => { $("sFilter").value = filter; setMode("raw"); });
@@ -66,6 +77,7 @@ export function initSearch() {
     if (plan.base) $("sBase").value = plan.base;
     $("sScope").value = plan.scope || "sub";
     $("sAttrs").value = plan.attrs || "";
+    refreshOptionsSummary();
     await setQuery(plan.query);
     setMode("builder");
     const note = $("sNote");

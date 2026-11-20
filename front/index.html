@@ -13,6 +13,7 @@
   <strong>ldap-explorer</strong>
   <button id="btnConn" class="primary">Connect…</button>
   <button id="btnDisc" disabled>Disconnect</button>
+  <input type="search" id="quickFind" placeholder="Find anyone or anything…  ( / )" title="Type a name, login or email and press Enter" autocomplete="off" spellcheck="false" disabled>
   <select id="quickConn" title="Connect as one of your saved profiles (another user or another server)"><option value="">Connect as…</option></select>
   <button id="btnRefresh" disabled title="Reload the tree">↻</button>
   <label class="muted"><input type="checkbox" id="chkOp"> operational attributes</label>
@@ -44,7 +45,6 @@
         <span id="qMsg" class="muted small"></span>
       </div>
       <div class="sform">
-        <label>Base</label><input type="text" id="sBase" placeholder="dc=example,dc=com">
         <label>Filter</label>
         <div class="fcol">
           <div class="seg">
@@ -52,6 +52,7 @@
             <button type="button" id="modeRaw">Advanced (text)</button>
           </div>
           <div id="builderBox">
+            <div class="chips-row"><span class="muted small">Add a condition on:</span><div class="chips" id="bChips"></div></div>
             <div id="builder"></div>
             <div class="bpreview">
               <div class="muted small">LDAP filter</div>
@@ -63,14 +64,20 @@
           </div>
           <div id="rawBox" class="hidden"><input type="text" id="sFilter" placeholder="(objectClass=*)"></div>
         </div>
-        <label>Attributes</label><input type="text" id="sAttrs" placeholder="empty = all  (e.g. cn, mail, memberOf)">
-        <label>Scope</label>
-        <div class="row">
-          <select id="sScope"><option value="sub">subtree</option><option value="one">one level</option><option value="base">base only</option></select>
-          <label class="muted">Limit</label><input type="text" id="sLimit" value="500" class="w80">
-          <button id="btnSearch" class="primary" disabled>Search</button>
-        </div>
       </div>
+      <details id="sOptions" class="options">
+        <summary>Where to look and what to show <span id="sOptSummary" class="muted"></span></summary>
+        <div class="sform">
+          <label>Base</label><input type="text" id="sBase" placeholder="dc=example,dc=com">
+          <label>Attributes</label><input type="text" id="sAttrs" placeholder="empty = all  (e.g. cn, mail, memberOf)">
+          <label>Scope</label>
+          <div class="row">
+            <select id="sScope"><option value="sub">subtree</option><option value="one">one level</option><option value="base">base only</option></select>
+            <label class="muted">Limit</label><input type="text" id="sLimit" value="500" class="w80">
+          </div>
+        </div>
+      </details>
+      <div class="searchbar"><button id="btnSearch" class="primary" disabled>Search</button></div>
       <div id="sOut"></div>
     </div>
     <div id="pane-recipes" class="pane"><div class="empty">Connect to a server to see the recipes.</div></div>

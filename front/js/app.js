@@ -14,6 +14,7 @@ import { initSavedQueries } from "./savedqueries.js";
 import { initVault } from "./vault.js";
 import { initQuick } from "./quick.js";
 import { initSettings } from "./settings.js";
+import { initQuickFind } from "./quickfind.js";
 
 initTabs();
 initSettings();
@@ -21,6 +22,7 @@ initVault();
 initProfiles();
 initConnection();
 initQuick();
+initQuickFind();
 initTree();
 initEntry();
 initBuilder();
