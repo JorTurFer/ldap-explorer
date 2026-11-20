@@ -6,6 +6,7 @@ import { showResults } from "./results.js";
 import { resolveFilter, setQuery, getQuery } from "./builder.js";
 import { optionsSummary } from "./labels.js";
 import { emit } from "./events.js";
+import { friendlyError } from "./friendly-errors.js";
 
 let mode = "builder"; // "builder" | "raw"
 
@@ -56,7 +57,7 @@ async function doSearch() {
     const ms = Math.round(performance.now() - t0);
     showResults(out, res, $("sAttrs").value, ms, body);
     emit("searched", { state: currentState(), summary: filter }); // for the history
-  } catch (e) { out.replaceChildren(el("div", { class: "err mt12", textContent: e.message })); }
+  } catch (e) { out.replaceChildren(el("div", { class: "err mt12", textContent: friendlyError(e.message) })); }
 }
 
 export function initSearch() {

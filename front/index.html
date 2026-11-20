@@ -24,7 +24,7 @@
 </header>
 <main>
   <nav id="treeBox">
-    <div class="treebar"><input type="text" id="treeFilter" placeholder="Filter the tree, or paste a DN and press Enter" disabled autocomplete="off" spellcheck="false"></div>
+    <div class="treebar"><input type="text" id="treeFilter" aria-label="Filter the tree, or paste a DN to go to it" placeholder="Filter the tree, or paste a DN and press Enter" disabled autocomplete="off" spellcheck="false"></div>
     <details id="bookmarks" class="bookmarks">
       <summary>Bookmarks <span id="bmCount" class="badge">0</span></summary>
       <ul id="bmList" class="bmlist"></ul>
@@ -41,12 +41,12 @@
       <button data-tab="explore">Explore</button>
       <button data-tab="server">Server</button>
     </div>
-    <div id="pane-entry" class="pane on"><div class="empty">Select an entry in the tree.</div></div>
+    <div id="pane-entry" class="pane on"></div>
     <div id="pane-search" class="pane">
       <div id="sNote" class="bnote hidden"></div>
       <div class="saved">
         <select id="qSaved" title="Saved queries of this connection"><option value="">— saved queries —</option></select>
-        <input type="text" id="qName" placeholder="name to save as" maxlength="100">
+        <input type="text" id="qName" placeholder="name to save as" maxlength="100" aria-label="Name to save the current search as">
         <button type="button" id="qSave" disabled>Save</button>
         <button type="button" id="qDelete" disabled>Delete</button>
         <select id="hSel" title="Searches you ran recently on this connection" disabled><option value="">— no recent searches —</option></select>
@@ -77,12 +77,12 @@
       <details id="sOptions" class="options">
         <summary>Where to look and what to show <span id="sOptSummary" class="muted"></span></summary>
         <div class="sform">
-          <label>Base</label><input type="text" id="sBase" placeholder="dc=example,dc=com">
-          <label>Attributes</label><input type="text" id="sAttrs" placeholder="empty = all  (e.g. cn, mail, memberOf)">
-          <label>Scope</label>
+          <label for="sBase">Base</label><input type="text" id="sBase" placeholder="dc=example,dc=com">
+          <label for="sAttrs">Attributes</label><input type="text" id="sAttrs" placeholder="empty = all  (e.g. cn, mail, memberOf)">
+          <label for="sScope">Scope</label>
           <div class="row">
             <select id="sScope"><option value="sub">subtree</option><option value="one">one level</option><option value="base">base only</option></select>
-            <label class="muted">Limit</label><input type="text" id="sLimit" value="500" class="w80">
+            <label class="muted" for="sLimit">Limit</label><input type="text" id="sLimit" value="500" class="w80">
           </div>
         </div>
       </details>
@@ -92,11 +92,11 @@
     <div id="pane-recipes" class="pane"><div class="empty">Connect to a server to see the recipes.</div></div>
     <div id="pane-explore" class="pane">
       <div class="sform">
-        <label>Base</label><input type="text" id="xBase" placeholder="dc=example,dc=com">
-        <label>Scope</label>
+        <label for="xBase">Base</label><input type="text" id="xBase" placeholder="dc=example,dc=com">
+        <label for="xScope">Scope</label>
         <div class="row">
           <select id="xScope"><option value="sub">subtree</option><option value="one">one level</option></select>
-          <label class="muted">Entries to look at</label><input type="text" id="xLimit" value="200" class="w80">
+          <label class="muted" for="xLimit">Entries to look at</label><input type="text" id="xLimit" value="200" class="w80">
           <button id="btnExplore" class="primary" disabled>Analyze</button>
         </div>
       </div>
@@ -108,7 +108,7 @@
       <h3 class="section">Schema <span class="muted small">what the server knows how to store</span></h3>
       <p class="muted">The schema lists every attribute and object class (kind of entry) this server accepts. Pick one to see what it is for, what it can hold and how to search for it.</p>
       <div class="schema-tools">
-        <input type="search" id="scFilter" placeholder="Filter by name, alias, OID or description…" autocomplete="off" spellcheck="false" disabled>
+        <input type="search" id="scFilter" aria-label="Filter the schema by name, alias, OID or description" placeholder="Filter by name, alias, OID or description…" autocomplete="off" spellcheck="false" disabled>
         <span class="seg"><button type="button" id="scAttrs" class="on">Attributes</button><button type="button" id="scClasses">Object classes</button></span>
         <span id="scCount" class="muted small"></span>
       </div>
@@ -148,8 +148,8 @@
     <h3 id="unlockTitle">Unlock the vault</h3>
     <p id="unlockText" class="muted"></p>
     <div class="cform">
-      <label>Passphrase</label><input type="password" id="uPass" autocomplete="off">
-      <label id="uConfirmLabel">Repeat it</label><input type="password" id="uConfirm" autocomplete="off">
+      <label for="uPass">Passphrase</label><input type="password" id="uPass" autocomplete="off">
+      <label id="uConfirmLabel" for="uConfirm">Repeat it</label><input type="password" id="uConfirm" autocomplete="off">
     </div>
     <div id="uErr" class="err mt10"></div>
     <div class="actions">
@@ -169,9 +169,9 @@
     <button type="button" id="mChange">Change the passphrase…</button>
   </div>
   <form id="changeForm" class="cform hidden">
-    <label>Current</label><input type="password" id="mOld" autocomplete="off">
-    <label>New</label><input type="password" id="mNew" autocomplete="off">
-    <label>Repeat the new one</label><input type="password" id="mNew2" autocomplete="off">
+    <label for="mOld">Current</label><input type="password" id="mOld" autocomplete="off">
+    <label for="mNew">New</label><input type="password" id="mNew" autocomplete="off">
+    <label for="mNew2">Repeat the new one</label><input type="password" id="mNew2" autocomplete="off">
     <div></div><div class="row-flex"><button type="submit" class="primary">Change it</button><button type="button" id="mChangeCancel">Cancel</button></div>
   </form>
   <div id="mErr" class="err mt10"></div>
@@ -183,21 +183,21 @@
 <dialog id="dlg">
   <form method="dialog" id="cform">
     <div class="cform">
-      <label>Profile</label>
+      <label for="cProfile">Profile</label>
       <div class="row-flex">
         <select id="cProfile" class="grow"><option value="">— new —</option></select>
         <button type="button" id="btnDelProfile" title="Delete profile">🗑</button>
       </div>
-      <label>Name</label><input type="text" id="cName" placeholder="e.g. AD production">
-      <label>URL</label><input type="text" id="cURL" placeholder="ldaps://ldap.example.com:636" required>
-      <label>Bind DN</label><input type="text" id="cBind" placeholder="empty = anonymous  (or user@domain on AD)">
-      <label>Password</label><input type="password" id="cPass" autocomplete="off">
-      <label>Base DN</label><input type="text" id="cBase" placeholder="empty = detected from the RootDSE">
+      <label for="cName">Name</label><input type="text" id="cName" placeholder="e.g. AD production">
+      <label for="cURL">URL</label><input type="text" id="cURL" placeholder="ldaps://ldap.example.com:636" required>
+      <label for="cBind">Bind DN</label><input type="text" id="cBind" placeholder="empty = anonymous  (or user@domain on AD)">
+      <label for="cPass">Password</label><input type="password" id="cPass" autocomplete="off">
+      <label for="cBase">Base DN</label><input type="text" id="cBase" placeholder="empty = detected from the RootDSE">
       <div class="full">
         <label><input type="checkbox" id="cStartTLS"> StartTLS (with ldap://)</label>
         <label><input type="checkbox" id="cSkip"> Skip certificate verification</label>
       </div>
-      <label>Password kept</label>
+      <label for="cStore">Password kept</label>
       <div class="fcol">
         <select id="cStore"></select>
         <div id="cStoreHint" class="muted small"></div>

@@ -239,3 +239,9 @@ table.cmp td.k { font-weight: 500; color: var(--text); }
 tr.cmp-different td.cmp-cell { background: var(--accent-bg); }
 tr.cmp-onlyA td.cmp-cell:nth-child(2), tr.cmp-onlyB td.cmp-cell:nth-child(3) { background: var(--accent-bg); }
 .cmp-mark { font-weight: 700; color: var(--accent); }
+
+/* the welcome screen */
+.welcome { max-width: 520px; margin: 40px auto; text-align: left; }
+.welcome h3 { font-size: 20px; }
+.welcome .steps { margin: var(--space-3) 0 var(--space-4); padding-left: var(--space-5); line-height: 1.8; }
+.welcome button.primary { padding: 8px 18px; font-size: var(--text-l); }

@@ -89,14 +89,14 @@ function renderCondition(it, group) {
   const vk = valueKind(info, it.op);
   it.valueType = vk === "datetime" ? "datetime" : undefined;
 
-  const attr = el("input", { type: "text", class: "battr", placeholder: "attribute, e.g. mail", value: it.attr, autocomplete: "off", spellcheck: false });
+  const attr = el("input", { type: "text", class: "battr", placeholder: "field, e.g. mail", "aria-label": "Field to look at", value: it.attr, autocomplete: "off", spellcheck: false });
   attr.setAttribute("list", "attrList");
   const caption = el("span", { class: "battr-label", textContent: friendlyLabel(it.attr) });
   attr.addEventListener("input", () => { it.attr = attr.value; caption.textContent = friendlyLabel(attr.value); schedulePreview(); });
   // "change" fires when the field loses focus or a suggestion is picked: the type may have changed
   attr.addEventListener("change", () => { it.attr = attr.value; it.value = ""; render(); });
 
-  const op = el("select", { class: "bop", title: "Operator", onchange: (ev) => { it.op = ev.target.value; it.value = ""; render(); } },
+  const op = el("select", { class: "bop", title: "Operator", "aria-label": "Operator", onchange: (ev) => { it.op = ev.target.value; it.value = ""; render(); } },
     ...ops.map((o) => el("option", { value: o, textContent: OPS[o] })));
   op.value = it.op;
 
@@ -110,12 +110,12 @@ function valueControl(it, vk) {
   if (vk === "none") return el("span", { class: "bval" });
   if (vk === "boolean") {
     if (it.value !== "true" && it.value !== "false") it.value = "true";
-    const s = el("select", { class: "bval", onchange: (ev) => { it.value = ev.target.value; schedulePreview(); } },
+    const s = el("select", { class: "bval", "aria-label": "Value", onchange: (ev) => { it.value = ev.target.value; schedulePreview(); } },
       el("option", { value: "true", textContent: "true" }), el("option", { value: "false", textContent: "false" }));
     s.value = it.value;
     return s;
   }
-  const props = { class: "bval", value: it.value, autocomplete: "off" };
+  const props = { class: "bval", value: it.value, autocomplete: "off", "aria-label": "Value" };
   if (vk === "datetime") props.type = "datetime-local";
   else if (vk === "integer" || vk === "days") { props.type = "number"; props.step = "1"; if (vk === "days") { props.min = "1"; props.placeholder = "number of days"; } }
   else { props.type = "text"; props.placeholder = "value"; props.spellcheck = false; }

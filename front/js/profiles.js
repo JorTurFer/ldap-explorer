@@ -4,6 +4,7 @@ import { setStatus } from "./status.js";
 import { emit, on } from "./events.js";
 import { storeOptions, storeHint } from "./cred-model.js";
 import { getStatus, withVault, refreshStatus } from "./vault.js";
+import { friendlyError } from "./friendly-errors.js";
 
 let profiles = [];
 
@@ -64,7 +65,7 @@ export function initProfiles() {
       await loadProfiles(); $("cProfile").value = p.name; setStatus("Profile saved");
       $("cPass").value = "";
       await refreshStatus();
-    } catch (e) { $("cErr").textContent = e.message; }
+    } catch (e) { $("cErr").textContent = friendlyError(e.message); }
   };
 
   // Keep the server's settings and add another user: for several accounts on one LDAP.

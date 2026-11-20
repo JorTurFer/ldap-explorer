@@ -4,6 +4,7 @@ import { emit, on } from "./events.js";
 import { showTab } from "./tabs.js";
 import { goTo } from "./tree.js";
 import { splitDN, normDN } from "./nav.js";
+import { friendlyError } from "./friendly-errors.js";
 import { getSchema, isDNAttr, isTimeAttr } from "./schema.js";
 import { describeTime, formatBytes, summaryBytes, isPhotoAttr, bytesToBase64 } from "./decode.js";
 import { copyBtn, copyText, asyncCopyBtn } from "./ui/copy.js";
@@ -81,16 +82,35 @@ export async function showEntry(dn) {
         el("a", { class: "jump", textContent: "search from here", onclick: () => emit("search-from", { dn: e.dn }) })),
       ...entryActions(e),
       attrTable(e.attrs, e.dn));
-  } catch (err) { pane.replaceChildren(el("div", { class: "err", textContent: err.message })); }
+  } catch (err) { pane.replaceChildren(el("div", { class: "err", textContent: friendlyError(err.message) })); }
+}
+
+// What the Entry tab shows before anything is selected: how to start.
+export function welcome(connected) {
+  if (connected) {
+    return el("div", { class: "empty-state" }, el("h3", { textContent: "Select an entry" }),
+      el("p", { textContent: "Click an entry in the tree, or type a name, login or email in the search box at the top and press Enter." }));
+  }
+  return el("div", { class: "empty-state welcome" },
+    el("h3", { textContent: "Welcome to ldap-explorer" }),
+    el("p", { textContent: "Look things up in an LDAP directory without knowing LDAP. It only reads: it never changes anything." }),
+    el("ol", { class: "steps" },
+      el("li", { textContent: "Connect to your server." }),
+      el("li", { textContent: "Type a name, login or email in the search box, or browse the tree." }),
+      el("li", { textContent: "Click an entry to see it. Everything has a copy button." })),
+    el("button", { type: "button", id: "welcomeConnect", class: "primary", textContent: "Connect to a server…", onclick: () => $("btnConn").click() }),
+    el("p", { class: "muted small", textContent: "Press ? for the keyboard shortcuts." }));
 }
 
 export function initEntry() {
+  $("pane-entry").replaceChildren(welcome(false));
   on("bookmarks-changed", () => { const s = $("eStar"); if (s && s.paint) s.paint(); }); // keep the star honest
   on("pin-changed", () => { const p = $("ePin"); if (p && p.paint) p.paint(); });
   on("select", ({ dn }) => showEntry(dn));
+  on("connected", () => { if (!currentDN) $("pane-entry").replaceChildren(welcome(true)); });
   on("disconnected", () => {
     currentDN = null;
-    $("pane-entry").replaceChildren(el("div", { class: "empty", textContent: "Select an entry in the tree." }));
+    $("pane-entry").replaceChildren(welcome(false));
   });
   $("chkOp").onchange = () => { if (currentDN) showEntry(currentDN); };
 }

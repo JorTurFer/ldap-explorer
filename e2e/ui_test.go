@@ -1765,3 +1765,103 @@ func TestUIKeyboardShortcuts(t *testing.T) {
 		t.Error("while a dialog is open the shortcuts are off")
 	}
 }
+
+// ---------- accessibility and the welcome screen ----------
+
+// unnamedControls lists the visible controls that a screen reader could not name: no label,
+// aria-label, visible button text or title.
+func unnamedControls(t *testing.T, ctx context.Context) []string {
+	t.Helper()
+	var list []string
+	js(t, ctx, `(() => {
+	  const name = (el) => {
+	    if (el.getAttribute('aria-label')) return el.getAttribute('aria-label');
+	    const lb = el.getAttribute('aria-labelledby');
+	    if (lb && document.getElementById(lb)) return document.getElementById(lb).textContent.trim();
+	    if (el.id) { const l = document.querySelector('label[for="' + el.id + '"]'); if (l) return l.textContent.trim(); }
+	    const wrap = el.closest('label'); if (wrap) return wrap.textContent.trim();
+	    if (el.tagName === 'BUTTON') return (el.textContent || '').trim() || el.title || '';
+	    return el.title || '';
+	  };
+	  const visible = (el) => !!(el.offsetWidth || el.offsetHeight || el.getClientRects().length);
+	  return [...document.querySelectorAll('button, input:not([type=hidden]), select, textarea')]
+	    .filter(visible).filter((e) => !name(e)).map((e) => e.tagName.toLowerCase() + '#' + e.id + '.' + e.className);
+	})()`, &list)
+	return list
+}
+
+func TestUIEveryControlHasAName(t *testing.T) {
+	l := slapdtest.Start(t)
+	appURL := startApp(t)
+	ctx := browser(t)
+	run(t, ctx, chromedp.Navigate(appURL), chromedp.WaitVisible("#btnConn"))
+	if bad := unnamedControls(t, ctx); len(bad) != 0 {
+		t.Errorf("before connecting: unnamed controls %v", bad)
+	}
+	// the connection dialog
+	run(t, ctx, chromedp.Click("#btnConn"), chromedp.WaitVisible("#cURL"))
+	if bad := unnamedControls(t, ctx); len(bad) != 0 {
+		t.Errorf("connection dialog: unnamed controls %v", bad)
+	}
+	run(t, ctx, chromedp.Click("#btnCancel"))
+	connect(t, ctx, l.URL, slapdtest.AliceDN, slapdtest.AlicePW)
+	waitText(t, ctx, "#status", "Connected to")
+	waitJS(t, ctx, "recipes loaded", `document.querySelectorAll('#pane-recipes .recipe').length > 5`)
+	waitJS(t, ctx, "suggestions", `document.querySelectorAll('#attrList option').length > 50`)
+	for _, tab := range []string{"entry", "search", "recipes", "explore", "server"} {
+		run(t, ctx, chromedp.Click(`button[data-tab="`+tab+`"]`))
+		if tab == "search" {
+			run(t, ctx, chromedp.Click("#sOptions > summary"), chromedp.WaitVisible("#sLimit"))
+		}
+		if bad := unnamedControls(t, ctx); len(bad) != 0 {
+			t.Errorf("%s tab: unnamed controls %v", tab, bad)
+		}
+	}
+	for _, dlg := range []struct{ open, id string }{{"#btnVault", "manageDlg"}, {"#btnHelp", "helpDlg"}} {
+		run(t, ctx, chromedp.Click(dlg.open))
+		waitJS(t, ctx, dlg.id, `document.getElementById('`+dlg.id+`').open`)
+		if bad := unnamedControls(t, ctx); len(bad) != 0 {
+			t.Errorf("%s: unnamed controls %v", dlg.id, bad)
+		}
+		run(t, ctx, chromedp.Evaluate(`document.getElementById('`+dlg.id+`').close()`, nil))
+	}
+}
+
+func TestUIWelcomeScreen(t *testing.T) {
+	l := slapdtest.Start(t)
+	appURL := startApp(t)
+	ctx := browser(t)
+	run(t, ctx, chromedp.Navigate(appURL), chromedp.WaitVisible("#welcomeConnect"))
+	waitText(t, ctx, "#pane-entry", "Welcome to ldap-explorer")
+	waitText(t, ctx, "#pane-entry", "Connect to your server.")
+	// the button does what the Connect button does
+	run(t, ctx, chromedp.Click("#welcomeConnect"))
+	waitJS(t, ctx, "dialog open", `document.getElementById('dlg').open`)
+	run(t, ctx, chromedp.Click("#btnCancel"))
+	// once connected the entry tab explains how to start, then shows the first entry
+	connect(t, ctx, l.URL, slapdtest.AliceDN, slapdtest.AlicePW)
+	waitText(t, ctx, "#status", "Connected to")
+	waitText(t, ctx, "#pane-entry .dn", slapdtest.BaseDN)
+	// disconnecting brings the welcome back
+	run(t, ctx, chromedp.Click("#btnDisc"))
+	waitText(t, ctx, "#pane-entry", "Welcome to ldap-explorer")
+}
+
+func TestUIErrorsAreExplained(t *testing.T) {
+	l := slapdtest.Start(t)
+	appURL := startApp(t)
+	ctx := browser(t)
+	run(t, ctx, chromedp.Navigate(appURL), chromedp.WaitVisible("#btnConn"))
+	// wrong password: a sentence first, the technical text kept
+	connect(t, ctx, l.URL, slapdtest.AliceDN, "wrong")
+	waitText(t, ctx, "#cErr", "The server did not accept that user and password.")
+	waitText(t, ctx, "#cErr", "Invalid Credentials")
+	// nothing listens there
+	run(t, ctx, set("#cURL", "ldap://127.0.0.1:1"), set("#cPass", slapdtest.AlicePW), chromedp.Click("#btnDoConn"))
+	waitText(t, ctx, "#cErr", "Could not reach the server.")
+	// an entry that does not exist
+	run(t, ctx, set("#cURL", l.URL), chromedp.Click("#btnDoConn"))
+	waitText(t, ctx, "#status", "Connected to")
+	run(t, ctx, set("#treeFilter", "uid=nobody,ou=people,"+slapdtest.BaseDN), chromedp.SendKeys("#treeFilter", "\r"))
+	waitText(t, ctx, "#pane-entry .err", "That entry does not exist, or you are not allowed to see it.")
+}

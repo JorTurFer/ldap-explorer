@@ -5,6 +5,7 @@
 import { $, el } from "./dom.js";
 import { api } from "./api.js";
 import { emit, on } from "./events.js";
+import { friendlyError } from "./friendly-errors.js";
 
 const CATEGORIES = ["People", "Groups", "Accounts", "Explore"];
 
@@ -46,9 +47,10 @@ function card(r) {
     if (p.kind === "class") input.setAttribute("list", "classList");
     if (p.kind === "attribute") input.setAttribute("list", "attrList");
     input.dataset.param = p.name;
+    input.id = `rp-${r.id}-${p.name}`;
     input.addEventListener("keydown", (ev) => { if (ev.key === "Enter") use(); });
     inputs.set(p.name, input);
-    return [el("label", { textContent: p.label + (p.required ? "" : " (optional)") }), input, ...(p.help ? [el("div", { class: "help", textContent: p.help })] : [])];
+    return [el("label", { htmlFor: input.id, textContent: p.label + (p.required ? "" : " (optional)") }), input, ...(p.help ? [el("div", { class: "help", textContent: p.help })] : [])];
   });
 
   async function use() {
@@ -58,7 +60,7 @@ function card(r) {
     try {
       const plan = await api("/api/recipes/" + encodeURIComponent(r.id), { body: { params } });
       emit("load-query", plan);
-    } catch (e) { err.textContent = e.message; }
+    } catch (e) { err.textContent = friendlyError(e.message); }
   }
 
   return el("div", { class: "recipe" + (r.available ? "" : " unavailable"), id: "recipe-" + r.id },

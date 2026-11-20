@@ -4,6 +4,7 @@ import { setStatus } from "./status.js";
 import { emit, on } from "./events.js";
 import { loadProfiles, formProfile, fillForm } from "./profiles.js";
 import { withVault, refreshStatus } from "./vault.js";
+import { friendlyError } from "./friendly-errors.js";
 
 // Connects with a profile. When the profile keeps its password somewhere, an empty
 // password means "use the saved one" (the server reads it; it never travels back).
@@ -24,7 +25,7 @@ export function initConnection() {
       await connectProfile(formProfile(), $("cPass").value);
       $("cPass").value = "";
       $("dlg").close();
-    } catch (e) { $("cErr").textContent = e.message; }
+    } catch (e) { $("cErr").textContent = friendlyError(e.message); }
     finally { $("btnDoConn").disabled = false; }
   };
   $("btnDisc").onclick = async () => {

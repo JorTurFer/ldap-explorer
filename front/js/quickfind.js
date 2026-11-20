@@ -4,6 +4,7 @@ import { $ } from "./dom.js";
 import { api } from "./api.js";
 import { emit, on } from "./events.js";
 import { toast } from "./ui/toast.js";
+import { friendlyError } from "./friendly-errors.js";
 
 export function initQuickFind() {
   const box = $("quickFind");
@@ -16,6 +17,6 @@ export function initQuickFind() {
     if (!text) return;
     try {
       emit("load-query", await api("/api/recipes/find-entry", { body: { params: { text } } }));
-    } catch (e) { toast(e.message, "err"); }
+    } catch (e) { toast(friendlyError(e.message), "err"); }
   });
 }
