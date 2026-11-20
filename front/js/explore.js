@@ -5,6 +5,7 @@
 import { $, el } from "./dom.js";
 import { api } from "./api.js";
 import { emit, on } from "./events.js";
+import { copyBtn } from "./ui/copy.js";
 
 export function initExplore() {
   on("connected", ({ roots }) => {
@@ -43,7 +44,8 @@ async function analyze() {
 
 function list(items, total, onClick, kind) {
   return el("ul", { class: "xlist", id: "xList-" + kind }, ...items.map((u) => el("li", {},
-    el("a", { textContent: u.name, title: "Search for these", onclick: () => onClick(u.name) }),
+    el("span", { class: "has-copy" }, el("a", { textContent: u.name, title: "Search for these", onclick: () => onClick(u.name) }),
+      copyBtn(u.name, { title: `Copy ${u.name}`, what: `Copied ${u.name}` })),
     el("span", { class: "n", textContent: `${u.count} (${Math.round((100 * u.count) / total)}%)` }),
     el("progress", { class: "pbar", max: total, value: u.count }))));
 }

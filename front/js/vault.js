@@ -7,6 +7,7 @@ import { $, el } from "./dom.js";
 import { api } from "./api.js";
 import { emit, on } from "./events.js";
 import { needsVault, vaultButtonLabel, stateLabel, validatePassphrases, STORES } from "./cred-model.js";
+import { withCopy } from "./ui/copy.js";
 
 let status = null;
 
@@ -133,8 +134,8 @@ async function renderManage() {
   };
   const rows = list.entries.map((e) => el("tr", { "data-profile": e.profile },
     el("td", { textContent: e.profile }),
-    el("td", { textContent: e.bindDN || "(anonymous)" }),
-    el("td", { textContent: e.url }),
+    el("td", {}, e.bindDN ? withCopy(e.bindDN, e.bindDN, { title: "Copy the user DN", what: "Copied the user DN" }) : "(anonymous)"),
+    el("td", {}, withCopy(e.url, e.url, { title: "Copy the server address", what: "Copied the server address" })),
     el("td", { textContent: e.storage === "none" ? "—" : STORES[e.storage] ? (e.storage === "keychain" ? "Keychain" : "Vault") : e.storage }),
     el("td", { class: "state", textContent: stateLabel(e.state) }),
     el("td", {}, e.storage !== "none" && e.bindDN

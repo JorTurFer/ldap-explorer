@@ -1893,3 +1893,43 @@ func TestUISearchButtonStaysPut(t *testing.T) {
 		}
 	}
 }
+
+// ---------- copying in the remaining places ----------
+
+func TestUICopyEverywhereElse(t *testing.T) {
+	l := slapdtest.Start(t)
+	appURL := startApp(t)
+	ctx := browser(t)
+	run(t, ctx, chromedp.Navigate(appURL), chromedp.WaitVisible("#btnConn"))
+	allowClipboard(t, ctx, appURL)
+	connect(t, ctx, l.URL, slapdtest.AliceDN, slapdtest.AlicePW)
+	waitText(t, ctx, "#status", "Connected to")
+	people := "ou=people," + slapdtest.BaseDN
+
+	// Explore: the name of a kind of entry or of an attribute.
+	run(t, ctx, chromedp.Click(`button[data-tab="explore"]`), set("#xBase", people), set("#xScope", "one"), chromedp.Click("#btnExplore"))
+	waitText(t, ctx, "#xSummary", "Looked at 3 entries")
+	clickCopy(t, ctx, `#xList-class li:first-child .copy-btn`, "inetOrgPerson", "Copied inetOrgPerson")
+
+	// Compare: a value copies when clicked.
+	run(t, ctx, chromedp.Click(`button[data-tab="entry"]`), set("#treeFilter", slapdtest.AliceDN), chromedp.SendKeys("#treeFilter", "\r"))
+	waitText(t, ctx, "#pane-entry .dn", slapdtest.AliceDN)
+	run(t, ctx, chromedp.Click("#ePin"), set("#treeFilter", "uid=bob,"+people), chromedp.SendKeys("#treeFilter", "\r"))
+	waitText(t, ctx, "#eCompare", "Compare with alice")
+	run(t, ctx, chromedp.Click("#eCompare"))
+	waitJS(t, ctx, "compare", `document.getElementById('compareDlg').open`)
+	run(t, ctx, chromedp.Click(`#cmpTable tr[data-attr="mail"] td:nth-child(3) .copy-cell`))
+	waitJS(t, ctx, "copied", `navigator.clipboard.readText().then(t => t === 'bob@example.org')`)
+	waitText(t, ctx, "#toasts", `Copied "bob@example.org"`)
+	run(t, ctx, chromedp.Click("#cmpClose"))
+
+	// Passwords panel: the user and the server of a profile.
+	run(t, ctx, chromedp.Click("#btnConn"), chromedp.WaitVisible("#cStore"))
+	fillConnection(t, ctx, "lab", l.URL, slapdtest.AliceDN, slapdtest.AlicePW, "none")
+	run(t, ctx, chromedp.Click("#btnSaveProfile"))
+	waitText(t, ctx, "#status", "Profile saved")
+	run(t, ctx, chromedp.Click("#btnCancel"), chromedp.Click("#btnVault"), chromedp.WaitVisible("#mList"))
+	waitText(t, ctx, `#mList tr[data-profile="lab"]`, slapdtest.AliceDN)
+	clickCopy(t, ctx, `#mList tr[data-profile="lab"] td:nth-child(2) .copy-btn`, slapdtest.AliceDN, "Copied the user DN")
+	clickCopy(t, ctx, `#mList tr[data-profile="lab"] td:nth-child(3) .copy-btn`, l.URL, "Copied the server address")
+}

@@ -3,7 +3,7 @@ import { $, el } from "./dom.js";
 import { api } from "./api.js";
 import { emit, on } from "./events.js";
 import { diffEntries, summarize, summaryText } from "./diff.js";
-import { copyBtn } from "./ui/copy.js";
+import { copyBtn, copyText, preview } from "./ui/copy.js";
 import { toast } from "./ui/toast.js";
 import { splitDN } from "./nav.js";
 
@@ -43,7 +43,8 @@ function renderRows() {
   const only = $("cmpOnly").checked;
   const shown = rows.filter((r) => !only || r.status !== "same");
   const cell = (values, mark) => el("td", { class: "cmp-cell" }, ...(values.length
-    ? values.map((v) => el("div", { class: mark.includes(v) ? "cmp-mark" : "", textContent: v }))
+    ? values.map((v) => el("div", { class: (mark.includes(v) ? "cmp-mark " : "") + "copy-cell", textContent: v, title: "Click to copy",
+      onclick: () => copyText(v, `Copied "${preview(v)}"`) }))
     : [el("span", { class: "muted", textContent: "—" })]));
   const label = { same: "same", different: "differs", onlyA: `only in ${names[0]}`, onlyB: `only in ${names[1]}` };
   $("cmpTable").replaceChildren(
