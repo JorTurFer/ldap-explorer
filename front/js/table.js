@@ -94,3 +94,16 @@ export function toCSV(columns, rows, { bom = false } = {}) {
   const lines = [["dn", ...columns], ...rows.map((r) => [r.dn, ...r.cells])].map((l) => l.map(csvCell).join(","));
   return (bom ? "﻿" : "") + lines.join("\r\n") + "\r\n";
 }
+
+// ---------- JSON ----------
+
+// One entry as a plain object: { dn, attributes: { name: [values] } }. Binary values are
+// the summaries the API returns (use the LDIF export for the real bytes).
+export function entryToObject(entry) {
+  const attributes = {};
+  for (const a of entry.attrs || []) attributes[a.name] = [...(a.values || [])];
+  return { dn: entry.dn, attributes };
+}
+
+export const entryToJSON = (entry) => JSON.stringify(entryToObject(entry), null, 2);
+export const entriesToJSON = (entries) => JSON.stringify(entries.map(entryToObject), null, 2);

@@ -1247,3 +1247,91 @@ func TestUISimpleBuilderAndQuickFind(t *testing.T) {
 	run(t, ctx, set("#quickFind", ""), chromedp.Focus("#quickFind"), chromedp.SendKeys("#quickFind", "zzzzzz\r"))
 	waitText(t, ctx, "#sOut", "0 result(s)")
 }
+
+// ---------- exporting ----------
+
+// waitDownload waits for one finished download matching the pattern and returns its content.
+func waitDownload(t *testing.T, dir, pattern string) string {
+	t.Helper()
+	deadline := time.Now().Add(15 * time.Second)
+	for time.Now().Before(deadline) {
+		matches, _ := filepath.Glob(filepath.Join(dir, pattern))
+		if len(matches) == 1 {
+			if b, err := os.ReadFile(matches[0]); err == nil {
+				return string(b)
+			}
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	t.Fatalf("no download matching %s in %s", pattern, dir)
+	return ""
+}
+
+func TestUIExport(t *testing.T) {
+	l := slapdtest.Start(t)
+	appURL := startApp(t)
+	ctx := browser(t)
+	downloads := t.TempDir()
+	run(t, ctx, chromedp.Navigate(appURL), chromedp.WaitVisible("#btnConn"),
+		cdpbrowser.SetDownloadBehavior(cdpbrowser.SetDownloadBehaviorBehaviorAllow).WithDownloadPath(downloads))
+	allowClipboard(t, ctx, appURL)
+	connect(t, ctx, l.URL, slapdtest.AliceDN, slapdtest.AlicePW)
+	waitText(t, ctx, "#status", "Connected to")
+
+	// An entry: copy it as LDIF or JSON, or save it as a file.
+	run(t, ctx, set("#treeFilter", slapdtest.AliceDN), chromedp.SendKeys("#treeFilter", "\r"))
+	waitText(t, ctx, "#pane-entry .dn", slapdtest.AliceDN)
+	run(t, ctx, chromedp.Click("#eCopyLdif"))
+	waitText(t, ctx, "#toasts", "Copied the entry as LDIF")
+	ldifText := clipboard(t, ctx)
+	for _, want := range []string{"version: 1", "dn: " + slapdtest.AliceDN, "mail: alice@example.org", "jpegPhoto:: /9j/"} {
+		if !strings.Contains(ldifText, want) {
+			t.Errorf("the LDIF should contain %q:\n%s", want, ldifText)
+		}
+	}
+	run(t, ctx, chromedp.Click("#eDlLdif"))
+	if got := waitDownload(t, downloads, "alice.ldif"); got != ldifText {
+		t.Error("the downloaded LDIF should be what Copy as LDIF copies")
+	}
+	run(t, ctx, chromedp.Click("#eCopyJson"))
+	waitText(t, ctx, "#toasts", "Copied the entry as JSON")
+	var entry struct {
+		DN         string              `json:"dn"`
+		Attributes map[string][]string `json:"attributes"`
+	}
+	if err := json.Unmarshal([]byte(clipboard(t, ctx)), &entry); err != nil {
+		t.Fatalf("the JSON on the clipboard is not JSON: %v", err)
+	}
+	if entry.DN != slapdtest.AliceDN || len(entry.Attributes["mail"]) != 1 || entry.Attributes["mail"][0] != "alice@example.org" {
+		t.Errorf("JSON entry: %+v", entry)
+	}
+
+	// Search results: LDIF with the exact values, or JSON.
+	people := "ou=people," + slapdtest.BaseDN
+	run(t, ctx, chromedp.Click(`button[data-tab="search"]`), chromedp.WaitReady("#sBase"), rawMode(),
+		set("#sBase", people), set("#sScope", "one"), set("#sFilter", "(objectClass=inetOrgPerson)"), set("#sAttrs", "uid mail"),
+		chromedp.Click("#btnSearch"))
+	waitText(t, ctx, "#sOut", "3 result(s)")
+	run(t, ctx, chromedp.Click("#btnLdif"))
+	text := waitDownload(t, downloads, "ldap-explorer-*.ldif")
+	if n := strings.Count(text, "\ndn: uid="); n != 3 {
+		t.Errorf("LDIF export: %d entries\n%s", n, text)
+	}
+	if strings.Contains(text, "objectClass") || !strings.Contains(text, "mail: bob@example.org") {
+		t.Errorf("only the requested attributes: %s", text)
+	}
+	run(t, ctx, chromedp.Click("#btnJson"))
+	var all []struct{ DN string }
+	if err := json.Unmarshal([]byte(waitDownload(t, downloads, "ldap-explorer-*.json")), &all); err != nil || len(all) != 3 {
+		t.Errorf("JSON export: %v %+v", err, all)
+	}
+
+	// Nothing to export: the buttons are off.
+	run(t, ctx, set("#sFilter", "(uid=nobody)"), chromedp.Click("#btnSearch"))
+	waitText(t, ctx, "#sOut", "0 result(s)")
+	var off bool
+	js(t, ctx, `['btnCsv','btnJson','btnLdif'].every(id => document.getElementById(id).disabled)`, &off)
+	if !off {
+		t.Error("with no results the export buttons must be disabled")
+	}
+}

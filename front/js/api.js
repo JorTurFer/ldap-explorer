@@ -19,3 +19,19 @@ export async function api(path, opts = {}) {
   }
   return data;
 }
+
+// Like api() but for endpoints that answer with plain text (LDIF): returns the text, the
+// file name the server suggests and any warning (a partial export).
+export async function apiText(path, opts = {}) {
+  const r = await fetch(path, {
+    method: opts.method || (opts.body ? "POST" : "GET"),
+    headers: { "X-Token": TOKEN, "Content-Type": "application/json" },
+    body: opts.body ? JSON.stringify(opts.body) : undefined,
+  });
+  if (!r.ok) {
+    let data = {}; try { data = await r.json(); } catch { /* not JSON */ }
+    throw new Error(data.error || r.statusText);
+  }
+  const m = /filename="([^"]+)"/.exec(r.headers.get("Content-Disposition") || "");
+  return { text: await r.text(), filename: m ? m[1] : "export.txt", warning: r.headers.get("X-Warning") || "" };
+}

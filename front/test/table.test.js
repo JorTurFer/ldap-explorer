@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { parseAttrList, cellText, collectColumns, buildRows, sortRows, csvCell, toCSV } from "../js/table.js";
+import { parseAttrList, cellText, collectColumns, buildRows, sortRows, csvCell, toCSV, entryToObject, entryToJSON, entriesToJSON } from "../js/table.js";
 
 const entries = [
   { dn: "uid=alice,dc=x", attrs: [{ name: "uid", values: ["alice"] }, { name: "mail", values: ["alice@x.org"] }, { name: "objectClass", values: ["top", "person"] }] },
@@ -106,4 +106,23 @@ test("toCSV: optional UTF-8 BOM for Excel", () => {
 test("toCSV quotes DNs and multi-valued cells with commas", () => {
   const csv = toCSV(["mail"], [{ dn: "uid=a,ou=p,dc=x", cells: ["a@x.org; b@x.org"] }]);
   assert.equal(csv, 'dn,mail\r\n"uid=a,ou=p,dc=x",a@x.org; b@x.org\r\n');
+});
+
+test("entries as JSON: dn and attributes with all their values", () => {
+  assert.deepEqual(entryToObject(entries[1]), {
+    dn: "uid=bob,dc=x",
+    attributes: { uid: ["bob"], Mail: ["b1@x.org", "b2@x.org"], jpegPhoto: ["(binary, 3 bytes) ffd8ff"] },
+  });
+  assert.deepEqual(entryToObject({ dn: "cn=empty" }), { dn: "cn=empty", attributes: {} });
+  assert.deepEqual(JSON.parse(entryToJSON(entries[0])), entryToObject(entries[0]));
+  const all = JSON.parse(entriesToJSON(entries));
+  assert.equal(all.length, 3);
+  assert.deepEqual(all.map((e) => e.dn), ["uid=alice,dc=x", "uid=bob,dc=x", "uid=u10,dc=x"]);
+  assert.match(entriesToJSON(entries), /\n  /); // pretty-printed: it is meant to be read
+});
+
+test("JSON export does not alias the input", () => {
+  const o = entryToObject(entries[1]);
+  o.attributes.Mail.push("x");
+  assert.equal(entries[1].attrs[1].values.length, 2);
 });

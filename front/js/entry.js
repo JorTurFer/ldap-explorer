@@ -1,11 +1,14 @@
 import { $, el } from "./dom.js";
-import { api } from "./api.js";
+import { api, apiText } from "./api.js";
 import { emit, on } from "./events.js";
 import { showTab } from "./tabs.js";
 import { goTo } from "./tree.js";
 import { splitDN } from "./nav.js";
 import { getSchema, isDNAttr } from "./schema.js";
-import { copyBtn } from "./ui/copy.js";
+import { copyBtn, copyText } from "./ui/copy.js";
+import { downloadText } from "./ui/download.js";
+import { toast } from "./ui/toast.js";
+import { entryToJSON } from "./table.js";
 
 let currentDN = null;
 
@@ -43,6 +46,7 @@ export async function showEntry(dn) {
     pane.replaceChildren(
       el("div", { class: "dn" }, breadcrumb(e.dn), copyBtn(e.dn, { title: "Copy the DN", what: "Copied the DN" }),
         el("a", { class: "jump", textContent: "search from here", onclick: () => emit("search-from", { dn: e.dn }) })),
+      entryActions(e),
       attrTable(e.attrs));
   } catch (err) { pane.replaceChildren(el("div", { class: "err", textContent: err.message })); }
 }
@@ -67,4 +71,17 @@ function breadcrumb(dn) {
     else span.append(el("a", { class: "crumb", textContent: p.rdn, title: "Go to this entry", onclick: () => goTo(dn.slice(p.start).trim()) }));
   });
   return span;
+}
+
+// What you can do with the whole entry: take it elsewhere as LDIF (exact values) or JSON.
+function entryActions(e) {
+  const ldif = async () => apiText("/api/entry/ldif?dn=" + encodeURIComponent(e.dn) + ($("chkOp").checked ? "&operational=1" : ""));
+  const guard = (fn) => async () => { try { await fn(); } catch (err) { toast(err.message, "err"); } };
+  return el("div", { class: "entry-actions" },
+    el("button", { type: "button", id: "eCopyLdif", class: "small-btn", textContent: "Copy as LDIF", title: "The whole entry in LDIF, to paste into a file or another tool",
+      onclick: guard(async () => copyText((await ldif()).text, "Copied the entry as LDIF")) }),
+    el("button", { type: "button", id: "eDlLdif", class: "small-btn", textContent: "Download LDIF", title: "Save the entry as an .ldif file",
+      onclick: guard(async () => { const { text, filename } = await ldif(); downloadText(filename, text); }) }),
+    el("button", { type: "button", id: "eCopyJson", class: "small-btn", textContent: "Copy as JSON", title: "The entry as JSON (binary values are summarised)",
+      onclick: () => copyText(entryToJSON(e), "Copied the entry as JSON") }));
 }

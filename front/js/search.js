@@ -49,11 +49,11 @@ async function doSearch() {
   try {
     const filter = mode === "builder" ? (await resolveFilter()).filter : $("sFilter").value.trim();
     const t0 = performance.now();
-    const res = await api("/api/search", { body: {
-      base: $("sBase").value.trim(), filter, scope: $("sScope").value,
-      attrs: $("sAttrs").value, limit: parseInt($("sLimit").value, 10) || 500 } });
+    const body = { base: $("sBase").value.trim(), filter, scope: $("sScope").value,
+      attrs: $("sAttrs").value, limit: parseInt($("sLimit").value, 10) || 500 };
+    const res = await api("/api/search", { body });
     const ms = Math.round(performance.now() - t0);
-    showResults(out, res, $("sAttrs").value, ms);
+    showResults(out, res, $("sAttrs").value, ms, body);
   } catch (e) { out.replaceChildren(el("div", { class: "err mt12", textContent: e.message })); }
 }
 

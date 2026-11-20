@@ -4,7 +4,10 @@
 import { el } from "./dom.js";
 import { attrTable, showEntry } from "./entry.js";
 import { copyBtn, copyText, preview } from "./ui/copy.js";
-import { parseAttrList, collectColumns, buildRows, sortRows, toCSV } from "./table.js";
+import { parseAttrList, collectColumns, buildRows, sortRows, toCSV, entriesToJSON } from "./table.js";
+import { apiText } from "./api.js";
+import { downloadText } from "./ui/download.js";
+import { toast } from "./ui/toast.js";
 
 const MAX_TABLE_ROWS = 1000; // the table is drawn for at most this many rows; the CSV has all of them
 
@@ -12,7 +15,7 @@ let view = "list"; // remembered between searches
 
 // Shows the result of a search in `out`.
 //   res: { entries, warning }   requestedAttrs: the raw "Attributes" field   ms: elapsed time
-export function showResults(out, res, requestedAttrs, ms) {
+export function showResults(out, res, requestedAttrs, ms, searchBody) {
   const state = {
     entries: res.entries,
     columns: collectColumns(res.entries, parseAttrList(requestedAttrs)),
@@ -34,13 +37,17 @@ export function showResults(out, res, requestedAttrs, ms) {
     btnList.classList.toggle("on", view === "list");
     btnTable.classList.toggle("on", view === "table");
   };
-  const btnCsv = el("button", { id: "btnCsv", textContent: "Export CSV", disabled: state.entries.length === 0,
-    onclick: () => downloadCSV(state) });
+  const none = state.entries.length === 0;
+  const btnCsv = el("button", { id: "btnCsv", textContent: "Export CSV", disabled: none, title: "The table as a spreadsheet file", onclick: () => downloadCSV(state) });
+  const btnJson = el("button", { id: "btnJson", textContent: "Export JSON", disabled: none, title: "The results as JSON (binary values are summarised)",
+    onclick: () => downloadText(exportName("json"), entriesToJSON(state.entries), { mime: "application/json" }) });
+  const btnLdif = el("button", { id: "btnLdif", textContent: "Export LDIF", disabled: none || !searchBody, title: "The results in LDIF, with the exact values (photos included)",
+    onclick: () => exportLDIF(searchBody) });
 
   out.replaceChildren(
     el("div", { class: "muted mt12", textContent: `${res.entries.length} result(s) in ${ms} ms` }),
     ...(res.warning ? [el("div", { class: "warn", textContent: "⚠ " + res.warning })] : []),
-    el("div", { class: "toolbar" }, el("span", { class: "seg" }, btnList, btnTable), btnCsv),
+    el("div", { class: "toolbar" }, el("span", { class: "seg" }, btnList, btnTable), btnCsv, btnJson, btnLdif),
     body);
   render();
 }
@@ -99,14 +106,19 @@ function tableView(state, rerender) {
     el("div", { class: "table-wrap" }, table));
 }
 
+const exportName = (ext) => `ldap-explorer-${new Date().toISOString().replace(/[:T]/g, "-").slice(0, 19)}.${ext}`;
+
 function downloadCSV(state) {
   const idx = visibleIdx(state);
   const text = toCSV(idx.map((i) => state.columns[i]), currentRows(state), { bom: true });
-  const url = URL.createObjectURL(new Blob([text], { type: "text/csv;charset=utf-8" }));
-  const stamp = new Date().toISOString().replace(/[:T]/g, "-").slice(0, 19);
-  const a = el("a", { href: url, download: `ldap-explorer-${stamp}.csv` });
-  document.body.append(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  downloadText(exportName("csv"), text, { mime: "text/csv;charset=utf-8", bom: false }); // toCSV already added the BOM
+}
+
+// LDIF is produced by the server (it needs the raw values), from the same search.
+async function exportLDIF(searchBody) {
+  try {
+    const { text, filename, warning } = await apiText("/api/search/ldif", { body: searchBody });
+    downloadText(filename, text);
+    toast(warning ? `Exported what the server returned (${warning})` : "LDIF exported", warning ? "err" : "");
+  } catch (e) { toast(e.message, "err"); }
 }
