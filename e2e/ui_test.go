@@ -2325,11 +2325,11 @@ func TestUIRequestsList(t *testing.T) {
 	// Cancel one from its row: it moves to the list of finished ones, the other keeps going.
 	run(t, ctx, chromedp.Click(`#actRunning li:first-child button`))
 	waitJS(t, ctx, "one left", `document.querySelectorAll('#actRunning li').length === 1`)
-	waitJS(t, ctx, "cancelled in the history", `document.querySelector('#actHistory li .act-row-detail').textContent.startsWith('Cancelled after ')`)
+	waitJS(t, ctx, "cancelled in the history", `[...document.querySelectorAll('#actHistory li')].filter(li => li.querySelector('.act-row-text').textContent.startsWith('Searching')).some(li => li.querySelector('.act-row-detail').textContent.startsWith('Cancelled after '))`)
 	// When the other one finishes, both are in the history, newest first, each with the time it started.
-	waitJS(t, ctx, "finished", `document.querySelectorAll('#actRunning li').length === 0 && document.querySelectorAll('#actHistory li').length === 2`)
+	waitJS(t, ctx, "finished", `document.querySelectorAll('#actRunning li').length === 0 && [...document.querySelectorAll('#actHistory li')].filter(li => li.querySelector('.act-row-text').textContent.startsWith('Searching')).length === 2`)
 	var rows []string
-	js(t, ctx, `[...document.querySelectorAll('#actHistory li')].map(li => li.querySelector('.act-row-detail').textContent.split(' ')[0] + '|' + li.querySelector('.act-row-when').textContent)`, &rows)
+	js(t, ctx, `[...document.querySelectorAll('#actHistory li')].filter(li => li.querySelector('.act-row-text').textContent.startsWith('Searching')).map(li => li.querySelector('.act-row-detail').textContent.split(' ')[0] + '|' + li.querySelector('.act-row-when').textContent)`, &rows)
 	for _, r := range rows {
 		if !regexp.MustCompile(`^(Done|Cancelled)\|\d\d:\d\d:\d\d$`).MatchString(r) {
 			t.Errorf("history row %q", r)
@@ -2344,4 +2344,34 @@ func TestUIRequestsList(t *testing.T) {
 	waitJS(t, ctx, "collapsed", `document.getElementById('activityPanel').hidden && document.getElementById('actToggle').getAttribute('aria-expanded') === 'false'`)
 	run(t, ctx, chromedp.Click("#actToggle"), chromedp.Click("#actClear"))
 	waitJS(t, ctx, "cleared", `document.querySelectorAll('#actHistory li').length === 0 && !document.getElementById('actEmpty').hidden`)
+}
+
+// ---------- issue #6: quick requests are in the list too ----------
+
+func TestUIRequestsListHasQuickPagesToo(t *testing.T) {
+	l := slapdtest.Start(t)
+	appURL := startApp(t)
+	ctx := browser(t)
+	run(t, ctx, chromedp.Navigate(appURL), chromedp.WaitVisible("#btnConn"))
+	connect(t, ctx, l.URL, slapdtest.BobDN, slapdtest.BobPW)
+	waitText(t, ctx, "#status", "Connected to")
+	bulk := `.node[title="ou=bulk,` + slapdtest.BaseDN + `"]`
+	run(t, ctx, chromedp.WaitVisible(`.node[title="`+slapdtest.BaseDN+`"]`), chromedp.Click(`.node[title="`+slapdtest.BaseDN+`"] .tw`))
+	run(t, ctx, chromedp.WaitVisible(bulk), chromedp.Click(bulk+" .tw"))
+	waitText(t, ctx, ".more-row", "200 loaded")
+	// two more pages, one after the other: each one is over in a few milliseconds
+	run(t, ctx, chromedp.Click(".more-row .more-next"))
+	waitText(t, ctx, ".more-row", "400 loaded")
+	run(t, ctx, chromedp.Click(".more-row .more-next"))
+	waitJS(t, ctx, "the whole branch", `document.querySelector('.more-row') === null`)
+
+	run(t, ctx, chromedp.Click("#actToggle"))
+	waitJS(t, ctx, "the list", `!document.getElementById('activityPanel').hidden`)
+	var n int
+	js(t, ctx, `[...document.querySelectorAll('#actHistory .act-row-text')].filter(e => e.textContent === 'Loading the entries under ou=bulk').length`, &n)
+	if n != 3 {
+		var all []string
+		js(t, ctx, `[...document.querySelectorAll('#actHistory .act-row-text')].map(e => e.textContent)`, &all)
+		t.Errorf("the 3 pages of ou=bulk should all be listed, found %d in %v", n, all)
+	}
 }

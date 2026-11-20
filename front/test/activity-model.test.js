@@ -156,7 +156,8 @@ test("list: everything running (oldest first) and the finished ones (newest firs
   t.start("young", describeRequest("GET", "/api/server"), 2900, 3900);
   t.progress("a", { entries: 250, pages: 1, quietMs: 0 }, 2000);
   const l = t.list(3000);
-  assert.deepEqual(l.running.map((r) => r.id), ["a", "b"]); // "young" has not reached the bar yet
+  assert.deepEqual(l.running.map((r) => r.id), ["a", "b", "young"]); // the list shows every one, even those too young for the bar
+  assert.equal(t.view(3000).others, 1); // ...while the bar still waits before counting "young"
   assert.deepEqual(l.running[0].parts, ["3.0 s", "250 entries so far"]);
   assert.equal(l.history.length, 0);
   t.finish("b", 3200);
@@ -180,11 +181,20 @@ test("the list keeps only the latest finished requests, and can be cleared", () 
   assert.equal(t.view(1e6).done, null);
 });
 
-test("fast requests are not in the history, failed ones always are", () => {
+test("every request is in the history, however fast (issue #6: pages loaded in a quick series)", () => {
   const t = createTracker();
-  t.start("fast", search, 0); t.finish("fast", 100);
-  t.start("bad", search, 1000); t.finish("bad", 1100, "error");
-  assert.deepEqual(t.list(2000).history.map((h) => h.outcome), ["error"]);
+  for (let i = 0; i < 12; i++) { t.start("p" + i, describeRequest("GET", "/api/children?dn=ou%3Dbulk"), i * 1000, i); t.finish("p" + i, i * 1000 + 80); }
+  t.start("bad", search, 20000); t.finish("bad", 20100, "error");
+  const h = t.list(30000).history;
+  assert.equal(h.length, 13);
+  assert.deepEqual(h.slice(0, 2).map((x) => x.outcome), ["error", "ok"]);
+  assert.equal(t.view(20200).done.text, "Failed after 0.1 s"); // the bar's own message still skips quick successes
+});
+
+test("a quick success does not make the bar announce anything", () => {
+  const t = createTracker();
+  t.start("q", search, 0); t.finish("q", 100);
+  assert.equal(t.view(150).done, null);
 });
 
 test("outcomeText and clockTime", () => {

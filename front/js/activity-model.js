@@ -124,16 +124,15 @@ export function createTracker() {
         const list = byKind.get(r.kind) || [];
         byKind.set(r.kind, [...list, ms].slice(-5));
       }
-      if (ms >= SHOW_AFTER_MS || outcome !== "ok") {
-        last = { label: r.label, ms, entries: r.entries, at: now, outcome };
-        history = [{ label: r.label, startedWall: r.wall, ms, entries: r.entries, outcome }, ...history].slice(0, HISTORY_LIMIT);
-      }
+      // The bar announces only what took a noticeable time (no flicker); the list has everything.
+      if (ms >= SHOW_AFTER_MS || outcome !== "ok") last = { label: r.label, ms, entries: r.entries, at: now, outcome };
+      history = [{ label: r.label, startedWall: r.wall, ms, entries: r.entries, outcome }, ...history].slice(0, HISTORY_LIMIT);
     },
     ids: () => [...running.keys()],
-    // Everything for the expanded list: what is running (oldest first, requests younger than
-    // SHOW_AFTER_MS left out as in the bar) and the latest finished ones (newest first).
+    // Everything for the expanded list: every request that is running (oldest first) and the
+    // latest finished ones (newest first), however short they were.
     list(now) {
-      const running_ = [...running.values()].filter((r) => now - r.startedAt >= SHOW_AFTER_MS)
+      const running_ = [...running.values()]
         .sort((a, b) => a.startedAt - b.startedAt).map((r) => detail(r, now));
       return { running: running_, history: history.map((h) => ({ ...h, text: outcomeText(h) })) };
     },

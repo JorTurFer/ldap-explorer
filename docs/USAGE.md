@@ -59,7 +59,7 @@ Big directories take time. The bar at the bottom of the window tells you what is
   ![The list of requests: what is running on top, the latest finished ones below](img/requests-list.png)
 
   - **Running now** are on top, oldest first. Each row shows what it is, how long it has been running, entries so far, how long it usually takes, its own progress bar and its own **Cancel** button (the Cancel in the bar cancels all of them).
-  - Below are **the latest 20 that finished**, newest first: what it was, how it went (*Done in 1.8 s · 600 entries*, *Cancelled after 3.0 s*, *Failed after 1.0 s*) and **the time it started**. Requests quicker than half a second are not listed, failed ones always are.
+  - Below are **the latest 20 that finished**, newest first: what it was, how it went (*Done in 1.8 s · 600 entries*, *Cancelled after 3.0 s*, *Failed after 1.0 s*) and **the time it started**. **Every** request is listed, even one that took a few milliseconds (for example each page of a big branch while you scroll through it). Only the bar itself ignores the quick ones, so it does not flicker. Since the list keeps the latest 20, a long series of quick requests pushes the oldest ones out.
   - **Clear list** empties the finished ones. The list lives only while the window stays open: nothing is saved and it never contains the results, only the descriptions you see.
 - **Lost contact**: if the program itself stops answering (not the directory: ldap-explorer), the bar turns red and says so. Close the tab and start it again.
 
