@@ -171,6 +171,11 @@ func validateSaved(q *SavedQuery) error {
 	case len([]rune(q.Name)) > maxQueryNameLen:
 		return errors.New("the name is too long (100 characters at most)")
 	}
+	return validateSearch(q)
+}
+
+// validateSearch checks the search itself (what a saved query and a history item share).
+func validateSearch(q *SavedQuery) error {
 	switch q.Mode {
 	case "builder":
 		if q.Query == nil {

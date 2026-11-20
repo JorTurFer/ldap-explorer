@@ -671,6 +671,8 @@ func newHandler(token string, lastPing *atomic.Int64, front fs.FS) http.Handler 
 	api.HandleFunc("POST /api/filter", handleFilter)
 	api.HandleFunc("/api/queries", handleQueries)
 	api.HandleFunc("/api/settings", handleSettings)
+	api.HandleFunc("/api/bookmarks", handleBookmarks)
+	api.HandleFunc("/api/history", handleHistory)
 	api.HandleFunc("GET /api/credentials/status", handleCredStatus)
 	api.HandleFunc("/api/credentials", handleCredentials)
 	api.HandleFunc("POST /api/vault/create", handleVaultCreate)
