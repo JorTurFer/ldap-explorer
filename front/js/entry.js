@@ -1,12 +1,13 @@
 import { $, el } from "./dom.js";
-import { api, apiText } from "./api.js";
+import { api, apiText, apiBytes } from "./api.js";
 import { emit, on } from "./events.js";
 import { showTab } from "./tabs.js";
 import { goTo } from "./tree.js";
 import { splitDN } from "./nav.js";
-import { getSchema, isDNAttr } from "./schema.js";
-import { copyBtn, copyText } from "./ui/copy.js";
-import { downloadText } from "./ui/download.js";
+import { getSchema, isDNAttr, isTimeAttr } from "./schema.js";
+import { describeTime, formatBytes, summaryBytes, isPhotoAttr, bytesToBase64 } from "./decode.js";
+import { copyBtn, copyText, asyncCopyBtn } from "./ui/copy.js";
+import { downloadText, downloadBytes } from "./ui/download.js";
 import { toast } from "./ui/toast.js";
 import { entryToJSON } from "./table.js";
 
@@ -15,24 +16,54 @@ let currentDN = null;
 // Every attribute row has three cells: the name, its values and (shown when you point at
 // the row) the copy buttons. The buttons live in their own cell so the name and value
 // cells hold only the data.
-export function attrTable(attrs) {
+export function attrTable(attrs, dn = "") {
   const t = el("table", { class: "attrs" });
   for (const a of attrs || []) {
     const values = a.values || [];
     const v = el("td", { class: "v" });
     const dnAttr = isDNAttr(a.name);
-    for (const x of values) {
-      v.append(dnAttr
-        ? el("div", {}, el("a", { class: "dnlink", textContent: x, title: "Go to this entry", onclick: () => goTo(x) }))
-        : el("div", { class: a.binary ? "bin" : "", textContent: x }));
-    }
+    const timeAttr = isTimeAttr(a.name);
+    values.forEach((x, i) => {
+      if (a.binary) v.append(binaryValue(dn, a.name, i, x));
+      else if (dnAttr) v.append(el("div", {}, el("a", { class: "dnlink", textContent: x, title: "Go to this entry", onclick: () => goTo(x) })));
+      else {
+        v.append(el("div", {}, x));
+        const when = timeAttr ? describeTime(x) : "";
+        if (when) v.lastChild.append(el("div", { class: "decoded", textContent: when }));
+      }
+    });
+    const valueButton = a.binary && dn
+      ? asyncCopyBtn(async () => bytesToBase64((await apiBytes(valueURL(dn, a.name, 0))).bytes), { label: "base64", title: "Copy the value as base64", what: `Copied the value of ${a.name} as base64` })
+      : copyBtn(values[0] ?? "", { label: values.length > 1 ? "first value" : "value", title: "Copy the value", what: `Copied the value of ${a.name}` });
     const actions = el("td", { class: "act" },
       copyBtn(a.name, { label: "name", title: `Copy the attribute name (${a.name})`, what: `Copied ${a.name}` }),
-      copyBtn(values[0] ?? "", { label: values.length > 1 ? "first value" : "value", title: "Copy the value", what: `Copied the value of ${a.name}` }),
-      ...(values.length > 1 ? [copyBtn(values.join("\n"), { label: `all ${values.length}`, title: `Copy all ${values.length} values, one per line`, what: `Copied ${values.length} values of ${a.name}` })] : []));
+      valueButton,
+      ...(values.length > 1 && !a.binary ? [copyBtn(values.join("\n"), { label: `all ${values.length}`, title: `Copy all ${values.length} values, one per line`, what: `Copied ${values.length} values of ${a.name}` })] : []));
     t.append(el("tr", { "data-attr": a.name }, el("td", { class: "k", textContent: a.name }), v, actions));
   }
   return t;
+}
+
+const valueURL = (dn, attr, i, download = false) =>
+  `/api/entry/value?dn=${encodeURIComponent(dn)}&attr=${encodeURIComponent(attr)}&i=${i}${download ? "&download=1" : ""}`;
+
+// A binary value: its size, a picture if it is one, and a way to save it.
+function binaryValue(dn, attr, i, summary) {
+  const size = summaryBytes(summary);
+  const box = el("div", { class: "bin" }, el("span", { textContent: summary }));
+  if (!dn) return box;
+  box.append(el("button", { type: "button", class: "small-btn download", textContent: size == null ? "download" : `download (${formatBytes(size)})`,
+    title: "Save this value as a file", onclick: async (ev) => {
+      ev.stopPropagation();
+      try { const { bytes, type, filename } = await apiBytes(valueURL(dn, attr, i, true)); downloadBytes(filename, bytes, type); }
+      catch (e) { toast(e.message, "err"); }
+    } }));
+  if (isPhotoAttr(attr)) {
+    const img = el("img", { class: "photo", alt: `${attr} of ${dn}` });
+    box.append(img);
+    apiBytes(valueURL(dn, attr, i)).then(({ bytes, type }) => { img.src = `data:${type};base64,${bytesToBase64(bytes)}`; }).catch(() => img.remove());
+  }
+  return box;
 }
 
 export async function showEntry(dn) {
@@ -47,7 +78,7 @@ export async function showEntry(dn) {
       el("div", { class: "dn" }, breadcrumb(e.dn), copyBtn(e.dn, { title: "Copy the DN", what: "Copied the DN" }),
         el("a", { class: "jump", textContent: "search from here", onclick: () => emit("search-from", { dn: e.dn }) })),
       entryActions(e),
-      attrTable(e.attrs));
+      attrTable(e.attrs, e.dn));
   } catch (err) { pane.replaceChildren(el("div", { class: "err", textContent: err.message })); }
 }
 

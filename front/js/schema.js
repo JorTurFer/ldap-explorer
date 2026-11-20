@@ -37,3 +37,6 @@ export const attrInfo = (idx, name) => (idx ? idx.attrs.get((name || "").trim().
 // Is this attribute's value a DN (member, manager, owner...)? Uses the schema loaded
 // so far; false while it is not available.
 export const isDNAttr = (name) => attrInfo(current, name)?.kind === "dn";
+
+// Is this attribute a date and time (createTimestamp, pwdChangedTime...)?
+export const isTimeAttr = (name) => attrInfo(current, name)?.kind === "time";

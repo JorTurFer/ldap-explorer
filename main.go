@@ -664,6 +664,7 @@ func newHandler(token string, lastPing *atomic.Int64, front fs.FS) http.Handler 
 	api.HandleFunc("POST /api/search", handleSearch)
 	api.HandleFunc("POST /api/search/ldif", handleSearchLDIF)
 	api.HandleFunc("GET /api/entry/ldif", handleEntryLDIF)
+	api.HandleFunc("GET /api/entry/value", handleValue)
 	api.HandleFunc("GET /api/server", handleServer)
 	api.HandleFunc("GET /api/schema", handleSchema)
 	api.HandleFunc("GET /api/sample", handleSample)

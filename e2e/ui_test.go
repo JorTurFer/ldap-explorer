@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 	"testing"
@@ -42,6 +43,14 @@ func js(t *testing.T, ctx context.Context, expr string, out any) {
 // set sets an input/select value from JS (chromedp.SetValue fails on empty strings).
 func set(sel, val string) chromedp.Action {
 	return chromedp.Evaluate(fmt.Sprintf(`(() => { const e = document.querySelector(%s); e.value = %s; return true; })()`, q(sel), q(val)), nil)
+}
+
+// jsAsync is js for an expression that returns a Promise: it waits for it.
+func jsAsync(t *testing.T, ctx context.Context, expr string, out any) {
+	t.Helper()
+	run(t, ctx, chromedp.Evaluate(expr, out, func(p *cdpruntime.EvaluateParams) *cdpruntime.EvaluateParams {
+		return p.WithAwaitPromise(true)
+	}))
 }
 
 func q(s string) string { b, _ := json.Marshal(s); return string(b) }
@@ -1333,5 +1342,71 @@ func TestUIExport(t *testing.T) {
 	js(t, ctx, `['btnCsv','btnJson','btnLdif'].every(id => document.getElementById(id).disabled)`, &off)
 	if !off {
 		t.Error("with no results the export buttons must be disabled")
+	}
+}
+
+// ---------- binary and decoded values ----------
+
+func TestUIBinaryAndTimeValues(t *testing.T) {
+	l := slapdtest.Start(t)
+	appURL := startApp(t)
+	ctx := browser(t)
+	downloads := t.TempDir()
+	run(t, ctx, chromedp.Navigate(appURL), chromedp.WaitVisible("#btnConn"),
+		cdpbrowser.SetDownloadBehavior(cdpbrowser.SetDownloadBehaviorBehaviorAllow).WithDownloadPath(downloads))
+	allowClipboard(t, ctx, appURL)
+	connect(t, ctx, l.URL, slapdtest.AliceDN, slapdtest.AlicePW)
+	waitText(t, ctx, "#status", "Connected to")
+	run(t, ctx, set("#treeFilter", slapdtest.AliceDN), chromedp.SendKeys("#treeFilter", "\r"))
+	waitText(t, ctx, "#pane-entry .dn", slapdtest.AliceDN)
+
+	// The photo is drawn (a decoded 24x24 image, not a broken one) and sized.
+	row := `tr[data-attr="jpegPhoto"]`
+	waitText(t, ctx, row+" td.v", "(binary,")
+	waitJS(t, ctx, "photo drawn", `(() => { const i = document.querySelector('`+row+` img.photo'); return !!i && i.complete && i.naturalWidth === 24 && i.naturalHeight === 24; })()`)
+	var size string
+	js(t, ctx, `document.querySelector('`+row+` button.download').textContent`, &size)
+	if !strings.HasPrefix(size, "download (") || !strings.Contains(size, "bytes)") {
+		t.Errorf("the download button says how big it is: %q", size)
+	}
+
+	// Copy the exact bytes as base64.
+	run(t, ctx, chromedp.Click(row+` button[title="Copy the value as base64"]`))
+	waitText(t, ctx, "#toasts", "as base64")
+	var decoded struct {
+		Magic string `json:"magic"`
+		Len   int    `json:"len"`
+	}
+	jsAsync(t, ctx, `navigator.clipboard.readText().then(t => { const b = atob(t); return { magic: [...b.slice(0, 2)].map(c => c.charCodeAt(0).toString(16)).join(''), len: b.length }; })`, &decoded)
+	if decoded.Magic != "ffd8" || decoded.Len < 600 {
+		t.Errorf("the clipboard should hold the JPEG: %+v", decoded)
+	}
+
+	// Download it: the file has the same size.
+	run(t, ctx, chromedp.Click(row+` button.download`))
+	file := waitDownload(t, downloads, "jpegPhoto.jpg")
+	if len(file) != decoded.Len || !strings.HasPrefix(file, "\xff\xd8") {
+		t.Errorf("the downloaded photo has %d bytes, the clipboard %d", len(file), decoded.Len)
+	}
+
+	// A text attribute has no download button, and its copy button copies the value as before.
+	var hasDownload bool
+	js(t, ctx, `!!document.querySelector('tr[data-attr="mail"] button.download')`, &hasDownload)
+	if hasDownload {
+		t.Error("only binary values can be downloaded")
+	}
+
+	// Dates are shown in plain words next to the raw value.
+	run(t, ctx, chromedp.Click("#chkOp"))
+	waitJS(t, ctx, "decoded time", `/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} UTC · (just now|\d+ (minute|hour|day)s? ago)$/.test((document.querySelector('tr[data-attr="createTimestamp"] .decoded')||{}).textContent || '')`)
+	var raw string
+	js(t, ctx, `document.querySelector('tr[data-attr="createTimestamp"] td.v div').firstChild.textContent`, &raw)
+	if !regexp.MustCompile(`^\d{14}Z$`).MatchString(raw) {
+		t.Errorf("the raw value stays visible: %q", raw)
+	}
+	var nonTime bool
+	js(t, ctx, `!document.querySelector('tr[data-attr="mail"] .decoded') && !document.querySelector('tr[data-attr="entryUUID"] .decoded')`, &nonTime)
+	if !nonTime {
+		t.Error("only date attributes get a decoded line")
 	}
 }

@@ -10,3 +10,13 @@ export function downloadText(filename, text, { mime = "text/plain;charset=utf-8"
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
+
+// Saves bytes (a photo, a certificate) as a file.
+export function downloadBytes(filename, bytes, type = "application/octet-stream") {
+  const url = URL.createObjectURL(new Blob([bytes], { type }));
+  const a = el("a", { href: url, download: filename });
+  document.body.append(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}

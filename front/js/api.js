@@ -35,3 +35,14 @@ export async function apiText(path, opts = {}) {
   const m = /filename="([^"]+)"/.exec(r.headers.get("Content-Disposition") || "");
   return { text: await r.text(), filename: m ? m[1] : "export.txt", warning: r.headers.get("X-Warning") || "" };
 }
+
+// Raw bytes of one attribute value (/api/entry/value): { bytes, type, filename }.
+export async function apiBytes(path) {
+  const r = await fetch(path, { headers: { "X-Token": TOKEN } });
+  if (!r.ok) {
+    let data = {}; try { data = await r.json(); } catch { /* not JSON */ }
+    throw new Error(data.error || r.statusText);
+  }
+  const m = /filename="([^"]+)"/.exec(r.headers.get("Content-Disposition") || "");
+  return { bytes: new Uint8Array(await r.arrayBuffer()), type: r.headers.get("Content-Type") || "application/octet-stream", filename: m ? m[1] : "value.bin" };
+}

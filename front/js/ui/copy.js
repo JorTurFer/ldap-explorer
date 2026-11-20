@@ -32,3 +32,12 @@ export function withCopy(node, text, opts) {
 
 // Truncates what a toast says, so copying a long value does not flood the screen.
 export const preview = (s, n = 40) => (s.length > n ? s.slice(0, n - 1) + "…" : s);
+
+// A copy button whose text is only known after asking the server (a binary value as base64).
+export function asyncCopyBtn(fn, { label, what = "Copied", title = "Copy to the clipboard" }) {
+  return el("button", { type: "button", class: "copy-btn", textContent: label, title, "aria-label": title,
+    onclick: async (ev) => {
+      ev.stopPropagation(); ev.preventDefault();
+      try { copyText(await fn(), what); } catch (e) { toast(e.message, "err"); }
+    } });
+}

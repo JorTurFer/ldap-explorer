@@ -56,7 +56,7 @@ function listView(state) {
   const items = state.entries.map((e) => el("details", { class: "result" },
     el("summary", {}, e.dn, el("a", { class: "jump", textContent: "view", onclick: (ev) => { ev.preventDefault(); showEntry(e.dn); } }),
       copyBtn(e.dn, { title: "Copy the DN", what: "Copied the DN" })),
-    el("div", { class: "body" }, attrTable(e.attrs))));
+    el("div", { class: "body" }, attrTable(e.attrs, e.dn))));
   if (items.length === 1) items[0].open = true;
   return el("div", {}, ...items);
 }
