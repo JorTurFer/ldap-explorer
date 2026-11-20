@@ -485,48 +485,6 @@ func handleDisconnect(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, map[string]bool{"ok": true})
 }
 
-// Direct children of a DN (for the tree). Paged to avoid hitting server size limits.
-func handleChildren(w http.ResponseWriter, r *http.Request) {
-	c, _, err := sess.get()
-	if err != nil {
-		writeErr(w, err)
-		return
-	}
-	dn := r.URL.Query().Get("dn")
-	sr := ldap.NewSearchRequest(dn, ldap.ScopeSingleLevel, ldap.NeverDerefAliases,
-		0, 60, false, "(objectClass=*)", []string{"1.1", "hasSubordinates", "numSubordinates"}, nil)
-	res, err := pagedSearch(r.Context(), c, sr, 500)
-	if err != nil && (res == nil || len(res.Entries) == 0) {
-		writeErr(w, err)
-		return
-	}
-	type child struct {
-		DN      string `json:"dn"`
-		RDN     string `json:"rdn"`
-		Leaf    bool   `json:"leaf"`
-		Unknown bool   `json:"unknown"`
-	}
-	out := make([]child, 0, len(res.Entries))
-	for _, e := range res.Entries {
-		ch := child{DN: e.DN, RDN: rdnOf(e.DN)}
-		hs := e.GetAttributeValue("hasSubordinates")
-		ns := e.GetAttributeValue("numSubordinates")
-		switch {
-		case strings.EqualFold(hs, "FALSE") || ns == "0":
-			ch.Leaf = true
-		case hs == "" && ns == "":
-			ch.Unknown = true
-		}
-		out = append(out, ch)
-	}
-	sort.Slice(out, func(i, j int) bool { return strings.ToLower(out[i].RDN) < strings.ToLower(out[j].RDN) })
-	resp := map[string]any{"children": out}
-	if err != nil {
-		resp["warning"] = err.Error()
-	}
-	writeJSON(w, resp)
-}
-
 func handleEntry(w http.ResponseWriter, r *http.Request) {
 	c, _, err := sess.get()
 	if err != nil {

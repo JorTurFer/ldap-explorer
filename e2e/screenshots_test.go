@@ -175,7 +175,17 @@ func TestScreenshots(t *testing.T) {
 	shot("status-bar")
 	run(t, ctx, chromedp.Click("#actCancel"))
 	waitText(t, ctx, "#sOut", "Cancelled")
-	run(t, ctx, eval(`window.fetch = window.__realFetch`))
+	run(t, ctx, eval(`window.fetch = window.__realFetch`), chromedp.Click("#btnSearch"))
+	waitText(t, ctx, "#sOut", "result(s)")
+
+	// 5e. A big branch loads page by page: a "N loaded, more below" row at the end of the list.
+	// (The filter is on so that the row does not load the next page by itself before the picture.)
+	bulk := `.node[title="ou=bulk,` + slapdtest.BaseDN + `"]`
+	run(t, ctx, chromedp.Click(bulk+" .tw"), chromedp.WaitVisible(".more-row"),
+		set("#treeFilter", "ou=bulk"), eval(`document.getElementById('treeFilter').dispatchEvent(new Event('input'))`),
+		eval(`document.querySelector('.more-row').scrollIntoView({block: 'end'})`))
+	shot("tree-more")
+	run(t, ctx, set("#treeFilter", ""), eval(`document.getElementById('treeFilter').dispatchEvent(new Event('input'))`), chromedp.Click(bulk+" .tw"))
 
 	// 6. Dark theme (follows the system setting), on the table again.
 	run(t, ctx, chromedp.Click(`button[data-tab="search"]`))

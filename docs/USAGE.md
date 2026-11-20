@@ -209,7 +209,12 @@ Next to the DN there are **←** and **→** buttons that work like the ones of 
 
 ## 6. Moving around
 
-- **Filter the tree**: type in the box above the tree. Only the nodes you have already opened are searched (use Search for the whole directory); the ancestors of a match stay visible. Escape clears it.
+- **Big branches load page by page.** Opening a node reads only its first **200** children, not the whole branch, so a node with hundreds of thousands of entries opens at once. At the end of the list a row says *200 loaded, more below*: the next page loads **by itself as you scroll down to it**, or press **Load more** to get one more page, or **Load all** to keep going until the branch is complete (on a huge branch that can take a while; the status bar shows the progress and **Cancel** stops it). Within each page the entries are sorted by name; the pages follow the order the server gives. If the server has a size limit, the list stops there with a warning.
+
+![A long branch: 200 entries loaded and a row to load more](img/tree-more.png)
+
+  *Go to a DN* (below) and links to entries also work inside big branches: the tree loads pages until it finds the entry. If the connection changes or the list stays open too long, the row says so and offers **Reload this branch**.
+- **Filter the tree**: type in the box above the tree. Only the entries already loaded are searched (not the pages of a big branch you have not scrolled to, and not branches you have not opened; use Search for the whole directory, and the filter does not trigger loading more pages); the ancestors of a match stay visible. Escape clears it.
 - **Go to a DN**: paste a DN in that box and press Enter, in any letter case; the tree opens the branches that lead to it.
 - **Bookmarks**: click one to open the entry; **copy** copies its DN; **×** removes it.
 - **Keyboard shortcuts** (they work when you are not typing in a box and no dialog is open; press `?` to see them in the program):
@@ -349,6 +354,7 @@ Everything you create is kept in your user configuration folder (macOS `~/Librar
 | Saved queries and recent searches, per profile | Supported. |
 | Results as a list or a sortable table; export to CSV, JSON and LDIF | Supported. |
 | Entry actions: groups of an entry, bookmarks, pin and compare, copy or download as LDIF, copy as JSON | Supported. |
+| Big branches in the tree: pages of 200 loaded on demand (scrolling, *Load more*, *Load all*) | Supported. Needs the server to support paged results (OpenLDAP, 389DS and Active Directory do); otherwise the whole branch is read at once. |
 | A status bar with what is running, elapsed time, entries received so far, the usual time and Cancel | Supported. Progress by entries applies to paged searches (tree listings, searches, exports); other requests show their elapsed time. |
 | Server information and a schema browser (attributes, object classes, inheritance, matching rules) | Supported. |
 | Tree filter, go to a DN, bookmarks, keyboard shortcuts | Supported. |

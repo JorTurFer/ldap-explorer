@@ -2115,3 +2115,60 @@ func TestUIStatusBar(t *testing.T) {
 		t.Error("the status bar should be fully visible at the bottom, with a fixed height")
 	}
 }
+
+// ---------- a big branch loads page by page ----------
+
+func TestUITreeLoadsBigBranchesOnDemand(t *testing.T) {
+	l := slapdtest.Start(t)
+	appURL := startApp(t)
+	ctx := browser(t)
+	run(t, ctx, chromedp.Navigate(appURL), chromedp.WaitVisible("#btnConn"))
+	connect(t, ctx, l.URL, slapdtest.BobDN, slapdtest.BobPW) // bob has no size limit
+	waitText(t, ctx, "#status", "Connected to")
+	bulk := `.node[title="ou=bulk,` + slapdtest.BaseDN + `"]`
+	children := func() int {
+		var n int
+		js(t, ctx, `[...document.querySelectorAll('#tree .node')].filter(r => /^uid=u\d{4},ou=bulk,/.test(r.title)).length`, &n)
+		return n
+	}
+	run(t, ctx, chromedp.WaitVisible(`.node[title="`+slapdtest.BaseDN+`"]`), chromedp.Click(`.node[title="`+slapdtest.BaseDN+`"] .tw`))
+	run(t, ctx, chromedp.WaitVisible(bulk), chromedp.Click(bulk+" .tw"))
+
+	// Only the first page, and a row that says there is more.
+	waitJS(t, ctx, "first page", `document.querySelector('.more-row') !== null`)
+	if n := children(); n != 200 {
+		t.Fatalf("the first page has %d entries, want 200", n)
+	}
+	waitText(t, ctx, ".more-row", "200 loaded, more below")
+
+	// Load more, by hand.
+	run(t, ctx, chromedp.Click(".more-row .more-next"))
+	waitJS(t, ctx, "second page", `document.querySelector('.more-row') !== null && document.querySelector('.more-row').textContent.includes('400 loaded')`)
+
+	// Scrolling to the end loads the rest by itself.
+	run(t, ctx, eval(`document.querySelector('.more-row').scrollIntoView()`))
+	waitJS(t, ctx, "the whole branch", `document.querySelector('.more-row') === null`)
+	if n := children(); n != slapdtest.BulkCount {
+		t.Errorf("after scrolling: %d entries, want %d", n, slapdtest.BulkCount)
+	}
+
+	// Going to an entry that is on a page not loaded yet loads pages until it is found.
+	run(t, ctx, chromedp.Click("#btnRefresh"))
+	waitJS(t, ctx, "tree rebuilt", `document.querySelectorAll('#tree .node').length > 0 && !document.querySelector('.more-row')`)
+	last := "uid=u0599,ou=bulk," + slapdtest.BaseDN
+	run(t, ctx, set("#treeFilter", last), chromedp.SendKeys("#treeFilter", "\r"))
+	waitText(t, ctx, "#pane-entry .dn", last)
+	waitJS(t, ctx, "revealed in the tree", `(() => { const n = document.querySelector('#tree .node.sel'); return !!n && n.title === `+q(last)+`; })()`)
+
+	// "Load all" fetches the rest of a branch in one go.
+	run(t, ctx, chromedp.Click("#btnRefresh"))
+	waitJS(t, ctx, "tree rebuilt", `document.querySelectorAll('#tree .node').length > 0`)
+	run(t, ctx, chromedp.Click(`.node[title="`+slapdtest.BaseDN+`"] .tw`))
+	run(t, ctx, chromedp.WaitVisible(bulk), chromedp.Click(bulk+" .tw"))
+	waitJS(t, ctx, "first page again", `document.querySelector('.more-row .more-all') !== null`)
+	run(t, ctx, chromedp.Click(".more-row .more-all"))
+	waitJS(t, ctx, "all loaded", `document.querySelector('.more-row') === null`)
+	if n := children(); n != slapdtest.BulkCount {
+		t.Errorf("Load all: %d entries, want %d", n, slapdtest.BulkCount)
+	}
+}

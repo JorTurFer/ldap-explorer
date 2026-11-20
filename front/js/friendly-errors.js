@@ -28,5 +28,6 @@ export function friendlyError(message) {
   if (!text) return "Something went wrong.";
   const rule = RULES.find(([re]) => re.test(text));
   if (!rule) return text;
+  if (/^cancelled$/i.test(text)) return rule[1]; // nothing technical to add
   return `${rule[1]} (${text})`;
 }

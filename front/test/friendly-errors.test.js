@@ -47,5 +47,5 @@ test("a size limit is not confused with a time limit or other codes", () => {
 });
 
 test("a cancelled request is explained, not shown as a failure code", () => {
-  assert.match(friendlyError("Cancelled"), /^Cancelled\. Nothing was changed/);
+  assert.equal(friendlyError("Cancelled"), "Cancelled. Nothing was changed; run it again whenever you like.");
 });

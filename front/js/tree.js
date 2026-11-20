@@ -4,6 +4,8 @@ import { setStatus } from "./status.js";
 import { emit, on } from "./events.js";
 import { ancestors, normDN, looksLikeDN, matchesFilter } from "./nav.js";
 import { copyBtn } from "./ui/copy.js";
+import { childrenURL, loadedText } from "./tree-model.js";
+import { friendlyError } from "./friendly-errors.js";
 
 let roots = [];
 let selectedNode = null;
@@ -57,20 +59,75 @@ function makeNode(n) {
   const row = el("div", { class: "node", title: n.dn }, tw, el("span", { class: "rdn", textContent: n.rdn }),
     copyBtn(n.dn, { title: "Copy this DN", what: "Copied the DN" }));
   let kids = null, open = false;
+  let cursor = "", loaded = 0, moreRow = null, loading = null, observer = null;
+
+  // The "N loaded, more below" row at the end of a long branch. It loads the next page by
+  // itself when it scrolls into view (and not while the filter is on: that would read the
+  // whole branch just to look for a match), and has buttons for doing it by hand.
+  const showMore = (failure = "") => {
+    observer?.disconnect();
+    if (!cursor && !failure) { moreRow?.remove(); moreRow = null; return; }
+    const row = el("li", { class: "more more-row" });
+    if (failure) {
+      row.append(el("span", { class: "err", textContent: failure }),
+        el("button", { type: "button", class: "small-btn", textContent: "Reload this branch", onclick: reload }));
+    } else {
+      row.append(el("span", { class: "muted", textContent: loadedText(loaded) }),
+        el("button", { type: "button", class: "small-btn more-next", textContent: "Load more", onclick: () => loadMore() }),
+        el("button", { type: "button", class: "small-btn more-all", textContent: "Load all", title: "Keep loading until the whole branch is here (can take a while on a big one)", onclick: loadAll }));
+    }
+    if (moreRow) moreRow.replaceWith(row); else kids.append(row);
+    moreRow = row;
+    if (!failure && "IntersectionObserver" in window) {
+      observer = new IntersectionObserver((hits) => {
+        if (hits.some((h) => h.isIntersecting) && !$("tree").classList.contains("filtering")) loadMore();
+      }, { root: $("tree"), rootMargin: "120px" });
+      observer.observe(row);
+    }
+  };
+
+  const addPage = (res) => {
+    for (const c of res.children) {
+      const child = makeNode(c);
+      if (moreRow) moreRow.before(child); else kids.append(child);
+    }
+    loaded += res.children.length;
+    cursor = res.cursor || "";
+    if (res.warning) kids.append(el("li", { class: "more", textContent: "⚠ " + res.warning }));
+    showMore();
+    applyFilter(); // children that arrive while a filter is active are filtered too
+  };
+
+  // Loads the next page. Resolves to false when it could not (the error is shown in the row).
+  const loadMore = () => {
+    if (!cursor) return Promise.resolve(false);
+    if (loading) return loading;
+    moreRow?.classList.add("loading");
+    loading = (async () => {
+      try { addPage(await api(childrenURL(n.dn, cursor))); return true; }
+      catch (e) {
+        cursor = "";
+        showMore(e.cancelled ? "Cancelled. The rest of this branch is not loaded." : friendlyError(e.message));
+        return false;
+      } finally { loading = null; }
+    })();
+    return loading;
+  };
+  const loadAll = async () => { while (cursor) if (!(await loadMore())) break; };
+  const reload = () => { kids?.remove(); kids = null; moreRow = null; cursor = ""; loaded = 0; open = false; toggle(); };
+
   const toggle = async () => {
     if (n.leaf) return;
     open = !open;
     if (open && !kids) {
       tw.textContent = "…";
       try {
-        const res = await api("/api/children?dn=" + encodeURIComponent(n.dn));
+        const res = await api(childrenURL(n.dn));
         kids = el("ul", { class: "t" });
         if (!res.children.length) { n.leaf = true; tw.textContent = ""; return; }
-        for (const c of res.children) kids.append(makeNode(c));
-        if (res.warning) kids.append(el("li", { class: "more", textContent: "⚠ " + res.warning }));
         li.append(kids);
-        applyFilter(); // children that arrive while a filter is active are filtered too
-      } catch (e) { setStatus(e.message, true); open = false; tw.textContent = "▶"; return; }
+        addPage(res);
+      } catch (e) { setStatus(friendlyError(e.message), true); open = false; tw.textContent = "▶"; return; }
     }
     if (kids) kids.classList.toggle("collapsed", !open);
     tw.textContent = open ? "▼" : "▶";
@@ -85,6 +142,8 @@ function makeNode(n) {
   row.addEventListener("dblclick", toggle);
   nodes.set(normDN(n.dn), {
     open: async () => { if (!n.leaf && !open) await toggle(); },
+    // keep loading pages of this branch until the wanted child is there (or there is no more)
+    loadUntil: async (target) => { while (cursor && !nodes.has(target)) if (!(await loadMore())) break; },
     select: () => { select(); row.scrollIntoView({ block: "nearest" }); },
   });
   li.append(row);
@@ -129,6 +188,7 @@ export async function goTo(dn) {
       if (!node) break;
       if (i === chain.length - 1) { node.select(); return; }
       await node.open();
+      await node.loadUntil(normDN(chain[i + 1])); // the entry may be on a page that is not loaded yet
     }
   }
   emit("select", { dn });
