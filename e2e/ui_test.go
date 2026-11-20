@@ -1878,9 +1878,11 @@ func TestUISearchButtonStaysPut(t *testing.T) {
 	waitText(t, ctx, "#status", "Connected to")
 	run(t, ctx, chromedp.Click(`button[data-tab="search"]`), chromedp.WaitReady("#sBase"), rawMode(),
 		set("#sBase", "ou=people,"+slapdtest.BaseDN), set("#sScope", "one"))
+	// Relative to the saved-queries row, so that the page scrolling (clicking scrolls the
+	// button into view in small windows) does not count as the button moving.
 	top := func() float64 {
 		var y float64
-		js(t, ctx, `document.getElementById('btnSearch').getBoundingClientRect().top`, &y)
+		js(t, ctx, `document.getElementById('btnSearch').getBoundingClientRect().top - document.querySelector('#pane-search .saved').getBoundingClientRect().top`, &y)
 		return y
 	}
 	before := top()
