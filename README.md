@@ -12,7 +12,7 @@ A minimal, read-only LDAP browser for macOS and Windows. A single Go binary that
 - Passwords kept where you choose, per profile: nowhere, the system keychain (Keychain on macOS, Credential Manager on Windows, Secret Service on Linux) or an **encrypted vault** with a master passphrase (Argon2id + AES-256-GCM, locks itself when idle) for machines without a keychain. Several saved users and servers, with one-click "Connect as…" switching
 - Read-only by design; `ldap://`, `ldaps://` and StartTLS; base DN auto-detected from the RootDSE; one self-contained binary, no cgo
 
-See the [user manual](docs/USAGE.md) for how to use it and exactly what is and is not supported.
+See the [user manual](docs/USAGE.md) for how to use it and exactly what is and is not supported, and [working on the front end](docs/FRONTEND.md) if you want to change the interface.
 
 ## Build
 

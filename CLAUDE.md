@@ -48,6 +48,7 @@ A minimal, read-only LDAP browser. A single Go binary that serves an embedded we
 - Real servers differ: the account recipes (`nsAccountLock`, `passwordExpirationTime`, ppolicy) are only checked against synthetic schemas, and OpenLDAP's `shadowExpire` has no ordering rule (the builder refuses `<`/`>` on it). Not verified yet against real AD or production OpenLDAP servers; say explicitly what could not be tested from this environment (macOS keychain, `.app`, Windows Credential Manager).
 
 ## Docs
+- `docs/FRONTEND.md` explains how the front end is organised and how to iterate on it (rules, tokens, adding a tab or a feature). Keep it true when the structure changes.
 - Screenshots in `docs/img` are generated from the real UI by `e2e/screenshots_test.go` (`make screenshots`, needs Docker). Regenerate them in the same commit as any visible UI change; never edit them by hand.
 - `docs/USAGE.md` is the user manual, including the supported / not supported lists. Keep it in sync with behavior changes (same commit).
 

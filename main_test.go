@@ -605,7 +605,7 @@ func TestFrontDirWithoutIndexIsRefused(t *testing.T) {
 // The manual has screenshots that are generated, never edited: they must all exist, all be
 // used, and the links between the documents must resolve.
 func TestDocsAreConsistent(t *testing.T) {
-	docs := []string{"README.md", "CLAUDE.md", "docs/USAGE.md", "docs/ROADMAP.md"}
+	docs := []string{"README.md", "CLAUDE.md", "docs/USAGE.md", "docs/ROADMAP.md", "docs/FRONTEND.md"}
 	link := regexp.MustCompile(`\]\(([^)#\s]+)(#[^)]*)?\)`)
 	referenced := map[string]bool{}
 	for _, doc := range docs {
