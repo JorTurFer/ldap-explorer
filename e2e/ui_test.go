@@ -2287,3 +2287,61 @@ func TestUINavigationAcrossTabs(t *testing.T) {
 	run(t, ctx, chromedp.Click("#btnDisc"))
 	waitJS(t, ctx, "trail cleared", `document.getElementById('navBack').disabled && document.getElementById('navForward').disabled`)
 }
+
+// ---------- issue #5: every request in an expandable list ----------
+
+func TestUIRequestsList(t *testing.T) {
+	l := slapdtest.Start(t)
+	appURL := startApp(t)
+	ctx := browser(t)
+	run(t, ctx, chromedp.Navigate(appURL), chromedp.WaitVisible("#btnConn"))
+	connect(t, ctx, l.URL, slapdtest.AliceDN, slapdtest.AlicePW)
+	waitText(t, ctx, "#status", "Connected to")
+	if !jsBool(t, ctx, `document.getElementById('activityPanel').hidden && document.getElementById('actToggle').getAttribute('aria-expanded') === 'false'`) {
+		t.Fatal("the list starts collapsed")
+	}
+
+	// Two searches at the same time, both slow.
+	run(t, ctx, chromedp.Click(`button[data-tab="search"]`), chromedp.WaitReady("#sBase"), rawMode(),
+		set("#sBase", "ou=people,"+slapdtest.BaseDN), set("#sScope", "one"))
+	slowSearches(t, ctx, 3000)
+	run(t, ctx, set("#sFilter", "(uid=alice)"), chromedp.Click("#btnSearch"))
+	run(t, ctx, set("#sFilter", "(uid=bob)"), chromedp.Click("#btnSearch"))
+
+	// The bar says how many are running; clicking the bar opens the list with both.
+	waitJS(t, ctx, "two running", `document.getElementById('actToggle').textContent.includes('2 running')`)
+	run(t, ctx, chromedp.Click("#actText")) // the bar itself is the button
+	waitJS(t, ctx, "the list", `!document.getElementById('activityPanel').hidden && document.getElementById('actToggle').getAttribute('aria-expanded') === 'true'`)
+	waitJS(t, ctx, "both rows", `document.querySelectorAll('#actRunning li').length === 2`)
+	var labels []string
+	js(t, ctx, `[...document.querySelectorAll('#actRunning .act-row-text')].map(e => e.textContent)`, &labels)
+	if len(labels) != 2 || !strings.Contains(labels[0], "(uid=alice)") || !strings.Contains(labels[1], "(uid=bob)") {
+		t.Errorf("running rows (oldest first): %v", labels)
+	}
+	if !jsBool(t, ctx, `[...document.querySelectorAll('#actRunning li')].every(li => li.querySelector('button') && /\d\.\d s/.test(li.querySelector('.act-row-detail').textContent))`) {
+		t.Error("each running row has its time and its own Cancel button")
+	}
+
+	// Cancel one from its row: it moves to the list of finished ones, the other keeps going.
+	run(t, ctx, chromedp.Click(`#actRunning li:first-child button`))
+	waitJS(t, ctx, "one left", `document.querySelectorAll('#actRunning li').length === 1`)
+	waitJS(t, ctx, "cancelled in the history", `document.querySelector('#actHistory li .act-row-detail').textContent.startsWith('Cancelled after ')`)
+	// When the other one finishes, both are in the history, newest first, each with the time it started.
+	waitJS(t, ctx, "finished", `document.querySelectorAll('#actRunning li').length === 0 && document.querySelectorAll('#actHistory li').length === 2`)
+	var rows []string
+	js(t, ctx, `[...document.querySelectorAll('#actHistory li')].map(li => li.querySelector('.act-row-detail').textContent.split(' ')[0] + '|' + li.querySelector('.act-row-when').textContent)`, &rows)
+	for _, r := range rows {
+		if !regexp.MustCompile(`^(Done|Cancelled)\|\d\d:\d\d:\d\d$`).MatchString(r) {
+			t.Errorf("history row %q", r)
+		}
+	}
+	if len(rows) == 2 && !strings.HasPrefix(rows[0], "Done") {
+		t.Errorf("the newest finished one comes first: %v", rows)
+	}
+
+	// Collapse with the button; Clear list empties the history.
+	run(t, ctx, chromedp.Click("#actToggle"))
+	waitJS(t, ctx, "collapsed", `document.getElementById('activityPanel').hidden && document.getElementById('actToggle').getAttribute('aria-expanded') === 'false'`)
+	run(t, ctx, chromedp.Click("#actToggle"), chromedp.Click("#actClear"))
+	waitJS(t, ctx, "cleared", `document.querySelectorAll('#actHistory li').length === 0 && !document.getElementById('actEmpty').hidden`)
+}

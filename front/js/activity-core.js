@@ -18,7 +18,7 @@ export function beginRequest(method, path, body) {
   const ctl = new AbortController();
   if (!desc.quiet) {
     controllers.set(id, ctl);
-    tracker.start(id, desc, performance.now());
+    tracker.start(id, desc, performance.now(), Date.now());
     emit("activity-changed");
   }
   return {
@@ -37,4 +37,10 @@ export function beginRequest(method, path, body) {
 // request is gone and stops asking the directory for more pages.
 export function cancelAll() {
   for (const [id, ctl] of controllers) { cancelled.add(id); ctl.abort(); }
+}
+
+// Cancel one request (the Cancel button of its row in the list).
+export function cancelOne(id) {
+  const ctl = controllers.get(id);
+  if (ctl) { cancelled.add(id); ctl.abort(); }
 }

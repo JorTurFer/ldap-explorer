@@ -123,6 +123,16 @@
     </div>
   </section>
 </main>
+<section id="activityPanel" class="activity-panel" hidden aria-label="Requests">
+  <div class="ap-head">
+    <strong>Requests</strong>
+    <span class="muted small">What is running is on top, then the latest ones that finished (kept only while this window stays open).</span>
+    <button type="button" id="actClear" class="small-btn" title="Forget the finished requests in this list">Clear list</button>
+  </div>
+  <ul id="actRunning" class="act-rows"></ul>
+  <ul id="actHistory" class="act-rows"></ul>
+  <p id="actEmpty" class="muted small ap-empty">Nothing has run yet.</p>
+</section>
 <footer id="activity" class="activity idle ok">
   <span class="spinner" aria-hidden="true"></span>
   <span id="actText" class="act-text">Ready</span>
@@ -130,6 +140,7 @@
   <span id="actDetail" class="act-detail muted"></span>
   <span id="actNote" class="act-note"></span>
   <button type="button" id="actCancel" class="small-btn" hidden title="Stop waiting for this request">Cancel</button>
+  <button type="button" id="actToggle" class="small-btn" aria-expanded="false" aria-controls="activityPanel" title="Show or hide the list of requests (running and recent)">▲ Requests</button>
   <span id="actLive" class="sr-only" role="status"></span>
 </footer>
 

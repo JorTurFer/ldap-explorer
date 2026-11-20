@@ -54,6 +54,13 @@ Big directories take time. The bar at the bottom of the window tells you what is
 - **Looks stuck**: if nothing at all has arrived from the server for 30 seconds, the circle turns red and it says *No answer from the server for 45 s. It may just be slow, not stopped; you can wait or cancel.* On a big search, every page of results counts as a sign of life, so a search that keeps delivering is never reported as stuck.
 - **Cancel** stops waiting for what is running. The program stops asking the directory for more results as soon as it notices, and the result area says *Cancelled*. Nothing is changed anywhere: it is only a search that you no longer want.
 - **When it ends**, the bar tells you for a few seconds how it went: *Done in 1.8 s · 600 entries*, *Cancelled after 3.0 s* or *Failed after 1.0 s*.
+- **All the requests, in a list.** Several things can run at the same time (for example two searches, or opening a branch while a search is still going), and the bar only describes the oldest one, with *(2 running)* next to the button. **Click the bar** (or its **▲ Requests** button) to open the list above it, and click again to close it.
+
+  ![The list of requests: what is running on top, the latest finished ones below](img/requests-list.png)
+
+  - **Running now** are on top, oldest first. Each row shows what it is, how long it has been running, entries so far, how long it usually takes, its own progress bar and its own **Cancel** button (the Cancel in the bar cancels all of them).
+  - Below are **the latest 20 that finished**, newest first: what it was, how it went (*Done in 1.8 s · 600 entries*, *Cancelled after 3.0 s*, *Failed after 1.0 s*) and **the time it started**. Requests quicker than half a second are not listed, failed ones always are.
+  - **Clear list** empties the finished ones. The list lives only while the window stays open: nothing is saved and it never contains the results, only the descriptions you see.
 - **Lost contact**: if the program itself stops answering (not the directory: ldap-explorer), the bar turns red and says so. Close the tab and start it again.
 
 The estimate comes only from what this session has already done (the same search again, or the average of similar ones), and it is not saved anywhere. The first time you do something there is nothing to compare with, so only the time is shown.

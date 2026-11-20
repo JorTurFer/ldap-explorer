@@ -294,3 +294,31 @@ table.attrs td.v .hint { color: var(--muted); font-family: var(--font); font-siz
 .more-row { font-style: normal; display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); padding: 4px 0 4px 22px; }
 .more-row .small-btn { margin-top: 0; }
 .more-row.loading { opacity: 0.6; }
+
+/* the expanded list of requests, above the status bar */
+.activity { cursor: pointer; }
+.activity button { cursor: pointer; }
+.activity #actToggle { margin-left: auto; }
+.activity-panel { border-top: 1px solid var(--line); background: var(--panel); max-height: 240px; overflow: auto; padding: var(--space-2) var(--space-3); font-size: var(--text-s); }
+.activity-panel[hidden] { display: none; }
+.ap-head { display: flex; align-items: center; gap: var(--space-3); margin-bottom: var(--space-2); }
+.ap-head .small-btn { margin: 0 0 0 auto; }
+.act-rows { list-style: none; margin: 0; padding: 0; }
+.act-row { display: flex; align-items: center; gap: var(--space-3); min-height: 26px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+.act-row:last-child { border-bottom: 0; }
+.act-row .act-row-text { flex: 1 1 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--text); }
+.act-row .act-row-detail, .act-row .act-row-when { flex: none; }
+.act-row .act-row-note { flex: 0 1 280px; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.act-row progress { width: 110px; height: 8px; flex: none; accent-color: var(--accent); }
+.act-row .small-btn { margin: 0; flex: none; }
+.act-row .spinner { flex: none; width: 10px; height: 10px; border-radius: 50%; border: 2px solid var(--line); }
+.act-row.running .spinner { border-top-color: var(--accent); animation: spin 0.9s linear infinite; }
+.act-row.running.slow .spinner { border-top-color: var(--warn); }
+.act-row.running.slow .act-row-note { color: var(--warn); }
+.act-row.running.stuck .spinner { border-top-color: var(--err); }
+.act-row.running.stuck .act-row-note { color: var(--err); }
+.act-row.done.ok .spinner { background: var(--ok); border-color: var(--ok); }
+.act-row.done.cancelled .spinner { background: var(--warn); border-color: var(--warn); }
+.act-row.done.error .spinner { background: var(--err); border-color: var(--err); }
+.ap-empty { margin: 0; }
+@media (prefers-reduced-motion: reduce) { .act-row.running .spinner { animation: none; } }

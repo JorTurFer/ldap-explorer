@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { describeRequest, formatDuration, entriesText, createTracker, SHOW_AFTER_MS, SLOW_AFTER_MS, QUIET_AFTER_MS, DONE_SHOWN_MS } from "../js/activity-model.js";
+import { describeRequest, formatDuration, entriesText, createTracker, outcomeText, clockTime, SHOW_AFTER_MS, SLOW_AFTER_MS, QUIET_AFTER_MS, DONE_SHOWN_MS, HISTORY_LIMIT } from "../js/activity-model.js";
 
 test("describeRequest names what the user asked for", () => {
   const s = describeRequest("POST", "/api/search", { base: "ou=people,dc=x", scope: "sub", filter: "(uid=bob)" });
@@ -147,4 +147,49 @@ test("finishing or reporting on an unknown request is harmless", () => {
   const t = createTracker();
   t.finish("zzz", 1); t.progress("zzz", { entries: 1, pages: 1 }, 1);
   assert.equal(t.view(10).busy, false);
+});
+
+test("list: everything running (oldest first) and the finished ones (newest first)", () => {
+  const t = createTracker();
+  t.start("a", search, 0, 1000);
+  t.start("b", describeRequest("GET", "/api/schema"), 500, 1500);
+  t.start("young", describeRequest("GET", "/api/server"), 2900, 3900);
+  t.progress("a", { entries: 250, pages: 1, quietMs: 0 }, 2000);
+  const l = t.list(3000);
+  assert.deepEqual(l.running.map((r) => r.id), ["a", "b"]); // "young" has not reached the bar yet
+  assert.deepEqual(l.running[0].parts, ["3.0 s", "250 entries so far"]);
+  assert.equal(l.history.length, 0);
+  t.finish("b", 3200);
+  t.finish("a", 4000, "cancelled");
+  const after = t.list(5000);
+  assert.deepEqual(after.running.map((r) => r.id), ["young"]);
+  assert.deepEqual(after.history.map((h) => [h.label, h.outcome, h.ms, h.startedWall, h.text]), [
+    [search.label, "cancelled", 4000, 1000, "Cancelled after 4.0 s"],
+    ["Loading the server's schema", "ok", 2700, 1500, "Done in 2.7 s"],
+  ]);
+});
+
+test("the list keeps only the latest finished requests, and can be cleared", () => {
+  const t = createTracker();
+  for (let i = 0; i < HISTORY_LIMIT + 5; i++) { t.start("r" + i, search, i * 10000, i); t.finish("r" + i, i * 10000 + 1000); }
+  const h = t.list(1e6).history;
+  assert.equal(h.length, HISTORY_LIMIT);
+  assert.equal(h[0].startedWall, HISTORY_LIMIT + 4); // the newest first
+  t.clearHistory();
+  assert.equal(t.list(1e6).history.length, 0);
+  assert.equal(t.view(1e6).done, null);
+});
+
+test("fast requests are not in the history, failed ones always are", () => {
+  const t = createTracker();
+  t.start("fast", search, 0); t.finish("fast", 100);
+  t.start("bad", search, 1000); t.finish("bad", 1100, "error");
+  assert.deepEqual(t.list(2000).history.map((h) => h.outcome), ["error"]);
+});
+
+test("outcomeText and clockTime", () => {
+  assert.equal(outcomeText({ outcome: "ok", ms: 1800, entries: 600 }), "Done in 1.8 s · 600 entries");
+  assert.equal(outcomeText({ outcome: "error", ms: 1000, entries: 0 }), "Failed after 1.0 s");
+  assert.match(clockTime(Date.UTC(2026, 10, 20, 9, 5, 7)), /^\d\d:\d\d:\d\d$/);
+  assert.equal(clockTime(0), "");
 });
