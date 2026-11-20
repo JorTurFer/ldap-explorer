@@ -550,29 +550,23 @@ func handleEntry(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, toEntry(res.Entries[0], true))
 }
 
-func handleSearch(w http.ResponseWriter, r *http.Request) {
-	c, _, err := sess.get()
-	if err != nil {
-		writeErr(w, err)
-		return
-	}
-	var req struct {
-		Base   string `json:"base"`
-		Filter string `json:"filter"`
-		Scope  string `json:"scope"`
-		Attrs  string `json:"attrs"`
-		Limit  int    `json:"limit"`
-	}
-	if err := decode(r, &req); err != nil {
-		writeErr(w, err)
-		return
-	}
+// searchRequest is what the Search tab sends; the list, the table and the exports all use it.
+type searchRequest struct {
+	Base   string `json:"base"`
+	Filter string `json:"filter"`
+	Scope  string `json:"scope"`
+	Attrs  string `json:"attrs"`
+	Limit  int    `json:"limit"`
+}
+
+// run validates the request and performs the search, paged. A server limit that cuts the
+// result short is returned as a warning together with what was received.
+func (req *searchRequest) run(c *ldap.Conn) (res *ldap.SearchResult, warning string, err error) {
 	if req.Filter == "" {
 		req.Filter = "(objectClass=*)"
 	}
 	if _, err := ldap.CompileFilter(req.Filter); err != nil {
-		writeErr(w, fmt.Errorf("invalid filter: %w", err))
-		return
+		return nil, "", fmt.Errorf("invalid filter: %w", err)
 	}
 	scope := ldap.ScopeWholeSubtree
 	switch req.Scope {
@@ -590,14 +584,31 @@ func handleSearch(w http.ResponseWriter, r *http.Request) {
 	}
 	sr := ldap.NewSearchRequest(req.Base, scope, ldap.NeverDerefAliases,
 		req.Limit, 120, false, req.Filter, attrs, nil)
-	res, err := c.SearchWithPaging(sr, uint32(min(req.Limit, 500)))
-	var warning string
+	res, err = c.SearchWithPaging(sr, uint32(min(req.Limit, 500)))
 	if err != nil {
 		if res == nil || len(res.Entries) == 0 {
-			writeErr(w, err)
-			return
+			return nil, "", err
 		}
 		warning = err.Error() // e.g. size limit exceeded: return whatever we got
+	}
+	return res, warning, nil
+}
+
+func handleSearch(w http.ResponseWriter, r *http.Request) {
+	c, _, err := sess.get()
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	var req searchRequest
+	if err := decode(r, &req); err != nil {
+		writeErr(w, err)
+		return
+	}
+	res, warning, err := req.run(c)
+	if err != nil {
+		writeErr(w, err)
+		return
 	}
 	out := make([]Entry, 0, len(res.Entries))
 	for _, e := range res.Entries {
@@ -651,6 +662,8 @@ func newHandler(token string, lastPing *atomic.Int64, front fs.FS) http.Handler 
 	api.HandleFunc("GET /api/children", handleChildren)
 	api.HandleFunc("GET /api/entry", handleEntry)
 	api.HandleFunc("POST /api/search", handleSearch)
+	api.HandleFunc("POST /api/search/ldif", handleSearchLDIF)
+	api.HandleFunc("GET /api/entry/ldif", handleEntryLDIF)
 	api.HandleFunc("GET /api/server", handleServer)
 	api.HandleFunc("GET /api/schema", handleSchema)
 	api.HandleFunc("GET /api/sample", handleSample)
