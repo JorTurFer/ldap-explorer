@@ -123,7 +123,7 @@ func TestSupCycleDoesNotHang(t *testing.T) {
 	if len(errs) != 0 {
 		t.Fatal(errs)
 	}
-	if s.Lookup("a").Syntax != "" || s.Lookup("c").CanEqual() {
+	if s.Lookup("a").Syntax != "" || s.Lookup("c").Equality != "" {
 		t.Error("nothing to inherit")
 	}
 }
@@ -139,5 +139,38 @@ func TestSyntaxKinds(t *testing.T) {
 	}
 	if SyntaxName("9.9.9") != "" {
 		t.Error("unknown syntax has no name")
+	}
+}
+
+// Active Directory publishes attribute types without any matching rule, but it answers equality
+// and substring searches on them: the operators then follow the syntax instead of disappearing.
+func TestAttributesWithoutMatchingRulesFollowTheirSyntax(t *testing.T) {
+	s, errs := Parse([]string{
+		"( 1.1 NAME 'postmaster' SYNTAX 1.3.6.1.4.1.1466.115.121.1.15 )",                      // text
+		"( 1.2 NAME 'counter' SYNTAX 1.3.6.1.4.1.1466.115.121.1.27 )",                         // integer
+		"( 1.3 NAME 'stamp' SYNTAX 1.3.6.1.4.1.1466.115.121.1.24 )",                           // time
+		"( 1.4 NAME 'flag' SYNTAX 1.3.6.1.4.1.1466.115.121.1.7 )",                             // boolean
+		"( 1.5 NAME 'owner2' SYNTAX 1.3.6.1.4.1.1466.115.121.1.12 )",                          // dn
+		"( 1.6 NAME 'blob' SYNTAX 1.3.6.1.4.1.1466.115.121.1.40 )",                            // binary
+		"( 1.7 NAME 'strict' EQUALITY caseIgnoreMatch SYNTAX 1.3.6.1.4.1.1466.115.121.1.15 )", // rules declared: trusted as they are
+	}, nil)
+	if len(errs) != 0 {
+		t.Fatal(errs)
+	}
+	type caps struct{ unknown, eq, ord, sub bool }
+	for name, want := range map[string]caps{
+		"postmaster": {true, true, false, true},
+		"counter":    {true, true, true, false},
+		"stamp":      {true, true, true, false},
+		"flag":       {true, true, false, false},
+		"owner2":     {true, true, false, false},
+		"blob":       {false, false, false, false},
+		"strict":     {false, true, false, false}, // declares equality only: no substring, no ordering
+	} {
+		a := s.Lookup(name)
+		got := caps{a.RulesUnknown(), a.CanEqual(), a.CanOrder(), a.CanSubstring()}
+		if got != want {
+			t.Errorf("%s: %+v, want %+v", name, got, want)
+		}
 	}
 }

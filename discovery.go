@@ -116,6 +116,7 @@ type schemaAttr struct {
 	CanEqual     bool     `json:"canEqual"`
 	CanOrder     bool     `json:"canOrder"`
 	CanSubstring bool     `json:"canSubstring"`
+	RulesUnknown bool     `json:"rulesUnknown,omitempty"` // the schema declares no matching rules: the operators above are a guess from the syntax
 	SingleValue  bool     `json:"singleValue"`
 	Operational  bool     `json:"operational"`
 	NoUserMod    bool     `json:"noUserModification"`
@@ -171,7 +172,7 @@ func loadSchema(c *ldap.Conn) (*schemaResponse, error) {
 	for _, a := range s.Attributes {
 		out.Attributes = append(out.Attributes, schemaAttr{
 			Name: a.Name(), Names: nonNil(a.Names), OID: a.OID, Desc: a.Desc, Syntax: a.Syntax, SyntaxName: a.SyntaxName(),
-			Kind: a.Kind(), CanEqual: a.CanEqual(), CanOrder: a.CanOrder(), CanSubstring: a.CanSubstring(),
+			Kind: a.Kind(), CanEqual: a.CanEqual(), CanOrder: a.CanOrder(), CanSubstring: a.CanSubstring(), RulesUnknown: a.RulesUnknown(),
 			SingleValue: a.SingleValue, Operational: a.Operational(), NoUserMod: a.NoUserMod, Obsolete: a.Obsolete,
 			Sup: a.Sup, Equality: a.Equality, Ordering: a.Ordering, Substring: a.Substr, Usage: a.Usage,
 		})

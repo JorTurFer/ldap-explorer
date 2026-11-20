@@ -9,7 +9,7 @@ import { emit, on } from "./events.js";
 import { getSchema, attrInfo } from "./schema.js";
 import { copyText } from "./ui/copy.js";
 import { friendlyLabel, commonChips, chipDefaults } from "./labels.js";
-import { OPS, opsFor, defaultOp, valueKind, newCondition, newGroup, toQuery, fromQuery, friendlyOps, isEmptyQuery } from "./builder-model.js";
+import { RULES_UNKNOWN_NOTE, OPS, opsFor, defaultOp, valueKind, newCondition, newGroup, toQuery, fromQuery, friendlyOps, isEmptyQuery } from "./builder-model.js";
 
 let model = newGroup("all");
 let schemaIdx = null;
@@ -103,7 +103,10 @@ function renderCondition(it, group) {
   const remove = el("button", { class: "bremove", type: "button", title: "Remove this condition", textContent: "×",
     onclick: () => { group.items.splice(group.items.indexOf(it), 1); if (group.items.length === 0) group.items.push(newCondition()); render(); } });
 
-  return el("div", { class: "bcond" }, el("div", { class: "battr-wrap" }, attr, caption), op, valueControl(it, vk), remove);
+  const guess = info && info.rulesUnknown
+    ? el("span", { class: "guess", textContent: "ⓘ", title: RULES_UNKNOWN_NOTE, role: "img", "aria-label": RULES_UNKNOWN_NOTE })
+    : null;
+  return el("div", { class: "bcond" }, el("div", { class: "battr-wrap" }, attr, caption), op, guess, valueControl(it, vk), remove);
 }
 
 function valueControl(it, vk) {

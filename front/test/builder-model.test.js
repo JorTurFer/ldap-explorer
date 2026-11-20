@@ -154,3 +154,12 @@ test("friendlyOps shows time comparisons as after/before", () => {
 test("newCondition starts empty", () => {
   assert.deepEqual(newCondition(), { type: "condition", attr: "", op: "contains", value: "" });
 });
+
+test("a field whose rules the server does not publish still gets the usual options for its kind", () => {
+  // what the API sends for an Active Directory text field: rules unknown, so guessed from the syntax
+  const guessed = { kind: "string", canEqual: true, canOrder: false, canSubstring: true, rulesUnknown: true };
+  assert.deepEqual(opsFor(guessed), ["equals", "notEquals", "contains", "startsWith", "endsWith", "wildcard", "present", "notPresent"]);
+  assert.equal(defaultOp(guessed), "contains");
+  // and a field that does declare only equality stays that way
+  assert.deepEqual(opsFor({ kind: "string", canEqual: true, canOrder: false, canSubstring: false }), ["equals", "notEquals", "present", "notPresent"]);
+});

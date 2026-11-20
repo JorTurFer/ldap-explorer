@@ -78,7 +78,11 @@ table.rtable td.dn-cell { overflow-wrap: anywhere; min-width: 280px; }
 .bgroup .bgroup { margin: 6px 0 6px 14px; background: var(--bg); }
 .bhead { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
 .bhead .bremove { margin-left: auto; }
-.bcond { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 4px 0; }
+.bcond { display: flex; flex-wrap: wrap; gap: 6px; align-items: flex-start; margin: 4px 0; }
+/* every control of a condition has the same height and sits on the same line; the friendly name
+   under the field hangs below without pushing the others (they used to be centred on it) */
+.bcond input, .bcond select, .bcond .bremove { height: 28px; box-sizing: border-box; }
+.bcond .guess { height: 28px; display: inline-flex; align-items: center; color: var(--muted); cursor: help; }
 .bop { flex: 0 1 190px; min-width: 0; }
 .bremove { flex: none; }
 .bremove { padding: 0 8px; line-height: 22px; color: var(--muted); }

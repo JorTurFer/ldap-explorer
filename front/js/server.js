@@ -1,6 +1,7 @@
 // The Server tab: what this server is, and a browser for its schema (every attribute and
 // object class it accepts, how they relate, and a way to search for entries that use them).
 
+import { RULES_UNKNOWN_NOTE } from "./builder-model.js";
 import { $, el } from "./dom.js";
 import { api } from "./api.js";
 import { emit, on } from "./events.js";
@@ -139,6 +140,7 @@ function attrDetail(a) {
       el("div", {}, "equality: ", ruleText(a.equality, "not supported")),
       el("div", {}, "ordering (before/after): ", ruleText(a.ordering, "not supported")),
       el("div", {}, "contains / starts with: ", ruleText(a.substring, "not supported")))),
+    ...(a.rulesUnknown ? [el("p", { class: "muted small rules-note", textContent: RULES_UNKNOWN_NOTE })] : []),
     row("Used by", ...(used.length
       ? used.slice(0, 40).map((u) => el("span", { class: "usedby" }, link(u.class, "classes"), u.required ? el("span", { class: "badge", textContent: "required" }) : null, " "))
       : ["no object class lists it"]),

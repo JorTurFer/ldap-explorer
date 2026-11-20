@@ -129,10 +129,23 @@ func (a *Attribute) Operational() bool {
 	return a.Usage != "" && !strings.EqualFold(a.Usage, "userApplications")
 }
 
-// CanEqual, CanOrder and CanSubstring say which filter operators make sense.
-func (a *Attribute) CanEqual() bool     { return a.Equality != "" }
-func (a *Attribute) CanOrder() bool     { return a.Ordering != "" }
-func (a *Attribute) CanSubstring() bool { return a.Substr != "" }
+// RulesUnknown reports that the schema says nothing about how this attribute can be compared:
+// no equality, ordering or substring rule at all (not even inherited), and it is not binary.
+// Active Directory publishes no matching rules, yet it answers equality and substring searches
+// on most attributes, so for these we go by the attribute's syntax instead of refusing.
+func (a *Attribute) RulesUnknown() bool {
+	return a.Equality == "" && a.Ordering == "" && a.Substr == "" && a.Kind() != "binary"
+}
+
+// CanEqual, CanOrder and CanSubstring say which filter operators make sense: what the matching
+// rules allow, or, when the schema declares none (RulesUnknown), what the syntax suggests.
+func (a *Attribute) CanEqual() bool { return a.Equality != "" || a.RulesUnknown() }
+func (a *Attribute) CanOrder() bool {
+	return a.Ordering != "" || (a.RulesUnknown() && (a.Kind() == "time" || a.Kind() == "integer"))
+}
+func (a *Attribute) CanSubstring() bool {
+	return a.Substr != "" || (a.RulesUnknown() && (a.Kind() == "string" || a.Kind() == "other"))
+}
 
 // Kind classifies the attribute value for a UI: string, integer, boolean, time,
 // dn, binary or other.

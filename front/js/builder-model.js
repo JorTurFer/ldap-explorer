@@ -45,6 +45,10 @@ export function opsFor(info) {
   return ops;
 }
 
+// Shown when the server's schema declares no matching rules for an attribute (Active Directory
+// never does): the options offered are a guess from the type of the field.
+export const RULES_UNKNOWN_NOTE = "The server does not say how this field can be compared (Active Directory never does), so the usual options for this kind of field are offered. If a search finds nothing, the server may not support that option for it.";
+
 export const defaultOp = (info) => (opsFor(info).includes("contains") ? "contains" : opsFor(info)[0]);
 
 // What kind of input the value needs: none | text | boolean | datetime | integer | days.

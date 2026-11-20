@@ -2172,3 +2172,61 @@ func TestUITreeLoadsBigBranchesOnDemand(t *testing.T) {
 		t.Errorf("Load all: %d entries, want %d", n, slapdtest.BulkCount)
 	}
 }
+
+// ---------- issues #2 and #3: aligned fields, and the options when the schema has no rules ----------
+
+func TestUIBuilderFieldsAlignedAndGuessedOptions(t *testing.T) {
+	l := slapdtest.Start(t)
+	appURL := startApp(t)
+	ctx := browser(t)
+	// a window wide enough for a condition to fit on one line: the fields are compared on it
+	run(t, ctx, chromedp.EmulateViewport(1500, 900), chromedp.Navigate(appURL), chromedp.WaitVisible("#btnConn"))
+	// Make the server's schema look like Active Directory's for one field: no matching rules
+	// published (the API then says rulesUnknown and allows what the type of the field suggests).
+	run(t, ctx, eval(`(() => {
+		const real = window.fetch.bind(window);
+		window.fetch = async (url, init) => {
+			const r = await real(url, init);
+			if (String(url) !== '/api/schema') return r;
+			const d = await r.json();
+			const a = d.attributes.find((x) => x.name === 'description');
+			a.rulesUnknown = true; a.canEqual = true; a.canSubstring = true; a.canOrder = false;
+			return new Response(JSON.stringify(d), { status: 200, headers: { 'Content-Type': 'application/json' } });
+		};
+		return true; })()`))
+	connect(t, ctx, l.URL, slapdtest.AliceDN, slapdtest.AlicePW)
+	waitText(t, ctx, "#status", "Connected to")
+	run(t, ctx, chromedp.Click(`button[data-tab="search"]`), chromedp.WaitReady("#bChips"))
+	waitJS(t, ctx, "chips", `document.querySelectorAll('#bChips .chip').length > 3`)
+
+	// One row with a friendly name under the field (Email), one without (an unknown field).
+	run(t, ctx, chromedp.Click(`#bChips .chip:nth-child(3)`))
+	run(t, ctx, chromedp.Click(`#builder .badd`)) // + Condition
+	waitJS(t, ctx, "two rows", `document.querySelectorAll('#builder .bcond').length === 2`)
+	run(t, ctx, set("#builder .bcond:nth-child(2) .battr", "description"),
+		eval(`document.querySelector('#builder .bcond:nth-child(2) .battr').dispatchEvent(new Event('change'))`))
+	waitJS(t, ctx, "the guess marker", `!!document.querySelector('#builder .bcond .guess')`)
+
+	// Every control of a row starts at the same height, with and without the friendly name.
+	if !jsBool(t, ctx, `[...document.querySelectorAll('#builder .bcond')].every((row) => {
+		const tops = ['input.battr', 'select.bop', '.bval', '.bremove'].map((s) => row.querySelector(s)).filter(Boolean).map((e) => Math.round(e.getBoundingClientRect().top));
+		return tops.length >= 3 && Math.max(...tops) - Math.min(...tops) <= 1; })`) {
+		var tops []string
+		js(t, ctx, `[...document.querySelectorAll('#builder .bcond')].map((row) => ['input.battr', 'select.bop', '.bval', '.bremove'].map((s) => { const e = row.querySelector(s); return s + '=' + (e ? Math.round(e.getBoundingClientRect().top) : '-'); }).join(' '))`, &tops)
+		t.Errorf("the fields of a condition are not aligned: %v", tops)
+	}
+
+	// The field without published rules gets contains / equals, and says why.
+	var ops []string
+	js(t, ctx, `[...document.querySelectorAll('#builder .bcond:nth-child(2) select.bop option')].map(o => o.textContent)`, &ops)
+	if !slices.Contains(ops, "contains") || !slices.Contains(ops, "is") {
+		t.Errorf("options for a field whose rules are unknown: %v", ops)
+	}
+	if !strings.Contains(textOf(t, ctx, "#builder .bcond:nth-child(2) .guess"), "ⓘ") ||
+		!jsBool(t, ctx, `document.querySelector('#builder .bcond:nth-child(2) .guess').title.includes('does not say how this field can be compared')`) {
+		t.Error("the guess marker should explain itself")
+	}
+	if jsBool(t, ctx, `!!document.querySelector('#builder .bcond:nth-child(1) .guess')`) {
+		t.Error("a field with published rules should not carry the marker")
+	}
+}
