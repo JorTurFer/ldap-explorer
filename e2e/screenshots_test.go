@@ -189,8 +189,9 @@ func TestScreenshots(t *testing.T) {
 	shot("tree-more")
 	run(t, ctx, set("#treeFilter", ""), eval(`document.getElementById('treeFilter').dispatchEvent(new Event('input'))`), chromedp.Click(bulk+" .tw"))
 
-	// 5f. A branch so big that the directory times out: what the tree says and offers.
-	run(t, ctx, eval(`(() => {
+	// 5f. A branch so big that the directory times out: what the tree says and offers. (With the
+	// option "mark entries without children" on: that is the full listing that can time out.)
+	run(t, ctx, chromedp.Click("#chkHints"), eval(`(() => {
 		const real = window.fetch.bind(window);
 		window.fetch = async (url, init) => {
 			if (String(url).startsWith('/api/children') && decodeURIComponent(String(url)).includes('dn=ou=groups,')) {
@@ -203,7 +204,7 @@ func TestScreenshots(t *testing.T) {
 	waitJS(t, ctx, "branches", `!!document.querySelector('.node[title="ou=groups,`+slapdtest.BaseDN+`"]')`)
 	run(t, ctx, chromedp.Click(`.node[title="ou=groups,`+slapdtest.BaseDN+`"] .tw`), chromedp.WaitVisible(".more-row .more-light"))
 	shot("tree-timeout")
-	run(t, ctx, eval(`window.fetch = window.__realFetch || window.fetch`))
+	run(t, ctx, eval(`window.fetch = window.__realFetch || window.fetch`), chromedp.Click("#chkHints"))
 
 	// 6. Dark theme (follows the system setting), on the table again.
 	run(t, ctx, chromedp.Click(`button[data-tab="search"]`))

@@ -6,6 +6,7 @@ import { ancestors, normDN, looksLikeDN, matchesFilter } from "./nav.js";
 import { copyBtn } from "./ui/copy.js";
 import { childrenURL, loadedText, isTimeout } from "./tree-model.js";
 import { friendlyError } from "./friendly-errors.js";
+import { childHints } from "./settings.js";
 
 let roots = [];
 let selectedNode = null;
@@ -28,6 +29,7 @@ export function initTree() {
     $("tree").replaceChildren(el("div", { class: "empty", textContent: "Not connected." }));
   });
   $("btnRefresh").onclick = buildTree;
+  on("child-hints-changed", () => { if (roots.length) { lightDNs.clear(); buildTree(); } }); // what each node knows changes: start again
 
   const filter = $("treeFilter");
   filter.addEventListener("input", applyFilter);
@@ -61,6 +63,7 @@ function makeNode(n) {
     copyBtn(n.dn, { title: "Copy this DN", what: "Copied the DN" }));
   let kids = null, open = false;
   let cursor = "", loaded = 0, moreRow = null, loading = null, observer = null;
+  let namesOnly = false; // the listing of this branch asks for the names only (so "Load names only" would change nothing)
 
   // The "N loaded, more below" row at the end of a long branch. It loads the next page by
   // itself when it scrolls into view (and not while the filter is on: that would read the
@@ -72,7 +75,7 @@ function makeNode(n) {
     if (failure) {
       row.append(el("span", { class: "err", textContent: failure }),
         el("button", { type: "button", class: "small-btn more-retry", textContent: timedOut ? "Try again" : "Reload this branch", onclick: () => reload(false) }),
-        ...(timedOut ? [el("button", { type: "button", class: "small-btn more-light", textContent: "Load names only",
+        ...(timedOut && !namesOnly ? [el("button", { type: "button", class: "small-btn more-light", textContent: "Load names only",
           title: "Ask the server for the names only, which is much cheaper on a huge branch. Every entry then shows the arrow, because it is not asked which ones have children.",
           onclick: () => reload(true) })] : []));
     } else {
@@ -129,12 +132,13 @@ function makeNode(n) {
     if (open && !kids) {
       tw.textContent = "…";
       try {
-        const light = lightDNs.has(normDN(n.dn));
-        const res = await api(childrenURL(n.dn, "", light));
+        const slow = lightDNs.has(normDN(n.dn));           // this branch already timed out with the full listing
+        namesOnly = slow || !childHints();
+        const res = await api(childrenURL(n.dn, "", namesOnly));
         kids = el("ul", { class: "t" });
         if (!res.children.length) { n.leaf = true; tw.textContent = ""; return; }
         li.append(kids);
-        if (light) kids.append(el("li", { class: "more", textContent: "Names only (the server was slow): every entry shows ▶." }));
+        if (slow) kids.append(el("li", { class: "more", textContent: "Names only (the server was slow): every entry shows ▶." }));
         addPage(res);
       } catch (e) {
         if (e.cancelled) { open = false; tw.textContent = "▶"; return; }

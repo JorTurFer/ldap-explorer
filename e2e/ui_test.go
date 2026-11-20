@@ -2397,6 +2397,7 @@ func TestUITreeTimeoutOffersNamesOnly(t *testing.T) {
 			return real(url, init);
 		};
 		return true; })()`))
+	run(t, ctx, chromedp.Click("#chkHints")) // the full listing (with "has children?") is what can time out
 	connect(t, ctx, l.URL, slapdtest.AliceDN, slapdtest.AlicePW)
 	waitText(t, ctx, "#status", "Connected to")
 	bulk := `.node[title="ou=bulk,` + slapdtest.BaseDN + `"]`
@@ -2430,4 +2431,41 @@ func TestUITreeTimeoutOffersNamesOnly(t *testing.T) {
 	if !jsBool(t, ctx, `window.__children.length === 3`) {
 		t.Error("an already loaded branch is not asked for again")
 	}
+}
+
+// ---------- the tree loads the names only unless asked to mark the entries without children ----------
+
+func TestUITreeLoadsNamesOnlyByDefault(t *testing.T) {
+	l := slapdtest.Start(t)
+	appURL := startApp(t)
+	ctx := browser(t)
+	run(t, ctx, chromedp.Navigate(appURL), chromedp.WaitVisible("#btnConn"))
+	run(t, ctx, eval(`(() => {
+		const real = window.fetch.bind(window);
+		window.__children = [];
+		window.fetch = (url, init) => { if (String(url).startsWith('/api/children')) window.__children.push(String(url)); return real(url, init); };
+		return true; })()`))
+	connect(t, ctx, l.URL, slapdtest.AliceDN, slapdtest.AlicePW)
+	waitText(t, ctx, "#status", "Connected to")
+	if jsBool(t, ctx, `document.getElementById('chkHints').checked`) {
+		t.Fatal("the option starts off")
+	}
+	root := `.node[title="` + slapdtest.BaseDN + `"]`
+	empty := `.node[title="ou=empty,` + slapdtest.BaseDN + `"]`
+	run(t, ctx, chromedp.WaitVisible(root), chromedp.Click(root+" .tw"), chromedp.WaitVisible(empty))
+	// Names only: the empty branch looks like any other, with the arrow.
+	if !jsBool(t, ctx, `document.querySelector('`+empty+` .tw').textContent === '▶' && window.__children.every(u => u.includes('light=1'))`) {
+		t.Error("by default the tree asks for the names only, so every entry shows the arrow")
+	}
+	// Marking the entries without children asks for the full listing, and the empty branch loses its arrow.
+	run(t, ctx, chromedp.Click("#chkHints"))
+	waitJS(t, ctx, "the tree starts again", `document.querySelectorAll('#tree .node').length === 1`)
+	run(t, ctx, chromedp.WaitVisible(root), chromedp.Click(root+" .tw"), chromedp.WaitVisible(empty))
+	waitJS(t, ctx, "the empty branch is a leaf", `document.querySelector('`+empty+` .tw').textContent === ''`)
+	if !jsBool(t, ctx, `!window.__children[window.__children.length - 1].includes('light=1')`) {
+		t.Error("with the option on the listing is the full one")
+	}
+	// It is remembered (the server keeps it): a reload of the page starts with it on.
+	reload(t, ctx, appURL)
+	waitJS(t, ctx, "remembered", `document.getElementById('chkHints').checked`)
 }

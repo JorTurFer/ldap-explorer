@@ -68,3 +68,28 @@ func TestBrokenSettingsFileFallsBackToTheDefaults(t *testing.T) {
 		}
 	}
 }
+
+// Each setting is saved on its own: choosing the theme must not undo the tree option, and the
+// other way round (the two controls send only their own field).
+func TestSettingsAreMergedNotReplaced(t *testing.T) {
+	srv := newTestServer(t)
+	var s Settings
+	call(t, srv, "POST", "/api/settings", map[string]any{"childHints": true}, &s)
+	if !s.ChildHints || s.Theme != "auto" {
+		t.Fatalf("after the tree option: %+v", s)
+	}
+	call(t, srv, "POST", "/api/settings", map[string]any{"theme": "dark"}, &s)
+	if !s.ChildHints || s.Theme != "dark" {
+		t.Fatalf("choosing the theme must keep the tree option: %+v", s)
+	}
+	call(t, srv, "POST", "/api/settings", map[string]any{"childHints": false}, &s)
+	var got Settings
+	call(t, srv, "GET", "/api/settings", nil, &got)
+	if got.ChildHints || got.Theme != "dark" {
+		t.Errorf("turning the option off keeps the theme: %+v", got)
+	}
+	// off by default
+	if (Settings{}).ChildHints {
+		t.Error("the child hints are off by default")
+	}
+}

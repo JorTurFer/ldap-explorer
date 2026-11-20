@@ -28,7 +28,9 @@
 </header>
 <main>
   <nav id="treeBox">
-    <div class="treebar"><input type="text" id="treeFilter" aria-label="Filter the tree, or paste a DN to go to it" placeholder="Filter the tree, or paste a DN and press Enter" disabled autocomplete="off" spellcheck="false"></div>
+    <div class="treebar"><input type="text" id="treeFilter" aria-label="Filter the tree, or paste a DN to go to it" placeholder="Filter the tree, or paste a DN and press Enter" disabled autocomplete="off" spellcheck="false">
+      <label class="muted small hints-opt" title="Ask the server which entries have children, so the ones without show no arrow. Slower on a huge directory: off by default, the tree then loads the names only and every entry shows the arrow."><input type="checkbox" id="chkHints"> mark entries without children</label>
+    </div>
     <details id="bookmarks" class="bookmarks">
       <summary>Bookmarks <span id="bmCount" class="badge">0</span></summary>
       <ul id="bmList" class="bmlist"></ul>

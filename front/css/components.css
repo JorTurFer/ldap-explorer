@@ -322,3 +322,7 @@ table.attrs td.v .hint { color: var(--muted); font-family: var(--font); font-siz
 .act-row.done.error .spinner { background: var(--err); border-color: var(--err); }
 .ap-empty { margin: 0; }
 @media (prefers-reduced-motion: reduce) { .act-row.running .spinner { animation: none; } }
+
+.treebar { display: flex; flex-direction: column; gap: 4px; }
+.hints-opt { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+.treebar .hints-opt input { width: auto; }

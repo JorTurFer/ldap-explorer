@@ -13,6 +13,10 @@ import (
 
 type Settings struct {
 	Theme string `json:"theme"` // auto, light or dark
+	// ChildHints: ask the server which entries have children, so the tree can show the ones without
+	// as leaves. Off by default: on a huge branch that question is what makes a page slow, and the
+	// tree then loads the names only (every entry shows the arrow).
+	ChildHints bool `json:"childHints,omitempty"`
 }
 
 var settingsMu sync.Mutex
@@ -48,14 +52,25 @@ func handleSettings(w http.ResponseWriter, r *http.Request) {
 		}
 		writeJSON(w, s)
 	case http.MethodPost:
-		var s Settings
-		if err := decode(r, &s); err != nil {
+		// Each field is optional: the theme button sends only the theme, the tree option only its own.
+		var in struct {
+			Theme      *string `json:"theme"`
+			ChildHints *bool   `json:"childHints"`
+		}
+		if err := decode(r, &in); err != nil {
 			writeErr(w, err)
 			return
 		}
-		if s.Theme != "auto" && s.Theme != "light" && s.Theme != "dark" {
-			writeErr(w, errors.New("theme must be auto, light or dark"))
-			return
+		s, _ := loadSettings() // a broken file starts again from the defaults
+		if in.Theme != nil {
+			if *in.Theme != "auto" && *in.Theme != "light" && *in.Theme != "dark" {
+				writeErr(w, errors.New("theme must be auto, light or dark"))
+				return
+			}
+			s.Theme = *in.Theme
+		}
+		if in.ChildHints != nil {
+			s.ChildHints = *in.ChildHints
 		}
 		if err := writePrivateJSON(settingsPath(), s); err != nil {
 			writeErr(w, err)

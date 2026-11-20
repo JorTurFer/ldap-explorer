@@ -219,16 +219,17 @@ Other ways to do the same: the keys **`[`** and **`]`**, **Alt+←** and **Alt+�
 
 ## 6. Moving around
 
+- **The tree loads the names only.** To draw a tree you do not need to know which entries have children, and some servers work that out for every entry, which is what makes a big branch slow to open. So by default the tree asks only for the names: every entry shows the arrow ▶ and, if it has nothing below, the arrow disappears when you open it (the same as on Active Directory, which cannot say). If you prefer the arrows to be right from the start on a directory that is fast enough, tick **mark entries without children** under the filter box: the tree starts again asking for that information, and the choice is remembered.
 - **Big branches load page by page.** Opening a node reads only its first **200** children, not the whole branch, so a node with hundreds of thousands of entries opens at once. At the end of the list a row says *200 loaded, more below*: the next page loads **by itself as you scroll down to it**, or press **Load more** to get one more page, or **Load all** to keep going until the branch is complete (on a huge branch that can take a while; the status bar shows the progress and **Cancel** stops it). Within each page the entries are sorted by name; the pages follow the order the server gives. If the server has a size limit, the list stops there with a warning.
 
 ![A long branch: 200 entries loaded and a row to load more](img/tree-more.png)
 
-  **If a huge branch times out.** Some directories work out, for every entry, whether it has children of its own, and on a branch with a very large number of entries that makes even one page slow. The program waits up to **3 minutes** for one answer (the status bar shows it is still waiting and **Cancel** stops it; change the limit with `-ldap-timeout`). If the directory still does not answer in time, the branch says so, in the place where its entries would be, and offers two buttons:
+  **If a huge branch times out.** With *mark entries without children* ticked, some directories work out, for every entry, whether it has children of its own, and on a branch with a very large number of entries that makes even one page slow. (With the option off, as by default, the tree already asks for the names only.) The program waits up to **3 minutes** for one answer (the status bar shows it is still waiting and **Cancel** stops it; change the limit with `-ldap-timeout`). If the directory still does not answer in time, the branch says so, in the place where its entries would be, and offers two buttons:
 
   ![A branch that timed out: the message and the two ways forward](img/tree-timeout.png)
 
   - **Try again** asks for the same thing once more (a busy server is often faster the second time).
-  - **Load names only** asks the server for the names alone, which is much cheaper. The entries appear, but none of them says whether it has children, so every one shows the arrow ▶ (the same as on Active Directory) and a note says so. The branch stays in that mode until you disconnect.
+  - **Load names only** (offered when the option is on) asks the server for the names alone, which is much cheaper. The entries appear, but none of them says whether it has children, so every one shows the arrow ▶ and a note says so. The branch stays in that mode until you disconnect.
 
   *Go to a DN* (below) and links to entries also work inside big branches: the tree loads pages until it finds the entry. If the connection changes or the list stays open too long, the row says so and offers **Reload this branch**.
 - **Filter the tree**: type in the box above the tree. Only the entries already loaded are searched (not the pages of a big branch you have not scrolled to, and not branches you have not opened; use Search for the whole directory, and the filter does not trigger loading more pages); the ancestors of a match stay visible. Escape clears it.
