@@ -7,7 +7,7 @@ import { emit, on } from "./events.js";
 import { getSchema } from "./schema.js";
 import { goTo } from "./tree.js";
 import { copyBtn } from "./ui/copy.js";
-import { KIND_TEXT, CLASS_KIND_TEXT, usageText, flavorLabel, controlInfo, extensionInfo, filterItems, indexByName, classChain, effectiveAttrs, usedBy } from "./schema-model.js";
+import { KIND_TEXT, CLASS_KIND_TEXT, usageText, flavorLabel, controlInfo, extensionInfo, filterItems, indexByName, classChain, effectiveAttrs, usedBy, formatCount } from "./schema-model.js";
 
 const MAX_LISTED = 300; // the list is capped so a huge schema stays fast; filtering narrows it
 let schema = null;       // the index from schema.js
@@ -91,13 +91,16 @@ async function loadSchema() {
   renderList();
 }
 
+// "123 attributes", or, when the list is capped, "showing 300 of 412 attributes: type to narrow it down".
+// Exported through schema-model.js so it can be tested.
+const countText = (n, what) => formatCount(n, MAX_LISTED, what);
 const items = () => (mode === "attrs" ? schema.rawAttributes.filter((a) => !a.obsolete) : schema.rawClasses.filter((c) => !c.obsolete));
 
 function renderList() {
   if (!schema) return;
   const found = filterItems(items(), $("scFilter").value);
   const shown = found.slice(0, MAX_LISTED);
-  $("scCount").textContent = found.length > MAX_LISTED ? `showing ${MAX_LISTED} of ${found.length}: type to narrow it down` : `${found.length} ${mode === "attrs" ? "attributes" : "object classes"}`;
+  $("scCount").textContent = countText(found.length, mode === "attrs" ? "attributes" : "object classes");
   $("scList").replaceChildren(...shown.map((it) => el("li", { class: "scitem" + (selected === it ? " sel" : ""), "data-name": it.name },
     el("a", { textContent: it.name, onclick: () => select(it) }),
     el("span", { class: "muted small", textContent: it.desc ? " " + it.desc.slice(0, 60) : "" }))));

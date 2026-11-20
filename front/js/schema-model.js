@@ -121,3 +121,9 @@ const EXTENSIONS = {
 // { name, oid }: the name is "" when the OID is not one we know.
 export const controlInfo = (oid) => ({ name: CONTROLS[oid] || "", oid });
 export const extensionInfo = (oid) => ({ name: EXTENSIONS[oid] || "", oid });
+
+// "123 attributes", or "showing 300 of 412 attributes: type to narrow it down" when only the
+// first `max` are listed. It always says what is being counted.
+export function formatCount(n, max, what) {
+  return n > max ? `showing ${max} of ${n} ${what}: type to narrow it down` : `${n} ${what}`;
+}

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { filterItems, indexByName, classChain, effectiveAttrs, usedBy, usageText, flavorLabel, controlInfo, extensionInfo } from "../js/schema-model.js";
+import { formatCount, filterItems, indexByName, classChain, effectiveAttrs, usedBy, usageText, flavorLabel, controlInfo, extensionInfo } from "../js/schema-model.js";
 
 const attrs = [
   { name: "cn", names: ["cn", "commonName"], oid: "2.5.4.3", desc: "common name(s) for which the entity is known by" },
@@ -92,4 +92,11 @@ test("items with no names (or null) do not break the index or the filter", () =>
   assert.equal(idx.get("y").name, "y");
   assert.deepEqual(filterItems(odd, "x").map((i) => i.name), ["x"]);
   assert.equal(filterItems(odd, "").length, 3);
+});
+
+test("the count says what it counts, also when the list is capped", () => {
+  assert.equal(formatCount(12, 300, "attributes"), "12 attributes");
+  assert.equal(formatCount(300, 300, "attributes"), "300 attributes");
+  assert.equal(formatCount(412, 300, "attributes"), "showing 300 of 412 attributes: type to narrow it down");
+  assert.equal(formatCount(0, 300, "object classes"), "0 object classes");
 });
