@@ -170,7 +170,7 @@ func loadSchema(c *ldap.Conn) (*schemaResponse, error) {
 	}
 	for _, a := range s.Attributes {
 		out.Attributes = append(out.Attributes, schemaAttr{
-			Name: a.Name(), Names: a.Names, OID: a.OID, Desc: a.Desc, Syntax: a.Syntax, SyntaxName: a.SyntaxName(),
+			Name: a.Name(), Names: nonNil(a.Names), OID: a.OID, Desc: a.Desc, Syntax: a.Syntax, SyntaxName: a.SyntaxName(),
 			Kind: a.Kind(), CanEqual: a.CanEqual(), CanOrder: a.CanOrder(), CanSubstring: a.CanSubstring(),
 			SingleValue: a.SingleValue, Operational: a.Operational(), NoUserMod: a.NoUserMod, Obsolete: a.Obsolete,
 			Sup: a.Sup, Equality: a.Equality, Ordering: a.Ordering, Substring: a.Substr, Usage: a.Usage,
@@ -178,7 +178,7 @@ func loadSchema(c *ldap.Conn) (*schemaResponse, error) {
 	}
 	for _, c := range s.Classes {
 		out.Classes = append(out.Classes, schemaClass{
-			Name: c.Name(), Names: c.Names, OID: c.OID, Desc: c.Desc, Kind: c.Kind,
+			Name: c.Name(), Names: nonNil(c.Names), OID: c.OID, Desc: c.Desc, Kind: c.Kind,
 			Sup: nonNil(c.Sup), Must: nonNil(c.Must), May: nonNil(c.May), Obsolete: c.Obsolete,
 		})
 	}

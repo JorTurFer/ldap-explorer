@@ -32,8 +32,21 @@ func run(t *testing.T, ctx context.Context, actions ...chromedp.Action) {
 func waitJS(t *testing.T, ctx context.Context, what, expr string) {
 	t.Helper()
 	if err := chromedp.Run(ctx, chromedp.Poll(expr, nil, chromedp.WithPollingTimeout(20*time.Second))); err != nil {
-		t.Fatalf("timed out waiting for %s: %v", what, err)
+		t.Fatalf("timed out waiting for %s: %v\n--- what the page showed ---\n%s", what, err, visibleText(ctx))
 	}
+}
+
+// visibleText is the text of the active tab and of the status line, to explain a timeout
+// (a failure that only happens on one CI platform must come with something to look at).
+// It uses a fresh timeout because the test's own context may be the one that expired.
+func visibleText(ctx context.Context) string {
+	var s string
+	c, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+	if err := chromedp.Run(c, chromedp.Evaluate(`(document.getElementById('status')||{}).textContent + '\n' + ((document.querySelector('.pane.on')||{}).innerText || '').slice(0, 700)`, &s)); err != nil {
+		return "(the page could not be read: " + err.Error() + ")"
+	}
+	return s
 }
 
 func js(t *testing.T, ctx context.Context, expr string, out any) {

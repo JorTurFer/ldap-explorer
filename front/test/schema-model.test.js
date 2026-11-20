@@ -81,3 +81,13 @@ test("plain-language texts", () => {
   assert.deepEqual(controlInfo("9.9.9"), { name: "", oid: "9.9.9" });
   assert.equal(extensionInfo("1.3.6.1.4.1.1466.20037").name, "StartTLS");
 });
+
+test("items with no names (or null) do not break the index or the filter", () => {
+  const odd = [{ name: "1.2.3.4", names: null, oid: "1.2.3.4", desc: "" }, { name: "x", names: [], oid: "1.2.3.5" }, { name: "y", oid: "1.2.3.6" }];
+  const idx = indexByName(odd);
+  assert.equal(idx.get("1.2.3.4").name, "1.2.3.4");
+  assert.equal(idx.get("x").name, "x");
+  assert.equal(idx.get("y").name, "y");
+  assert.deepEqual(filterItems(odd, "x").map((i) => i.name), ["x"]);
+  assert.equal(filterItems(odd, "").length, 3);
+});

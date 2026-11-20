@@ -66,6 +66,17 @@ func TestDiscoverySchema(t *testing.T) {
 	if code := call(t, srv, "GET", "/api/schema", nil, &sc); code != 200 {
 		t.Fatalf("schema: %d", code)
 	}
+	// The UI iterates over these lists: a null (an item with no name, say) would break it.
+	for _, a := range sc.Attributes {
+		if a.Names == nil {
+			t.Errorf("attribute %s has null names", a.OID)
+		}
+	}
+	for _, c := range sc.Classes {
+		if c.Names == nil || c.Sup == nil || c.Must == nil || c.May == nil {
+			t.Errorf("class %s has a null list: %+v", c.OID, c)
+		}
+	}
 	// Every description published by the real server must parse.
 	if len(sc.Errors) != 0 {
 		t.Errorf("unparsed schema descriptions: %v", sc.Errors)

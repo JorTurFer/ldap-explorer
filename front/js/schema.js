@@ -23,7 +23,7 @@ function buildIndex(raw) {
   const attrs = new Map();
   for (const a of raw.attributes) {
     attrs.set(a.oid.toLowerCase(), a);
-    for (const n of a.names) attrs.set(n.toLowerCase(), a);
+    for (const n of a.names || []) attrs.set(n.toLowerCase(), a);
   }
   const usable = raw.attributes.filter((a) => !a.obsolete);
   // user attributes first (alphabetical), then operational ones

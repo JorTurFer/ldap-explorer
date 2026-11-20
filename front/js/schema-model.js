@@ -31,7 +31,7 @@ export function indexByName(items) {
   const m = new Map();
   for (const it of items) {
     m.set(lower(it.oid), it);
-    for (const n of it.names || [it.name]) m.set(lower(n), it);
+    for (const n of (it.names && it.names.length ? it.names : [it.name])) m.set(lower(n), it);
   }
   return m;
 }
