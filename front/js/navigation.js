@@ -39,11 +39,12 @@ export function initNavigation() {
   $("navBack").onclick = () => go(back);
   $("navForward").onclick = () => go(forward);
   on("select", ({ dn }) => record({ tab: "entry", dn }));
-  on("tab-shown", ({ name }) => {
+  on("tab-shown", ({ name, fromEntry }) => {
     if (name !== "entry") { record({ tab: name }); return; }
-    // The Entry tab was opened: it shows the entry that is selected, which is known once the
-    // entry view has finished switching (showEntry sets it right after showing the tab).
-    setTimeout(() => { const dn = shownDN(); if (dn) record({ tab: "entry", dn }); }, 0);
+    // The Entry tab was opened by the user: it shows the entry that is selected. (When the entry
+    // view opens its own tab, the entry is recorded by the select event instead.)
+    const dn = shownDN();
+    if (!fromEntry && dn) record({ tab: "entry", dn });
   });
   on("disconnected", () => { trail = createTrail(); paint(); });
 

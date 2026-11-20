@@ -10,7 +10,7 @@
 //   open-connect       { profile, message? }  open the connection dialog for that profile
 //   vault-status       { keychain, vault }   the state of the stores changed
 //   pin-changed        { dn }    the entry pinned for comparison changed (dn is null when unpinned)
-//   tab-shown          { name }  a tab was brought to the front
+//   tab-shown          { name, fromEntry? }  a tab was brought to the front
 //   (Back / Forward live in navigation.js: it listens to select, tab-shown and disconnected)
 //   load-query     { title, query, attrs, scope, note?, base? }  a recipe or the explorer wants this search run
 

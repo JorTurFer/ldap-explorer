@@ -76,7 +76,7 @@ function binaryValue(dn, attr, i, summary) {
 export const shownDN = () => currentDN;
 
 export async function showEntry(dn) {
-  showTab("entry");
+  showTab("entry", { fromEntry: true });
   currentDN = dn;
   const pane = $("pane-entry");
   pane.replaceChildren(el("div", { class: "muted", textContent: "Loading…" }));
