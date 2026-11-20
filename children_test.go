@@ -4,6 +4,7 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/JorTurFer/ldap-explorer/internal/slapdtest"
 )
@@ -136,5 +137,51 @@ func TestChildrenServerLimitGivesWhatWeHaveAndNoCursor(t *testing.T) {
 	}
 	if r.Cursor != "" || n == 0 || n >= slapdtest.BulkCount {
 		t.Errorf("with a server limit: %d entries, last cursor %q (warning %q)", n, r.Cursor, r.Warning)
+	}
+}
+
+// A "light" listing asks for the names only: it is the way out when a page of a huge branch is
+// too slow because the server works out hasSubordinates for every entry (issue #7).
+func TestChildrenLightListing(t *testing.T) {
+	l := slapdtest.Start(t)
+	srv := newTestServer(t)
+	connectOK(t, srv, alice(l), slapdtest.AlicePW)
+	type child struct {
+		DN, RDN       string
+		Leaf, Unknown bool
+	}
+	var r struct {
+		Children []child `json:"children"`
+	}
+	path := "/api/children?dn=" + url.QueryEscape(slapdtest.BaseDN)
+	if code := call(t, srv, "GET", path+"&size=50", nil, &r); code != 200 {
+		t.Fatalf("normal: %d", code)
+	}
+	known := 0
+	for _, c := range r.Children {
+		if !c.Unknown {
+			known++
+		}
+	}
+	if known == 0 {
+		t.Fatal("a normal listing knows which children are leaves")
+	}
+	r.Children = nil
+	if code := call(t, srv, "GET", path+"&size=50&light=1", nil, &r); code != 200 || len(r.Children) != 5 {
+		t.Fatalf("light: %d, %d children", code, len(r.Children))
+	}
+	for _, c := range r.Children {
+		if !c.Unknown || c.Leaf {
+			t.Errorf("a light listing says nothing about children: %+v", c)
+		}
+	}
+}
+
+func TestTheServerTimeoutIsLongAndConfigurable(t *testing.T) {
+	if ldapTimeout < time.Minute {
+		t.Errorf("ldapTimeout %v: a page of a huge branch needs more than 30 s (issue #7)", ldapTimeout)
+	}
+	if childAttrs(true)[0] != "1.1" || len(childAttrs(true)) != 1 || len(childAttrs(false)) != 3 {
+		t.Errorf("attributes: %v / %v", childAttrs(true), childAttrs(false))
 	}
 }

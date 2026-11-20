@@ -196,7 +196,7 @@ func dial(p Profile, password string) (*ldap.Conn, error) {
 	if err != nil {
 		return nil, err
 	}
-	c.SetTimeout(30 * time.Second)
+	c.SetTimeout(ldapTimeout)
 	if p.StartTLS && strings.HasPrefix(p.URL, "ldap://") {
 		if err := c.StartTLS(tlsCfg); err != nil {
 			c.Close()
@@ -226,6 +226,11 @@ func (s *session) get() (*ldap.Conn, Profile, error) {
 	}
 	return s.conn, s.profile, nil
 }
+
+// ldapTimeout is how long one request to the directory may take before we stop waiting. It was
+// 30 s, which a page of a very big branch can exceed; the status bar shows that the program is
+// still waiting and Cancel stops it, so waiting longer is safe. Flag: -ldap-timeout.
+var ldapTimeout = 3 * time.Minute
 
 // ---------- response types ----------
 
@@ -686,6 +691,7 @@ func main() {
 	port := flag.Int("port", 0, "local port (0 = random)")
 	frontDir := flag.String("front-dir", "", "development: serve the UI from this folder instead of the embedded one (edit and refresh, no rebuild)")
 	noOpen := flag.Bool("no-open", false, "do not open the browser automatically")
+	flag.DurationVar(&ldapTimeout, "ldap-timeout", ldapTimeout, "how long to wait for the directory to answer one request (a page of a big branch, a search...)")
 	idle := flag.Duration("idle-exit", 3*time.Minute, "exit if the UI sends no heartbeat for this long (0 = never)")
 	flag.Parse()
 

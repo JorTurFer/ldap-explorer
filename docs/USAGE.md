@@ -223,6 +223,13 @@ Other ways to do the same: the keys **`[`** and **`]`**, **Alt+←** and **Alt+�
 
 ![A long branch: 200 entries loaded and a row to load more](img/tree-more.png)
 
+  **If a huge branch times out.** Some directories work out, for every entry, whether it has children of its own, and on a branch with a very large number of entries that makes even one page slow. The program waits up to **3 minutes** for one answer (the status bar shows it is still waiting and **Cancel** stops it; change the limit with `-ldap-timeout`). If the directory still does not answer in time, the branch says so, in the place where its entries would be, and offers two buttons:
+
+  ![A branch that timed out: the message and the two ways forward](img/tree-timeout.png)
+
+  - **Try again** asks for the same thing once more (a busy server is often faster the second time).
+  - **Load names only** asks the server for the names alone, which is much cheaper. The entries appear, but none of them says whether it has children, so every one shows the arrow ▶ (the same as on Active Directory) and a note says so. The branch stays in that mode until you disconnect.
+
   *Go to a DN* (below) and links to entries also work inside big branches: the tree loads pages until it finds the entry. If the connection changes or the list stays open too long, the row says so and offers **Reload this branch**.
 - **Filter the tree**: type in the box above the tree. Only the entries already loaded are searched (not the pages of a big branch you have not scrolled to, and not branches you have not opened; use Search for the whole directory, and the filter does not trigger loading more pages); the ancestors of a match stay visible. Escape clears it.
 - **Go to a DN**: paste a DN in that box and press Enter, in any letter case; the tree opens the branches that lead to it.
@@ -324,6 +331,7 @@ Be clear about the limits:
 -port 0            local port (0 = random)
 -no-open           do not open the browser automatically
 -idle-exit 3m      exit if the tab has been closed for this long (0 = never)
+-ldap-timeout 3m   how long to wait for the directory to answer one request (a page of a big branch, a search...)
 -front-dir DIR     development: serve the interface from this folder (edit and refresh, no rebuild)
 ```
 
@@ -421,6 +429,7 @@ Tested against OpenLDAP 2.5, 2.6 and 2.7 only. The account recipes for 389 Direc
 | `Invalid filter` | The filter is not valid RFC 4515 syntax (check the parentheses). |
 | The bar says *No answer from the server for…* | The directory has not sent anything for 30 seconds: it may be busy with a heavy search or the network is slow. Wait, or press **Cancel** and narrow the search (a more specific base or filter). |
 | The bar says *Lost contact with ldap-explorer* | The program itself stopped. Start it again. |
+| *The server did not answer in time* on a branch of the tree | The branch is huge and the directory is slow to list it. Use **Try again** or **Load names only** (section 4 about big branches), or raise `-ldap-timeout`. |
 | `The ldap-explorer process is not responding` | The program exited (idle timeout or Ctrl+C). Start it again. |
 | `The vault is needed for this and was not unlocked.` | You closed the passphrase dialog. Try again and type the master passphrase. |
 | Nothing happens when I press a shortcut | Shortcuts are off while you type in a box and while a dialog is open. Click on a blank part of the page first. |

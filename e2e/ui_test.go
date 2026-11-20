@@ -2375,3 +2375,59 @@ func TestUIRequestsListHasQuickPagesToo(t *testing.T) {
 		t.Errorf("the 3 pages of ou=bulk should all be listed, found %d in %v", n, all)
 	}
 }
+
+// ---------- issue #7: a branch so big that the directory times out ----------
+
+func TestUITreeTimeoutOffersNamesOnly(t *testing.T) {
+	l := slapdtest.Start(t)
+	appURL := startApp(t)
+	ctx := browser(t)
+	run(t, ctx, chromedp.Navigate(appURL), chromedp.WaitVisible("#btnConn"))
+	// The directory "times out" on the first two attempts to list ou=bulk (the error go-ldap gives),
+	// then answers. Every children request is recorded.
+	run(t, ctx, eval(`(() => {
+		const real = window.fetch.bind(window);
+		window.__children = []; let failures = 2;
+		window.fetch = async (url, init) => {
+			const u = String(url);
+			if (u.startsWith('/api/children') && decodeURIComponent(u).includes('dn=ou=bulk,') && !u.includes('cursor=')) {
+				window.__children.push(u);
+				if (failures-- > 0) return new Response(JSON.stringify({ error: 'LDAP Result Code 201 "Network Error": ldap: connection timed out' }), { status: 400, headers: { 'Content-Type': 'application/json' } });
+			}
+			return real(url, init);
+		};
+		return true; })()`))
+	connect(t, ctx, l.URL, slapdtest.AliceDN, slapdtest.AlicePW)
+	waitText(t, ctx, "#status", "Connected to")
+	bulk := `.node[title="ou=bulk,` + slapdtest.BaseDN + `"]`
+	run(t, ctx, chromedp.WaitVisible(`.node[title="`+slapdtest.BaseDN+`"]`), chromedp.Click(`.node[title="`+slapdtest.BaseDN+`"] .tw`))
+	run(t, ctx, chromedp.WaitVisible(bulk), chromedp.Click(bulk+" .tw"))
+
+	// It says what happened, in plain words, and what can be done.
+	waitText(t, ctx, ".more-row .err", "did not answer in time")
+	if !jsBool(t, ctx, `!!document.querySelector('.more-row .more-retry') && document.querySelector('.more-row .more-retry').textContent === 'Try again' && !!document.querySelector('.more-row .more-light')`) {
+		t.Fatal("the row should offer Try again and Load names only")
+	}
+	// Try again: it times out once more (the second failure).
+	run(t, ctx, chromedp.Click(".more-row .more-retry"))
+	waitJS(t, ctx, "second attempt", `window.__children.length === 2`)
+	waitText(t, ctx, ".more-row .err", "did not answer in time")
+
+	// Names only: a light listing, the entries appear, and they all show the arrow.
+	run(t, ctx, chromedp.Click(".more-row .more-light"))
+	waitJS(t, ctx, "the names", `[...document.querySelectorAll('#tree .node')].filter(r => /^uid=u\d{4},ou=bulk,/.test(r.title)).length === 200`)
+	if !jsBool(t, ctx, `window.__children.length === 3 && !window.__children[0].includes('light=1') && window.__children[2].includes('light=1')`) {
+		var urls []string
+		js(t, ctx, `window.__children`, &urls)
+		t.Errorf("requests: %v", urls)
+	}
+	waitText(t, ctx, "#tree", "Names only (the server was slow)")
+	if !jsBool(t, ctx, `[...document.querySelectorAll('#tree .node')].filter(r => /^uid=u\d{4},ou=bulk,/.test(r.title)).every(r => r.querySelector('.tw').textContent === '▶')`) {
+		t.Error("in a names-only listing every entry shows the arrow")
+	}
+	// The branch is remembered as heavy: collapsing and opening it again does not retry the full listing.
+	run(t, ctx, chromedp.Click(bulk+" .tw"), chromedp.Click(bulk+" .tw"))
+	if !jsBool(t, ctx, `window.__children.length === 3`) {
+		t.Error("an already loaded branch is not asked for again")
+	}
+}

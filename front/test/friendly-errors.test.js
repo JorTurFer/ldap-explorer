@@ -16,7 +16,7 @@ const cases = [
   ['LDAP Result Code 32 "No Such Object": ', /does not exist, or you are not allowed/],
   ['LDAP Result Code 50 "Insufficient Access Rights": ', /do not have permission/],
   ['LDAP Result Code 4 "Size Limit Exceeded": ', /stopped the search at its own limit/],
-  ['LDAP Result Code 3 "Time Limit Exceeded": ', /took too long/],
+  ['LDAP Result Code 3 "Time Limit Exceeded": ', /did not answer in time/],
   ['LDAP Result Code 34 "Invalid DN Syntax": ', /not a valid DN/],
   ["invalid filter: LDAP Result Code 201 \"Filter Compile Error\": ldap: error parsing filter", /filter is not valid/],
 ];
@@ -48,4 +48,11 @@ test("a size limit is not confused with a time limit or other codes", () => {
 
 test("a cancelled request is explained, not shown as a failure code", () => {
   assert.equal(friendlyError("Cancelled"), "Cancelled. Nothing was changed; run it again whenever you like.");
+});
+
+test("the go-ldap timeout of a request is explained as a slow server, not an unreachable one (issue #7)", () => {
+  const out = friendlyError('LDAP Result Code 201 "Network Error": ldap: connection timed out');
+  assert.match(out, /did not answer in time/);
+  assert.match(out, /load only the names/);
+  assert.doesNotMatch(out, /Could not reach/);
 });

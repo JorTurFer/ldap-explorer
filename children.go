@@ -117,7 +117,7 @@ func (cu *cursor) abandon() {
 
 // childrenPage reads one page of the children of dn. next is the cursor for the following
 // page ("" when this was the last one).
-func childrenPage(ctx context.Context, c *ldap.Conn, dn string, size uint32, cursorID string) (entries []*ldap.Entry, next, warning string, err error) {
+func childrenPage(ctx context.Context, c *ldap.Conn, dn string, size uint32, cursorID string, light bool) (entries []*ldap.Entry, next, warning string, err error) {
 	var cu *cursor
 	if cursorID != "" {
 		if cu, err = cursors.take(cursorID, c, dn); err != nil {
@@ -126,7 +126,7 @@ func childrenPage(ctx context.Context, c *ldap.Conn, dn string, size uint32, cur
 	} else {
 		paging := ldap.NewControlPaging(size)
 		sr := ldap.NewSearchRequest(dn, ldap.ScopeSingleLevel, ldap.NeverDerefAliases,
-			0, 60, false, "(objectClass=*)", []string{"1.1", "hasSubordinates", "numSubordinates"}, []ldap.Control{paging})
+			0, int(ldapTimeout.Seconds()), false, "(objectClass=*)", childAttrs(light), []ldap.Control{paging})
 		cu = &cursor{dn: dn, conn: c, sr: sr, paging: paging}
 	}
 	res, err := c.Search(cu.sr)
@@ -147,6 +147,17 @@ func childrenPage(ctx context.Context, c *ldap.Conn, dn string, size uint32, cur
 		}
 	}
 	return entries, next, "", nil
+}
+
+// childAttrs are the attributes asked for each child. The two operational ones tell whether the
+// child has children of its own (so the tree can show a leaf without an arrow), but some servers
+// compute them per entry, which is what makes a page of a huge branch slow. The "light" listing
+// asks for the names only (every child then shows the arrow, as on Active Directory).
+func childAttrs(light bool) []string {
+	if light {
+		return []string{"1.1"}
+	}
+	return []string{"1.1", "hasSubordinates", "numSubordinates"}
 }
 
 func toChildren(entries []*ldap.Entry) []childNode {
@@ -186,7 +197,7 @@ func handleChildren(w http.ResponseWriter, r *http.Request) {
 		}
 		size = min(max(size, 10), maxChildrenPage)
 		var next string
-		entries, next, warning, err = childrenPage(r.Context(), c, dn, uint32(size), q.Get("cursor"))
+		entries, next, warning, err = childrenPage(r.Context(), c, dn, uint32(size), q.Get("cursor"), q.Get("light") == "1")
 		if err != nil {
 			writeErr(w, err)
 			return
@@ -194,7 +205,7 @@ func handleChildren(w http.ResponseWriter, r *http.Request) {
 		resp["cursor"] = next
 	} else {
 		sr := ldap.NewSearchRequest(dn, ldap.ScopeSingleLevel, ldap.NeverDerefAliases,
-			0, 60, false, "(objectClass=*)", []string{"1.1", "hasSubordinates", "numSubordinates"}, nil)
+			0, int(ldapTimeout.Seconds()), false, "(objectClass=*)", childAttrs(false), nil)
 		res, perr := pagedSearch(r.Context(), c, sr, 500)
 		if perr != nil && (res == nil || len(res.Entries) == 0) {
 			writeErr(w, perr)

@@ -4,11 +4,12 @@ import { setStatus } from "./status.js";
 import { emit, on } from "./events.js";
 import { ancestors, normDN, looksLikeDN, matchesFilter } from "./nav.js";
 import { copyBtn } from "./ui/copy.js";
-import { childrenURL, loadedText } from "./tree-model.js";
+import { childrenURL, loadedText, isTimeout } from "./tree-model.js";
 import { friendlyError } from "./friendly-errors.js";
 
 let roots = [];
 let selectedNode = null;
+const lightDNs = new Set(); // branches that were too slow with the full listing: loaded as names only from now on
 const nodes = new Map(); // normalised DN -> { open(), select() } for every node drawn so far
 
 export function initTree() {
@@ -19,7 +20,7 @@ export function initTree() {
     buildTree();
   });
   on("disconnected", () => {
-    roots = []; selectedNode = null; nodes.clear();
+    roots = []; selectedNode = null; nodes.clear(); lightDNs.clear();
     $("btnRefresh").disabled = true;
     $("treeFilter").disabled = true; $("treeFilter").value = "";
     $("treeHint").classList.add("hidden");
@@ -64,13 +65,16 @@ function makeNode(n) {
   // The "N loaded, more below" row at the end of a long branch. It loads the next page by
   // itself when it scrolls into view (and not while the filter is on: that would read the
   // whole branch just to look for a match), and has buttons for doing it by hand.
-  const showMore = (failure = "") => {
+  const showMore = (failure = "", timedOut = false) => {
     observer?.disconnect();
     if (!cursor && !failure) { moreRow?.remove(); moreRow = null; return; }
     const row = el("li", { class: "more more-row" });
     if (failure) {
       row.append(el("span", { class: "err", textContent: failure }),
-        el("button", { type: "button", class: "small-btn", textContent: "Reload this branch", onclick: reload }));
+        el("button", { type: "button", class: "small-btn more-retry", textContent: timedOut ? "Try again" : "Reload this branch", onclick: () => reload(false) }),
+        ...(timedOut ? [el("button", { type: "button", class: "small-btn more-light", textContent: "Load names only",
+          title: "Ask the server for the names only, which is much cheaper on a huge branch. Every entry then shows the arrow, because it is not asked which ones have children.",
+          onclick: () => reload(true) })] : []));
     } else {
       row.append(el("span", { class: "muted", textContent: loadedText(loaded) }),
         el("button", { type: "button", class: "small-btn more-next", textContent: "Load more", onclick: () => loadMore() }),
@@ -107,14 +111,17 @@ function makeNode(n) {
       try { addPage(await api(childrenURL(n.dn, cursor))); return true; }
       catch (e) {
         cursor = "";
-        showMore(e.cancelled ? "Cancelled. The rest of this branch is not loaded." : friendlyError(e.message));
+        showMore(e.cancelled ? "Cancelled. The rest of this branch is not loaded." : friendlyError(e.message), !e.cancelled && isTimeout(e.message));
         return false;
       } finally { loading = null; }
     })();
     return loading;
   };
   const loadAll = async () => { while (cursor) if (!(await loadMore())) break; };
-  const reload = () => { kids?.remove(); kids = null; moreRow = null; cursor = ""; loaded = 0; open = false; toggle(); };
+  const reload = (light) => {
+    if (light) lightDNs.add(normDN(n.dn));
+    kids?.remove(); kids = null; moreRow = null; cursor = ""; loaded = 0; open = false; toggle();
+  };
 
   const toggle = async () => {
     if (n.leaf) return;
@@ -122,12 +129,20 @@ function makeNode(n) {
     if (open && !kids) {
       tw.textContent = "…";
       try {
-        const res = await api(childrenURL(n.dn));
+        const light = lightDNs.has(normDN(n.dn));
+        const res = await api(childrenURL(n.dn, "", light));
         kids = el("ul", { class: "t" });
         if (!res.children.length) { n.leaf = true; tw.textContent = ""; return; }
         li.append(kids);
+        if (light) kids.append(el("li", { class: "more", textContent: "Names only (the server was slow): every entry shows ▶." }));
         addPage(res);
-      } catch (e) { setStatus(friendlyError(e.message), true); open = false; tw.textContent = "▶"; return; }
+      } catch (e) {
+        if (e.cancelled) { open = false; tw.textContent = "▶"; return; }
+        // the error stays where the entries would be, with what can be done about it
+        kids = el("ul", { class: "t" });
+        li.append(kids);
+        showMore(friendlyError(e.message), isTimeout(e.message));
+      }
     }
     if (kids) kids.classList.toggle("collapsed", !open);
     tw.textContent = open ? "▼" : "▶";
