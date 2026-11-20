@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"ldap-explorer/internal/ldapfilter"
+	"github.com/JorTurFer/ldap-explorer/internal/ldapfilter"
 )
 
 // Param is one input a recipe asks for.

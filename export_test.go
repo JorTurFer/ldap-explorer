@@ -10,8 +10,8 @@ import (
 	"strings"
 	"testing"
 
-	"ldap-explorer/internal/ldif"
-	"ldap-explorer/internal/slapdtest"
+	"github.com/JorTurFer/ldap-explorer/internal/ldif"
+	"github.com/JorTurFer/ldap-explorer/internal/slapdtest"
 )
 
 func decodeLDIF(t *testing.T, text string) []ldif.Entry {

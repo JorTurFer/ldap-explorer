@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"ldap-explorer/internal/slapdtest"
+	"github.com/JorTurFer/ldap-explorer/internal/slapdtest"
 )
 
 func valueURL(dn, attr string, extra string) string {

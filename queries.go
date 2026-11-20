@@ -14,7 +14,7 @@ import (
 	"strings"
 	"sync"
 
-	"ldap-explorer/internal/ldapfilter"
+	"github.com/JorTurFer/ldap-explorer/internal/ldapfilter"
 )
 
 type SavedQuery struct {

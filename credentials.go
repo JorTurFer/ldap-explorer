@@ -15,8 +15,8 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/JorTurFer/ldap-explorer/internal/vault"
 	"github.com/zalando/go-keyring"
-	"ldap-explorer/internal/vault"
 )
 
 const (

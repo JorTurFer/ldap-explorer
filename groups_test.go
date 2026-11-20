@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"ldap-explorer/internal/slapdtest"
+	"github.com/JorTurFer/ldap-explorer/internal/slapdtest"
 )
 
 func TestGroupsOfAnEntry(t *testing.T) {

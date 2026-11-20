@@ -3,9 +3,9 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"github.com/JorTurFer/ldap-explorer/internal/slapdtest"
+	"github.com/JorTurFer/ldap-explorer/internal/vault"
 	"io"
-	"ldap-explorer/internal/slapdtest"
-	"ldap-explorer/internal/vault"
 	"net/http"
 	"net/http/httptest"
 	"os"

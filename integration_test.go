@@ -1,7 +1,7 @@
 package main
 
 import (
-	"ldap-explorer/internal/slapdtest"
+	"github.com/JorTurFer/ldap-explorer/internal/slapdtest"
 	"net/url"
 	"strings"
 	"testing"

@@ -30,9 +30,9 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/JorTurFer/ldap-explorer/internal/ldapfilter"
 	"github.com/go-ldap/ldap/v3"
 	"github.com/zalando/go-keyring"
-	"ldap-explorer/internal/ldapfilter"
 )
 
 // The web UI (plain HTML, CSS and ES modules; no build step). Tests under

@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"ldap-explorer/internal/ldapfilter"
-	"ldap-explorer/internal/slapdtest"
+	"github.com/JorTurFer/ldap-explorer/internal/ldapfilter"
+	"github.com/JorTurFer/ldap-explorer/internal/slapdtest"
 )
 
 // ---------- bookmarks ----------

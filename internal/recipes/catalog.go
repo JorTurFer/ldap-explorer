@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"ldap-explorer/internal/ldapfilter"
+	"github.com/JorTurFer/ldap-explorer/internal/ldapfilter"
 )
 
 // entryNameAttrs are the attributes a "find anything by name" looks at, when the server has them.

@@ -12,7 +12,7 @@ package main
 import (
 	"crypto/rand"
 	"encoding/hex"
-	"ldap-explorer/internal/slapdtest"
+	"github.com/JorTurFer/ldap-explorer/internal/slapdtest"
 	"net/url"
 	"os"
 	"os/exec"

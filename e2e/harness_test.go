@@ -14,10 +14,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/JorTurFer/ldap-explorer/internal/slapdtest"
 	"github.com/chromedp/cdproto/log"
 	cdpruntime "github.com/chromedp/cdproto/runtime"
 	"github.com/chromedp/chromedp"
-	"ldap-explorer/internal/slapdtest"
 )
 
 var binPath string
@@ -105,7 +105,7 @@ func browser(t *testing.T) context.Context {
 	ctx, cancelTimeout := context.WithTimeout(ctx, 90*time.Second)
 	t.Cleanup(func() { cancelTimeout(); cancelCtx(); cancelAlloc() })
 
-	if err := chromedp.Run(ctx); err != nil {
+	if err := chromedp.Do(ctx); err != nil {
 		if os.Getenv("LDAP_EXPLORER_REQUIRE_CHROME") == "1" {
 			t.Fatalf("LDAP_EXPLORER_REQUIRE_CHROME=1 but Chrome could not start: %v", err)
 		}
@@ -115,12 +115,12 @@ func browser(t *testing.T) context.Context {
 	var mu sync.Mutex
 	var problems []string
 	add := func(s string) { mu.Lock(); problems = append(problems, s); mu.Unlock() }
-	chromedp.ListenTarget(ctx, func(ev any) {
+	if err := chromedp.Listen(ctx, func(ev any) {
 		switch e := ev.(type) {
 		case *cdpruntime.EventExceptionThrown:
-			add("exception: " + e.ExceptionDetails.Error())
+			add("exception: " + (&chromedp.ExceptionError{ExceptionDetails: e.ExceptionDetails}).Error())
 		case *cdpruntime.EventConsoleAPICalled:
-			if e.Type == cdpruntime.APITypeError {
+			if e.Type == cdpruntime.ConsoleAPICalledTypeError {
 				s := "console.error:"
 				for _, a := range e.Args {
 					s += " " + string(a.Value)
@@ -130,15 +130,17 @@ func browser(t *testing.T) context.Context {
 		case *log.EventEntryAdded:
 			// The browser logs every failed HTTP response. The API answers 400 on
 			// purpose for user errors (bad password, invalid filter...): not a bug.
-			expected := e.Entry.Source == log.SourceNetwork && strings.Contains(e.Entry.URL, "/api/") &&
+			expected := e.Entry.Source == log.EntrySourceNetwork && strings.Contains(e.Entry.URL, "/api/") &&
 				(strings.Contains(e.Entry.Text, "status of 400") || // user errors: bad password, invalid filter...
 					strings.Contains(e.Entry.Text, "status of 423") || // the vault is locked: the UI asks for the passphrase and retries
 					strings.Contains(e.Entry.Text, "status of 429")) // unlock attempts throttled
-			if e.Entry.Level == log.LevelError && !expected {
+			if e.Entry.Level == log.EntryLevelError && !expected {
 				add("browser log: " + e.Entry.Text + " " + e.Entry.URL)
 			}
 		}
-	})
+	}); err != nil {
+		t.Fatal(err)
+	}
 	t.Cleanup(func() {
 		mu.Lock()
 		defer mu.Unlock()

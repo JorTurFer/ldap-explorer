@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"strings"
 
-	"ldap-explorer/internal/ldapfilter"
+	"github.com/JorTurFer/ldap-explorer/internal/ldapfilter"
 )
 
 type filterRequest struct {

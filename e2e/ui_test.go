@@ -12,18 +12,36 @@ import (
 	"testing"
 	"time"
 
+	"github.com/JorTurFer/ldap-explorer/internal/slapdtest"
 	cdpbrowser "github.com/chromedp/cdproto/browser"
-	cdpruntime "github.com/chromedp/cdproto/runtime"
 	"github.com/chromedp/chromedp"
 	kb "github.com/chromedp/chromedp/kb"
-	"ldap-explorer/internal/slapdtest"
 )
 
 // ---------- helpers ----------
 
-func run(t *testing.T, ctx context.Context, actions ...chromedp.Action) {
+// Act is a step that returns no value (chromedp v0.24 made actions generic).
+type Act = chromedp.Action[chromedp.Void]
+
+// eval runs JavaScript and ignores its result.
+func eval(expr string, opts ...chromedp.EvaluateOption) Act {
+	return evalInto(expr, nil, opts...)
+}
+
+// evalInto runs JavaScript and decodes its JSON result into out (when out is not nil).
+func evalInto(expr string, out any, opts ...chromedp.EvaluateOption) Act {
+	return func(ctx context.Context, t *chromedp.Target) (chromedp.Void, error) {
+		raw, err := chromedp.Evaluate[json.RawMessage](expr, opts...)(ctx, t)
+		if err != nil || out == nil || len(raw) == 0 {
+			return chromedp.Void{}, err
+		}
+		return chromedp.Void{}, json.Unmarshal(raw, out)
+	}
+}
+
+func run(t *testing.T, ctx context.Context, actions ...Act) {
 	t.Helper()
-	if err := chromedp.Run(ctx, actions...); err != nil {
+	if err := chromedp.Do(ctx, actions...); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -31,7 +49,7 @@ func run(t *testing.T, ctx context.Context, actions ...chromedp.Action) {
 // waitJS waits until the JavaScript expression is truthy.
 func waitJS(t *testing.T, ctx context.Context, what, expr string) {
 	t.Helper()
-	if err := chromedp.Run(ctx, chromedp.Poll(expr, nil, chromedp.WithPollingTimeout(20*time.Second))); err != nil {
+	if err := chromedp.Do(ctx, chromedp.Poll[chromedp.Void](expr, chromedp.WithPollingTimeout(20*time.Second))); err != nil {
 		t.Fatalf("timed out waiting for %s: %v\n--- what the page showed ---\n%s", what, err, visibleText(ctx))
 	}
 }
@@ -43,7 +61,7 @@ func visibleText(ctx context.Context) string {
 	var s string
 	c, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
-	if err := chromedp.Run(c, chromedp.Evaluate(`(document.getElementById('status')||{}).textContent + '\n' + ((document.querySelector('.pane.on')||{}).innerText || '').slice(0, 700)`, &s)); err != nil {
+	if err := chromedp.Do(c, evalInto(`(document.getElementById('status')||{}).textContent + '\n' + ((document.querySelector('.pane.on')||{}).innerText || '').slice(0, 700)`, &s)); err != nil {
 		return "(the page could not be read: " + err.Error() + ")"
 	}
 	return s
@@ -51,20 +69,18 @@ func visibleText(ctx context.Context) string {
 
 func js(t *testing.T, ctx context.Context, expr string, out any) {
 	t.Helper()
-	run(t, ctx, chromedp.Evaluate(expr, out))
+	run(t, ctx, evalInto(expr, out))
 }
 
 // set sets an input/select value from JS (chromedp.SetValue fails on empty strings).
-func set(sel, val string) chromedp.Action {
-	return chromedp.Evaluate(fmt.Sprintf(`(() => { const e = document.querySelector(%s); e.value = %s; return true; })()`, q(sel), q(val)), nil)
+func set(sel, val string) Act {
+	return eval(fmt.Sprintf(`(() => { const e = document.querySelector(%s); e.value = %s; return true; })()`, q(sel), q(val)))
 }
 
 // jsAsync is js for an expression that returns a Promise: it waits for it.
 func jsAsync(t *testing.T, ctx context.Context, expr string, out any) {
 	t.Helper()
-	run(t, ctx, chromedp.Evaluate(expr, out, func(p *cdpruntime.EvaluateParams) *cdpruntime.EvaluateParams {
-		return p.WithAwaitPromise(true)
-	}))
+	run(t, ctx, evalInto(expr, out, chromedp.EvalAwaitPromise))
 }
 
 func q(s string) string { b, _ := json.Marshal(s); return string(b) }
@@ -109,7 +125,7 @@ func reload(t *testing.T, ctx context.Context, appURL string) {
 }
 
 // rawMode switches the Search tab to the "Advanced (text)" filter input.
-func rawMode() chromedp.Action { return chromedp.Click("#modeRaw") }
+func rawMode() Act { return chromedp.Click("#modeRaw") }
 
 func connect(t *testing.T, ctx context.Context, url, bindDN, password string) {
 	t.Helper()
@@ -280,7 +296,7 @@ func TestUIProfiles(t *testing.T) {
 	waitJS(t, ctx, "profile option", `[...document.querySelectorAll('#cProfile option')].some(o=>o.value==='lab')`)
 	run(t, ctx, set("#cProfile", "lab"))
 	// SetValue does not fire "change" the way a user selection does.
-	run(t, ctx, chromedp.Evaluate(`document.getElementById('cProfile').dispatchEvent(new Event('change'))`, nil))
+	run(t, ctx, eval(`document.getElementById('cProfile').dispatchEvent(new Event('change'))`))
 	waitJS(t, ctx, "form filled", `document.getElementById('cURL').value === `+q(l.URL))
 	var bind, pass string
 	js(t, ctx, `document.getElementById('cBind').value`, &bind)
@@ -316,7 +332,7 @@ func TestUISearchTableAndCSV(t *testing.T) {
 	ctx := browser(t)
 	downloads := t.TempDir()
 	run(t, ctx, chromedp.Navigate(appURL), chromedp.WaitVisible("#btnConn"),
-		cdpbrowser.SetDownloadBehavior(cdpbrowser.SetDownloadBehaviorBehaviorAllow).WithDownloadPath(downloads))
+		allowDownloads(downloads))
 
 	connect(t, ctx, l.URL, slapdtest.AliceDN, slapdtest.AlicePW)
 	waitText(t, ctx, "#status", "Connected to")
@@ -488,10 +504,10 @@ func TestUIQueryBuilder(t *testing.T) {
 	waitText(t, ctx, "#sOut", "uid=bob,")
 
 	// "any of" and "none of".
-	run(t, ctx, set(".bgroup .bmode", "any"), chromedp.Evaluate(`document.querySelector('.bgroup .bmode').dispatchEvent(new Event('change'))`, nil))
+	run(t, ctx, set(".bgroup .bmode", "any"), eval(`document.querySelector('.bgroup .bmode').dispatchEvent(new Event('change'))`))
 	waitText(t, ctx, "#bFilter", "(|(mail=*example*)(uid=b*))")
 	waitText(t, ctx, "#bExplain", "At least one of these must be true:")
-	run(t, ctx, set(".bgroup .bmode", "none"), chromedp.Evaluate(`document.querySelector('.bgroup .bmode').dispatchEvent(new Event('change'))`, nil))
+	run(t, ctx, set(".bgroup .bmode", "none"), eval(`document.querySelector('.bgroup .bmode').dispatchEvent(new Event('change'))`))
 	waitText(t, ctx, "#bFilter", "(!(|(mail=*example*)(uid=b*)))")
 	run(t, ctx, chromedp.Click("#btnSearch"))
 	waitText(t, ctx, "#sOut", "uid=zoe,")
@@ -706,7 +722,7 @@ func TestUISavedQueries(t *testing.T) {
 
 	// Change everything, then load the builder query back: it is all restored.
 	run(t, ctx, set("#sBase", "dc=other"), set("#sScope", "base"), set("#sAttrs", "cn"), set("#sLimit", "7"), set("#sFilter", "(x=y)"))
-	run(t, ctx, set("#qSaved", "People with mail"), chromedp.Evaluate(`document.getElementById('qSaved').dispatchEvent(new Event('change'))`, nil))
+	run(t, ctx, set("#qSaved", "People with mail"), eval(`document.getElementById('qSaved').dispatchEvent(new Event('change'))`))
 	waitText(t, ctx, "#sNote", `Saved query "People with mail" loaded`)
 	waitJS(t, ctx, "builder mode with the condition back", `!document.getElementById('builderBox').classList.contains('hidden') &&
 		document.querySelector('#builder .battr').value === 'mail' && document.getElementById('bFilter').textContent === '(mail=*example*)'`)
@@ -719,7 +735,7 @@ func TestUISavedQueries(t *testing.T) {
 	waitText(t, ctx, "#sOut", "2 result(s)")
 
 	// The raw one comes back in text mode.
-	run(t, ctx, set("#qSaved", "Only zoe"), chromedp.Evaluate(`document.getElementById('qSaved').dispatchEvent(new Event('change'))`, nil))
+	run(t, ctx, set("#qSaved", "Only zoe"), eval(`document.getElementById('qSaved').dispatchEvent(new Event('change'))`))
 	waitJS(t, ctx, "text mode", `!document.getElementById('rawBox').classList.contains('hidden') && document.getElementById('sFilter').value === '(uid=zoe)'`)
 
 	// They are stored on the server: still there after reloading the page and reconnecting.
@@ -730,7 +746,7 @@ func TestUISavedQueries(t *testing.T) {
 
 	// Delete one.
 	run(t, ctx, chromedp.Click(`button[data-tab="search"]`), set("#qSaved", "Only zoe"),
-		chromedp.Evaluate(`document.getElementById('qSaved').dispatchEvent(new Event('change'))`, nil), chromedp.Click("#qDelete"))
+		eval(`document.getElementById('qSaved').dispatchEvent(new Event('change'))`), chromedp.Click("#qDelete"))
 	waitText(t, ctx, "#qMsg", "Deleted.")
 	if got := savedOptions(t, ctx); strings.Join(got, ",") != "People with mail" {
 		t.Errorf("after delete: %v", got)
@@ -761,7 +777,7 @@ func TestUINavigation(t *testing.T) {
 	run(t, ctx, chromedp.WaitVisible(root), chromedp.Click(root+" .tw"), chromedp.WaitVisible(`.node[title="`+people+`"]`))
 
 	// Quick filter: only matching nodes (and their ancestors) stay.
-	run(t, ctx, set("#treeFilter", "peop"), chromedp.Evaluate(`document.getElementById('treeFilter').dispatchEvent(new Event('input'))`, nil))
+	run(t, ctx, set("#treeFilter", "peop"), eval(`document.getElementById('treeFilter').dispatchEvent(new Event('input'))`))
 	waitJS(t, ctx, "bulk hidden", `document.querySelector('.node[title="`+bulk+`"]').closest('li').classList.contains('hidden')`)
 	if nodeHidden(t, ctx, people) || nodeHidden(t, ctx, base) {
 		t.Error("the matching node and its ancestor must stay visible")
@@ -819,7 +835,7 @@ const vaultPassphrase = "correct horse battery"
 func fillConnection(t *testing.T, ctx context.Context, name, url, bind, password, store string) {
 	t.Helper()
 	run(t, ctx, set("#cName", name), set("#cURL", url), set("#cBind", bind), set("#cPass", password), set("#cStore", store),
-		chromedp.Evaluate(`document.getElementById('cStore').dispatchEvent(new Event('change'))`, nil))
+		eval(`document.getElementById('cStore').dispatchEvent(new Event('change'))`))
 }
 
 func unlockDialogOpen(t *testing.T, ctx context.Context) bool {
@@ -885,7 +901,7 @@ func TestUIPasswordVault(t *testing.T) {
 	if got := quickOptions(t, ctx)[1]; !strings.HasPrefix(got, "lab — alice @ 127.0.0.1:") {
 		t.Errorf("quick switch label: %q", got)
 	}
-	run(t, ctx, set("#quickConn", "lab"), chromedp.Evaluate(`document.getElementById('quickConn').dispatchEvent(new Event('change'))`, nil))
+	run(t, ctx, set("#quickConn", "lab"), eval(`document.getElementById('quickConn').dispatchEvent(new Event('change'))`))
 	waitText(t, ctx, "#status", "Connected to "+l.URL+" as "+slapdtest.AliceDN)
 	run(t, ctx, chromedp.Click("#btnDisc"))
 	waitText(t, ctx, "#status", "Not connected")
@@ -901,7 +917,7 @@ func TestUIPasswordVault(t *testing.T) {
 	run(t, ctx, chromedp.Click("#mClose"))
 
 	// Locked: connecting asks for the passphrase, a wrong one is refused, the right one connects.
-	run(t, ctx, set("#quickConn", "lab"), chromedp.Evaluate(`document.getElementById('quickConn').dispatchEvent(new Event('change'))`, nil))
+	run(t, ctx, set("#quickConn", "lab"), eval(`document.getElementById('quickConn').dispatchEvent(new Event('change'))`))
 	waitJS(t, ctx, "unlock dialog", `document.getElementById('unlockDlg').open`)
 	waitText(t, ctx, "#unlockTitle", "Unlock the vault")
 	var confirmHidden bool
@@ -925,7 +941,7 @@ func TestUIPasswordVault(t *testing.T) {
 	run(t, ctx, chromedp.Click("#mClose"))
 	run(t, ctx, chromedp.Click("#btnDisc"))
 	waitText(t, ctx, "#status", "Not connected")
-	run(t, ctx, set("#quickConn", "lab"), chromedp.Evaluate(`document.getElementById('quickConn').dispatchEvent(new Event('change'))`, nil))
+	run(t, ctx, set("#quickConn", "lab"), eval(`document.getElementById('quickConn').dispatchEvent(new Event('change'))`))
 	waitJS(t, ctx, "connection dialog asks for the password", `document.getElementById('dlg').open`)
 	waitText(t, ctx, "#cErr", "Enter the password for this user")
 	var form [2]string
@@ -971,7 +987,7 @@ func TestUIChangePassphraseAndSeveralUsers(t *testing.T) {
 
 	// Switch between them with one click; the status shows who is connected.
 	for _, who := range []struct{ profile, dn string }{{"alice@lab", slapdtest.AliceDN}, {"bob@lab", slapdtest.BobDN}, {"alice@lab", slapdtest.AliceDN}} {
-		run(t, ctx, set("#quickConn", who.profile), chromedp.Evaluate(`document.getElementById('quickConn').dispatchEvent(new Event('change'))`, nil))
+		run(t, ctx, set("#quickConn", who.profile), eval(`document.getElementById('quickConn').dispatchEvent(new Event('change'))`))
 		waitText(t, ctx, "#status", "Connected to "+l.URL+" as "+who.dn)
 		var selected string
 		js(t, ctx, `document.getElementById('quickConn').value`, &selected)
@@ -980,7 +996,7 @@ func TestUIChangePassphraseAndSeveralUsers(t *testing.T) {
 		}
 	}
 	// The one that keeps nothing asks for a password instead of failing.
-	run(t, ctx, set("#quickConn", "alice@lab-tls"), chromedp.Evaluate(`document.getElementById('quickConn').dispatchEvent(new Event('change'))`, nil))
+	run(t, ctx, set("#quickConn", "alice@lab-tls"), eval(`document.getElementById('quickConn').dispatchEvent(new Event('change'))`))
 	waitJS(t, ctx, "dialog for the typed password", `document.getElementById('dlg').open`)
 	run(t, ctx, set("#cPass", slapdtest.AlicePW), chromedp.Click("#btnDoConn"))
 	waitText(t, ctx, "#status", "Connected to "+l.LDAPSURL+" as "+slapdtest.AliceDN)
@@ -1023,17 +1039,34 @@ func TestUIChangePassphraseAndSeveralUsers(t *testing.T) {
 func allowClipboard(t *testing.T, ctx context.Context, appURL string) {
 	t.Helper()
 	origin := strings.SplitN(appURL, "/#", 2)[0]
-	run(t, ctx, cdpbrowser.GrantPermissions([]cdpbrowser.PermissionType{
-		cdpbrowser.PermissionTypeClipboardReadWrite, cdpbrowser.PermissionTypeClipboardSanitizedWrite}).WithOrigin(origin))
+	run(t, ctx, chromedp.Func(func(ctx context.Context, _ *chromedp.Target) error {
+		for _, name := range []string{"clipboard-read", "clipboard-write"} {
+			if _, err := chromedp.CallBrowser(ctx, cdpbrowser.SetPermission, cdpbrowser.SetPermissionParams{
+				Permission: &cdpbrowser.PermissionDescriptor{Name: name},
+				Setting:    cdpbrowser.PermissionSettingGranted,
+				Origin:     origin,
+			}); err != nil {
+				return err
+			}
+		}
+		return nil
+	}))
+}
+
+// allowDownloads makes the browser save downloads into dir without asking.
+func allowDownloads(dir string) Act {
+	return chromedp.Func(func(ctx context.Context, _ *chromedp.Target) error {
+		_, err := chromedp.CallBrowser(ctx, cdpbrowser.SetDownloadBehavior, cdpbrowser.SetDownloadBehaviorParams{
+			Behavior: cdpbrowser.SetDownloadBehaviorBehaviorAllow, DownloadPath: dir})
+		return err
+	})
 }
 
 func clipboard(t *testing.T, ctx context.Context) string {
 	t.Helper()
 	var s string
 	// Windows stores line breaks as CRLF in the clipboard (what any app pasting from it expects).
-	run(t, ctx, chromedp.Evaluate(`navigator.clipboard.readText().then(t => t.replace(/\r\n/g, "\n"))`, &s, func(p *cdpruntime.EvaluateParams) *cdpruntime.EvaluateParams {
-		return p.WithAwaitPromise(true)
-	}))
+	run(t, ctx, evalInto(`navigator.clipboard.readText().then(t => t.replace(/\r\n/g, "\n"))`, &s, chromedp.EvalAwaitPromise))
 	return s
 }
 
@@ -1192,7 +1225,7 @@ func TestUISimpleBuilderAndQuickFind(t *testing.T) {
 	}
 	waitText(t, ctx, "#sOptSummary", "Looking in the whole branch below "+slapdtest.BaseDN+", showing all attributes, at most 500 results")
 	run(t, ctx, chromedp.Click("#sOptions > summary"), chromedp.WaitVisible("#sLimit"),
-		set("#sLimit", "50"), chromedp.Evaluate(`document.getElementById('sLimit').dispatchEvent(new Event('input'))`, nil))
+		set("#sLimit", "50"), eval(`document.getElementById('sLimit').dispatchEvent(new Event('input'))`))
 	waitText(t, ctx, "#sOptSummary", "at most 50 results")
 
 	// Friendly names in the suggestions...
@@ -1298,7 +1331,7 @@ func TestUIExport(t *testing.T) {
 	ctx := browser(t)
 	downloads := t.TempDir()
 	run(t, ctx, chromedp.Navigate(appURL), chromedp.WaitVisible("#btnConn"),
-		cdpbrowser.SetDownloadBehavior(cdpbrowser.SetDownloadBehaviorBehaviorAllow).WithDownloadPath(downloads))
+		allowDownloads(downloads))
 	allowClipboard(t, ctx, appURL)
 	connect(t, ctx, l.URL, slapdtest.AliceDN, slapdtest.AlicePW)
 	waitText(t, ctx, "#status", "Connected to")
@@ -1369,7 +1402,7 @@ func TestUIBinaryAndTimeValues(t *testing.T) {
 	ctx := browser(t)
 	downloads := t.TempDir()
 	run(t, ctx, chromedp.Navigate(appURL), chromedp.WaitVisible("#btnConn"),
-		cdpbrowser.SetDownloadBehavior(cdpbrowser.SetDownloadBehaviorBehaviorAllow).WithDownloadPath(downloads))
+		allowDownloads(downloads))
 	allowClipboard(t, ctx, appURL)
 	connect(t, ctx, l.URL, slapdtest.AliceDN, slapdtest.AlicePW)
 	waitText(t, ctx, "#status", "Connected to")
@@ -1454,7 +1487,7 @@ func TestUIServerAndSchema(t *testing.T) {
 	// The schema list, filtered: the exact name comes first.
 	waitJS(t, ctx, "attributes listed", `document.querySelectorAll('#scList .scitem').length > 50`)
 	waitText(t, ctx, "#scCount", "attributes")
-	run(t, ctx, set("#scFilter", "mail"), chromedp.Evaluate(`document.getElementById('scFilter').dispatchEvent(new Event('input'))`, nil))
+	run(t, ctx, set("#scFilter", "mail"), eval(`document.getElementById('scFilter').dispatchEvent(new Event('input'))`))
 	waitJS(t, ctx, "mail first", `document.querySelector('#scList .scitem').dataset.name === 'mail'`)
 	run(t, ctx, chromedp.Click(`#scList .scitem[data-name="mail"] a`))
 	waitText(t, ctx, "#scDetail", "0.9.2342.19200300.100.1.3")
@@ -1467,7 +1500,7 @@ func TestUIServerAndSchema(t *testing.T) {
 	// Follow it to a class that uses it, and from there up the inheritance chain.
 	run(t, ctx, chromedp.Click(`#scDetail .scref:nth-of-type(1)`)) // first class listed under "Used by"
 	waitJS(t, ctx, "switched to classes", `document.getElementById('scClasses').classList.contains('on')`)
-	run(t, ctx, set("#scFilter", "inetOrgPerson"), chromedp.Evaluate(`document.getElementById('scFilter').dispatchEvent(new Event('input'))`, nil))
+	run(t, ctx, set("#scFilter", "inetOrgPerson"), eval(`document.getElementById('scFilter').dispatchEvent(new Event('input'))`))
 	run(t, ctx, chromedp.Click(`#scList .scitem[data-name="inetOrgPerson"] a`))
 	waitText(t, ctx, "#scDetail h3", "inetOrgPerson")
 	waitText(t, ctx, "#scDetail", "structural")
@@ -1481,7 +1514,7 @@ func TestUIServerAndSchema(t *testing.T) {
 	}
 
 	// An attribute found by its alias (surname is another name for sn).
-	run(t, ctx, set("#scFilter", ""), chromedp.Click("#scAttrs"), set("#scFilter", "surname"), chromedp.Evaluate(`document.getElementById('scFilter').dispatchEvent(new Event('input'))`, nil))
+	run(t, ctx, set("#scFilter", ""), chromedp.Click("#scAttrs"), set("#scFilter", "surname"), eval(`document.getElementById('scFilter').dispatchEvent(new Event('input'))`))
 	run(t, ctx, chromedp.Click(`#scList .scitem[data-name="sn"] a`))
 	waitText(t, ctx, "#scDetail", "surname")
 	clickCopy(t, ctx, `#scDetail h3 .copy-btn`, "sn", "Copied the name")
@@ -1495,14 +1528,14 @@ func TestUIServerAndSchema(t *testing.T) {
 
 	// A class: find its entries.
 	run(t, ctx, chromedp.Click(`button[data-tab="server"]`), chromedp.Click("#scClasses"),
-		set("#scFilter", "posixGroup"), chromedp.Evaluate(`document.getElementById('scFilter').dispatchEvent(new Event('input'))`, nil))
+		set("#scFilter", "posixGroup"), eval(`document.getElementById('scFilter').dispatchEvent(new Event('input'))`))
 	run(t, ctx, chromedp.Click(`#scList .scitem[data-name="posixGroup"] a`), chromedp.Click(`#scDetail button.find`))
 	waitText(t, ctx, "#bFilter", "(objectClass=posixGroup)")
 	waitText(t, ctx, "#sOut", "1 result(s)")
 	waitText(t, ctx, "#sOut", "cn=staff,")
 
 	// Nothing matches: the list says zero rather than staying stale.
-	run(t, ctx, chromedp.Click(`button[data-tab="server"]`), set("#scFilter", "zzzzzzzz"), chromedp.Evaluate(`document.getElementById('scFilter').dispatchEvent(new Event('input'))`, nil))
+	run(t, ctx, chromedp.Click(`button[data-tab="server"]`), set("#scFilter", "zzzzzzzz"), eval(`document.getElementById('scFilter').dispatchEvent(new Event('input'))`))
 	waitText(t, ctx, "#scCount", "0 object classes")
 
 	var overflow bool
@@ -1586,7 +1619,7 @@ func TestUIBookmarksAndHistory(t *testing.T) {
 
 	// Picking one puts it back in the form (it does not run it).
 	run(t, ctx, set("#sFilter", "(x=y)"), set("#sBase", "dc=other"),
-		set("#hSel", "1"), chromedp.Evaluate(`document.getElementById('hSel').dispatchEvent(new Event('change'))`, nil))
+		set("#hSel", "1"), eval(`document.getElementById('hSel').dispatchEvent(new Event('change'))`))
 	waitJS(t, ctx, "form restored", `document.getElementById('sFilter').value === '(uid=alice)' && document.getElementById('sBase').value === `+q(people))
 	waitText(t, ctx, "#sNote", "recent search was loaded")
 
@@ -1733,7 +1766,7 @@ func TestUIKeyboardShortcuts(t *testing.T) {
 	}
 	connect(t, ctx, l.URL, slapdtest.AliceDN, slapdtest.AlicePW)
 	waitText(t, ctx, "#status", "Connected to")
-	run(t, ctx, chromedp.Evaluate(`document.activeElement.blur()`, nil))
+	run(t, ctx, eval(`document.activeElement.blur()`))
 
 	run(t, ctx, chromedp.KeyEvent("/"))
 	waitJS(t, ctx, "quick find focused", `document.activeElement.id === 'quickFind'`)
@@ -1754,7 +1787,7 @@ func TestUIKeyboardShortcuts(t *testing.T) {
 	}
 	run(t, ctx, chromedp.KeyEvent("t"))
 	waitJS(t, ctx, "tree filter focused", `document.activeElement.id === 'treeFilter'`)
-	run(t, ctx, chromedp.Evaluate(`document.activeElement.blur()`, nil))
+	run(t, ctx, eval(`document.activeElement.blur()`))
 	run(t, ctx, chromedp.KeyEvent("gb"))
 	waitJS(t, ctx, "bookmarks open", `document.getElementById('bookmarks').open`)
 
@@ -1825,7 +1858,7 @@ func TestUIEveryControlHasAName(t *testing.T) {
 		if bad := unnamedControls(t, ctx); len(bad) != 0 {
 			t.Errorf("%s: unnamed controls %v", dlg.id, bad)
 		}
-		run(t, ctx, chromedp.Evaluate(`document.getElementById('`+dlg.id+`').close()`, nil))
+		run(t, ctx, eval(`document.getElementById('`+dlg.id+`').close()`))
 	}
 }
 

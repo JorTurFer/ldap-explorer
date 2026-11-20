@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"ldap-explorer/internal/recipes"
-	"ldap-explorer/internal/slapdtest"
+	"github.com/JorTurFer/ldap-explorer/internal/recipes"
+	"github.com/JorTurFer/ldap-explorer/internal/slapdtest"
 )
 
 func TestRecipesAgainstRealServer(t *testing.T) {

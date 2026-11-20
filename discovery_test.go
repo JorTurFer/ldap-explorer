@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"ldap-explorer/internal/slapdtest"
+	"github.com/JorTurFer/ldap-explorer/internal/slapdtest"
 )
 
 // Tests of the discovery endpoints against a real OpenLDAP.

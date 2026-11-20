@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"ldap-explorer/internal/recipes"
+	"github.com/JorTurFer/ldap-explorer/internal/recipes"
 )
 
 func recipeEnv() (*recipes.Env, error) {

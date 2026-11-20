@@ -10,9 +10,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/JorTurFer/ldap-explorer/internal/ldapfilter"
+	"github.com/JorTurFer/ldap-explorer/internal/recipes"
 	"github.com/go-ldap/ldap/v3"
-	"ldap-explorer/internal/ldapfilter"
-	"ldap-explorer/internal/recipes"
 )
 
 type groupRef struct {

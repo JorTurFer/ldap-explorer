@@ -11,8 +11,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/JorTurFer/ldap-explorer/internal/slapdtest"
 	"github.com/zalando/go-keyring"
-	"ldap-explorer/internal/slapdtest"
 )
 
 const vaultPass = "correct horse battery"

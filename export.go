@@ -13,8 +13,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/JorTurFer/ldap-explorer/internal/ldif"
 	"github.com/go-ldap/ldap/v3"
-	"ldap-explorer/internal/ldif"
 )
 
 // toLDIF converts search results to LDIF entries: objectClass first, then the other

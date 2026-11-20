@@ -5,9 +5,9 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/JorTurFer/ldap-explorer/internal/slapdtest"
 	"github.com/chromedp/cdproto/emulation"
 	"github.com/chromedp/chromedp"
-	"ldap-explorer/internal/slapdtest"
 )
 
 // TestScreenshots regenerates the images used in docs/USAGE.md from the real UI
@@ -31,8 +31,10 @@ func TestScreenshots(t *testing.T) {
 	shot := func(name string) {
 		t.Helper()
 		waitJS(t, ctx, "confirmations gone", `document.getElementById('toasts').children.length === 0`)
-		var png []byte
-		run(t, ctx, chromedp.CaptureScreenshot(&png))
+		png, err := chromedp.Run(ctx, chromedp.CaptureScreenshot())
+		if err != nil {
+			t.Fatal(err)
+		}
 		if err := os.WriteFile(filepath.Join(out, name+".png"), png, 0o644); err != nil {
 			t.Fatal(err)
 		}
@@ -105,7 +107,7 @@ func TestScreenshots(t *testing.T) {
 	run(t, ctx, chromedp.Click(`button[data-tab="server"]`), chromedp.WaitVisible("#srvInfo"))
 	waitText(t, ctx, "#srvInfo", "Paged results")
 	waitJS(t, ctx, "attributes listed", `document.querySelectorAll('#scList .scitem').length > 50`)
-	run(t, ctx, set("#scFilter", "mail"), chromedp.Evaluate(`document.getElementById('scFilter').dispatchEvent(new Event('input'))`, nil))
+	run(t, ctx, set("#scFilter", "mail"), eval(`document.getElementById('scFilter').dispatchEvent(new Event('input'))`))
 	waitJS(t, ctx, "mail first", `document.querySelector('#scList .scitem').dataset.name === 'mail'`)
 	run(t, ctx, chromedp.Click(`#scList .scitem[data-name="mail"] a`))
 	waitText(t, ctx, "#scDetail", "caseIgnoreIA5SubstringsMatch")
@@ -148,7 +150,9 @@ func TestScreenshots(t *testing.T) {
 
 	// 6. Dark theme (follows the system setting), on the table again.
 	run(t, ctx, chromedp.Click(`button[data-tab="search"]`))
-	run(t, ctx, emulation.SetEmulatedMedia().WithFeatures([]*emulation.MediaFeature{
-		{Name: "prefers-color-scheme", Value: "dark"}}))
+	if _, err := chromedp.Call(ctx, emulation.SetEmulatedMedia, emulation.SetEmulatedMediaParams{
+		Features: []*emulation.MediaFeature{{Name: "prefers-color-scheme", Value: "dark"}}}); err != nil {
+		t.Fatal(err)
+	}
 	shot("search-table-dark")
 }

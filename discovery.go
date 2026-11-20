@@ -13,9 +13,9 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/JorTurFer/ldap-explorer/internal/ldapfilter"
+	"github.com/JorTurFer/ldap-explorer/internal/ldapschema"
 	"github.com/go-ldap/ldap/v3"
-	"ldap-explorer/internal/ldapfilter"
-	"ldap-explorer/internal/ldapschema"
 )
 
 // ---------- RootDSE / server flavor ----------
