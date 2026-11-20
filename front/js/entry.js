@@ -10,6 +10,7 @@ import { copyBtn, copyText, asyncCopyBtn } from "./ui/copy.js";
 import { downloadText, downloadBytes } from "./ui/download.js";
 import { toast } from "./ui/toast.js";
 import { entryToJSON } from "./table.js";
+import { isBookmarked, toggleBookmark } from "./bookmarks.js";
 
 let currentDN = null;
 
@@ -83,6 +84,7 @@ export async function showEntry(dn) {
 }
 
 export function initEntry() {
+  on("bookmarks-changed", () => { const s = $("eStar"); if (s && s.paint) s.paint(); }); // keep the star honest
   on("select", ({ dn }) => showEntry(dn));
   on("disconnected", () => {
     currentDN = null;
@@ -108,7 +110,12 @@ function breadcrumb(dn) {
 function entryActions(e) {
   const ldif = async () => apiText("/api/entry/ldif?dn=" + encodeURIComponent(e.dn) + ($("chkOp").checked ? "&operational=1" : ""));
   const guard = (fn) => async () => { try { await fn(); } catch (err) { toast(err.message, "err"); } };
+  const star = el("button", { type: "button", id: "eStar", class: "small-btn star", title: "Keep this entry in your bookmarks", onclick: () => toggleBookmark(e.dn) });
+  const paintStar = () => { const on = isBookmarked(e.dn); star.textContent = on ? "★ Bookmarked" : "☆ Bookmark"; star.classList.toggle("on", on); };
+  paintStar();
+  star.paint = paintStar;
   return el("div", { class: "entry-actions" },
+    star,
     el("button", { type: "button", id: "eCopyLdif", class: "small-btn", textContent: "Copy as LDIF", title: "The whole entry in LDIF, to paste into a file or another tool",
       onclick: guard(async () => copyText((await ldif()).text, "Copied the entry as LDIF")) }),
     el("button", { type: "button", id: "eDlLdif", class: "small-btn", textContent: "Download LDIF", title: "Save the entry as an .ldif file",

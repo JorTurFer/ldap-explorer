@@ -215,3 +215,13 @@ h3.section { margin: var(--space-4) 0 var(--space-2); font-size: var(--text-l); 
 .scref { color: var(--accent); cursor: pointer; font-family: var(--mono); font-size: 12px; }
 .scref:hover { text-decoration: underline; }
 .usedby { display: inline-flex; gap: var(--space-1); align-items: baseline; margin-right: var(--space-2); }
+
+/* bookmarks */
+details.bookmarks { margin: var(--space-2) var(--space-2) 0; border: 1px solid var(--line); border-radius: var(--radius-m); padding: 2px var(--space-2); background: var(--bg); }
+details.bookmarks > summary { cursor: pointer; font-size: var(--text-m); }
+.bmlist { list-style: none; margin: var(--space-1) 0; padding: 0; max-height: 160px; overflow: auto; }
+.bm { display: flex; align-items: baseline; gap: var(--space-2); padding: 1px 0; }
+.bm .dnlink { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bm .copy-btn { opacity: 0; }
+.bm:hover .copy-btn { opacity: 1; }
+button.star.on { color: var(--warn); border-color: var(--warn); }

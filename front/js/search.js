@@ -5,6 +5,7 @@ import { showTab } from "./tabs.js";
 import { showResults } from "./results.js";
 import { resolveFilter, setQuery, getQuery } from "./builder.js";
 import { optionsSummary } from "./labels.js";
+import { emit } from "./events.js";
 
 let mode = "builder"; // "builder" | "raw"
 
@@ -54,6 +55,7 @@ async function doSearch() {
     const res = await api("/api/search", { body });
     const ms = Math.round(performance.now() - t0);
     showResults(out, res, $("sAttrs").value, ms, body);
+    emit("searched", { state: currentState(), summary: filter }); // for the history
   } catch (e) { out.replaceChildren(el("div", { class: "err mt12", textContent: e.message })); }
 }
 

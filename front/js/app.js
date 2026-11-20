@@ -16,6 +16,8 @@ import { initQuick } from "./quick.js";
 import { initSettings } from "./settings.js";
 import { initQuickFind } from "./quickfind.js";
 import { initServer } from "./server.js";
+import { initBookmarks } from "./bookmarks.js";
+import { initHistory } from "./history.js";
 
 initTabs();
 initSettings();
@@ -32,6 +34,8 @@ initRecipes();
 initExplore();
 initServer();
 initSavedQueries();
+initBookmarks();
+initHistory();
 
 loadProfiles();
 // Heartbeat: if the tab is closed the server notices and exits.

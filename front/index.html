@@ -24,6 +24,11 @@
 <main>
   <nav id="treeBox">
     <div class="treebar"><input type="text" id="treeFilter" placeholder="Filter the tree, or paste a DN and press Enter" disabled autocomplete="off" spellcheck="false"></div>
+    <details id="bookmarks" class="bookmarks">
+      <summary>Bookmarks <span id="bmCount" class="badge">0</span></summary>
+      <ul id="bmList" class="bmlist"></ul>
+      <div id="bmEmpty" class="muted small">Press ☆ Bookmark on an entry to keep it here.</div>
+    </details>
     <div id="treeHint" class="muted small hidden">Only the nodes you have already opened are filtered. Use Search to look through the whole directory.</div>
     <div id="tree"><div class="empty">Connect to a server to browse.</div></div>
   </nav>
@@ -43,6 +48,8 @@
         <input type="text" id="qName" placeholder="name to save as" maxlength="100">
         <button type="button" id="qSave" disabled>Save</button>
         <button type="button" id="qDelete" disabled>Delete</button>
+        <select id="hSel" title="Searches you ran recently on this connection" disabled><option value="">— no recent searches —</option></select>
+        <button type="button" id="hClear" class="small-btn" disabled>Clear history</button>
         <span id="qMsg" class="muted small"></span>
       </div>
       <div class="sform">

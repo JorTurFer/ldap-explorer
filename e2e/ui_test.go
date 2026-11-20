@@ -1495,3 +1495,97 @@ func TestUIServerAndSchema(t *testing.T) {
 		t.Error("the Server tab makes the page scroll sideways")
 	}
 }
+
+// ---------- bookmarks and history ----------
+
+func TestUIBookmarksAndHistory(t *testing.T) {
+	l := slapdtest.Start(t)
+	appURL := startApp(t)
+	ctx := browser(t)
+	run(t, ctx, chromedp.Navigate(appURL), chromedp.WaitVisible("#btnConn"))
+	connect(t, ctx, l.URL, slapdtest.AliceDN, slapdtest.AlicePW)
+	waitText(t, ctx, "#status", "Connected to")
+	bobDN := "uid=bob,ou=people," + slapdtest.BaseDN
+	goToDN := func(dn string) {
+		run(t, ctx, set("#treeFilter", dn), chromedp.SendKeys("#treeFilter", "\r"))
+		waitText(t, ctx, "#pane-entry .dn", dn)
+	}
+
+	// Bookmark two entries with the star.
+	goToDN(slapdtest.AliceDN)
+	waitText(t, ctx, "#eStar", "☆ Bookmark")
+	run(t, ctx, chromedp.Click("#eStar"))
+	waitText(t, ctx, "#eStar", "★ Bookmarked")
+	waitText(t, ctx, "#toasts", "Bookmarked")
+	goToDN(bobDN)
+	waitText(t, ctx, "#eStar", "☆ Bookmark") // a different entry: not starred
+	run(t, ctx, chromedp.Click("#eStar"))
+	waitText(t, ctx, "#bmCount", "2")
+
+	// The list: labels from the RDN, a click opens the entry (and the star is on again).
+	run(t, ctx, chromedp.Click("#bookmarks > summary"), chromedp.WaitVisible("#bmList"))
+	var labels []string
+	js(t, ctx, `[...document.querySelectorAll('#bmList .bm .dnlink')].map(a => a.textContent)`, &labels)
+	if strings.Join(labels, ",") != "alice,bob" {
+		t.Errorf("bookmark labels: %v", labels)
+	}
+	run(t, ctx, chromedp.Click(`#bmList .bm[data-dn="`+slapdtest.AliceDN+`"] .dnlink`))
+	waitText(t, ctx, "#pane-entry .dn", slapdtest.AliceDN)
+	waitText(t, ctx, "#eStar", "★ Bookmarked")
+
+	// Removing one from the list updates the star of the entry being shown.
+	goToDN(bobDN)
+	waitText(t, ctx, "#eStar", "★ Bookmarked")
+	run(t, ctx, chromedp.Click(`#bmList .bm[data-dn="`+bobDN+`"] .bm-remove`))
+	waitText(t, ctx, "#bmCount", "1")
+	waitText(t, ctx, "#eStar", "☆ Bookmark")
+
+	// They are kept: reload the page, reconnect, and alice is still there.
+	reload(t, ctx, appURL)
+	connect(t, ctx, l.URL, slapdtest.AliceDN, slapdtest.AlicePW)
+	waitText(t, ctx, "#status", "Connected to")
+	waitText(t, ctx, "#bmCount", "1")
+
+	// History: every search is remembered, newest first, a repeat moves to the top.
+	people := "ou=people," + slapdtest.BaseDN
+	search := func(filter string) {
+		run(t, ctx, chromedp.Click(`button[data-tab="search"]`), chromedp.WaitReady("#sBase"), rawMode(),
+			set("#sBase", people), set("#sScope", "one"), set("#sFilter", filter), chromedp.Click("#btnSearch"))
+		waitText(t, ctx, "#sOut", "result(s)")
+	}
+	options := func() []string {
+		var o []string
+		js(t, ctx, `[...document.querySelectorAll('#hSel option')].map(o => o.textContent)`, &o)
+		return o
+	}
+	waitText(t, ctx, "#hSel", "no recent searches")
+	search("(uid=bob)")
+	search("(uid=alice)")
+	waitJS(t, ctx, "two items", `document.querySelectorAll('#hSel option').length === 3`)
+	if o := options(); !strings.HasPrefix(o[1], "(uid=alice) · ") || !strings.HasPrefix(o[2], "(uid=bob) · ") {
+		t.Errorf("newest first: %v", o)
+	}
+	search("(uid=bob)")
+	waitJS(t, ctx, "bob on top, no duplicate", `document.querySelectorAll('#hSel option').length === 3 && document.querySelectorAll('#hSel option')[1].textContent.startsWith('(uid=bob)')`)
+
+	// Picking one puts it back in the form (it does not run it).
+	run(t, ctx, set("#sFilter", "(x=y)"), set("#sBase", "dc=other"),
+		set("#hSel", "1"), chromedp.Evaluate(`document.getElementById('hSel').dispatchEvent(new Event('change'))`, nil))
+	waitJS(t, ctx, "form restored", `document.getElementById('sFilter').value === '(uid=alice)' && document.getElementById('sBase').value === `+q(people))
+	waitText(t, ctx, "#sNote", "recent search was loaded")
+
+	// A builder search is remembered too, and "clear" empties the list.
+	run(t, ctx, chromedp.Click("#modeBuilder"))
+	setAttr(t, ctx, 0, "mail")
+	setVal(t, ctx, 0, "example")
+	waitText(t, ctx, "#bFilter", "(mail=*example*)")
+	run(t, ctx, chromedp.Click("#btnSearch"))
+	waitJS(t, ctx, "builder search in the history", `document.querySelectorAll('#hSel option')[1].textContent.startsWith('(mail=*example*)')`)
+	run(t, ctx, chromedp.Click("#hClear"))
+	waitText(t, ctx, "#hSel", "no recent searches")
+	var disabled bool
+	js(t, ctx, `document.getElementById('hSel').disabled && document.getElementById('hClear').disabled`, &disabled)
+	if !disabled {
+		t.Error("with no history both controls are off")
+	}
+}
