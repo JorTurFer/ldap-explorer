@@ -1005,7 +1005,8 @@ func allowClipboard(t *testing.T, ctx context.Context, appURL string) {
 func clipboard(t *testing.T, ctx context.Context) string {
 	t.Helper()
 	var s string
-	run(t, ctx, chromedp.Evaluate(`navigator.clipboard.readText()`, &s, func(p *cdpruntime.EvaluateParams) *cdpruntime.EvaluateParams {
+	// Windows stores line breaks as CRLF in the clipboard (what any app pasting from it expects).
+	run(t, ctx, chromedp.Evaluate(`navigator.clipboard.readText().then(t => t.replace(/\r\n/g, "\n"))`, &s, func(p *cdpruntime.EvaluateParams) *cdpruntime.EvaluateParams {
 		return p.WithAwaitPromise(true)
 	}))
 	return s
@@ -1015,7 +1016,7 @@ func clipboard(t *testing.T, ctx context.Context) string {
 func clickCopy(t *testing.T, ctx context.Context, button, wantClipboard, wantToast string) {
 	t.Helper()
 	run(t, ctx, chromedp.Click(button))
-	waitJS(t, ctx, "clipboard "+wantClipboard, fmt.Sprintf(`navigator.clipboard.readText().then(t => t === %s)`, q(wantClipboard)))
+	waitJS(t, ctx, "clipboard "+wantClipboard, fmt.Sprintf(`navigator.clipboard.readText().then(t => t.replace(/\r\n/g, "\n") === %s)`, q(wantClipboard)))
 	if got := clipboard(t, ctx); got != wantClipboard {
 		t.Errorf("%s: clipboard %q, want %q", button, got, wantClipboard)
 	}
