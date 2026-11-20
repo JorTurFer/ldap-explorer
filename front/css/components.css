@@ -249,4 +249,4 @@ tr.cmp-onlyA td.cmp-cell:nth-child(2), tr.cmp-onlyB td.cmp-cell:nth-child(3) { b
 /* The saved-queries row must not change size when its lists are refreshed: the Search button
    sits below it and would jump under the mouse. */
 .saved select { width: 210px; max-width: 100%; text-overflow: ellipsis; }
-.saved #qMsg { min-width: 90px; }
+.saved #qMsg { flex: 1 0 100%; min-height: 1.4em; } /* its own line, always reserved: its text never changes how the row wraps */
